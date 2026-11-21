@@ -80,10 +80,12 @@ class SceneInspector(Extension):
         for name in scene.CONTAINERS:
             radius, _ = scene.CONTAINER_SIZE[name]
             active = self.target is not None and self.target[1] == name
-            rgba = (0.25, 0.85, 0.45, 0.35) if active else (0.4, 0.6, 1.0, 0.18)
+            # dreamlabs.ai-Palette: grass (#7de290) fuer das aktive Ziel, sky (#8bc7fc) sonst
+            rgba = (0.49, 0.89, 0.56, 0.40) if active else (0.55, 0.78, 0.99, 0.22)
             overlay_disk(mjscene, scene.position(env, name) + [0, 0, 0.003], radius=radius, rgba=rgba)
         if self.target is not None:
             obj, container = self.target
             start, end = scene.position(env, obj), scene.position(env, container) + [0, 0, 0.03]
-            overlay_sphere(mjscene, start + [0, 0, 0.06], radius=0.008, rgba=(1, 0.8, 0.2, 0.9))
-            overlay_line(mjscene, start + [0, 0, 0.06], end, rgba=(1, 0.8, 0.2, 0.6))
+            # creamsicle (#ffb06c) fuer Marker und Pfad
+            overlay_sphere(mjscene, start + [0, 0, 0.06], radius=0.008, rgba=(1.0, 0.69, 0.42, 0.95))
+            overlay_line(mjscene, start + [0, 0, 0.06], end, rgba=(1.0, 0.69, 0.42, 0.7))

@@ -4,58 +4,88 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Dream-1 Lab</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bitcount+Single&family=Figtree:wght@400;500;600&display=swap">
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
   <header class="topbar">
-    <div class="brand"><span class="logo">◆</span> Dream-1 Lab</div>
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <span>Dream-1 Lab</span>
+      <span class="brand-sub pixel">Sim Dashboard</span>
+    </div>
     <div class="pills">
-      <span class="pill" id="pill-ws"><i></i>Verbindung</span>
-      <span class="pill" id="pill-sim"><i></i>Simulation</span>
-      <span class="pill" id="pill-key"><i></i>API-Key</span>
-      <span class="pill" id="pill-run"><i></i>Bereit</span>
+      <span class="pill" id="pill-ws"><i></i><span>Verbindung</span></span>
+      <span class="pill" id="pill-sim"><i></i><span>Simulation</span></span>
+      <span class="pill" id="pill-key"><i></i><span>API-Key</span></span>
+      <span class="pill" id="pill-run"><i></i><span>Bereit</span></span>
     </div>
   </header>
 
   <main class="layout">
     <aside class="col col-left">
-      <nav class="tabs" id="ext-tabs"></nav>
-      <div class="panels" id="ext-panels">
-        <div class="empty">Keine Extensions geladen.</div>
-      </div>
+      <section class="card tools">
+        <div class="section-head"><h2 class="pixel">Tools</h2></div>
+        <nav class="tabs" id="ext-tabs"></nav>
+        <div class="panels" id="ext-panels">
+          <div class="empty">Keine Extensions geladen.</div>
+        </div>
+      </section>
     </aside>
 
     <section class="col col-center">
-      <div class="viewer" id="viewer">
-        <img id="main-view" alt="Simulation" draggable="false">
-        <div class="viewer-badges">
-          <span class="badge" id="badge-time">t = 0.0 s</span>
-          <span class="badge" id="badge-run" hidden></span>
-        </div>
-        <div class="viewer-hint">Ziehen: drehen · Rechts/Shift: verschieben · Rad: zoomen · Doppelklick: zurücksetzen</div>
+      <div class="section-head">
+        <h2 class="pixel">Simulation</h2>
+        <span class="status-line">
+          <i class="dot live" id="status-dot"></i>
+          <strong id="status-text">Bereit</strong>
+          <span class="muted" id="status-sub">Dein Prompt läuft als Nächstes</span>
+        </span>
       </div>
 
-      <form class="taskbar" id="taskbar">
-        <input id="task" list="task-list" placeholder="Task für Dream-1, z. B. put apple into the bowl" autocomplete="off">
-        <datalist id="task-list"></datalist>
-        <input id="model" class="small" title="Modell">
-        <label class="seconds" title="Maximale Dauer">
-          <input id="seconds" type="number" min="5" max="3600" step="5" value="60"> s
-        </label>
-        <button type="submit" class="btn primary" id="btn-run">▶ Start</button>
-        <button type="button" class="btn danger" id="btn-stop">■ Stop</button>
-        <span class="sep"></span>
-        <button type="button" class="btn" id="btn-demo" title="Testbewegung ohne API (keine Credits)">Offline-Demo</button>
-        <button type="button" class="btn" id="btn-home" title="Arme in Ausgangspose fahren">Home</button>
-        <button type="button" class="btn" id="btn-reset" title="Objekte und Arme zurücksetzen">Reset</button>
+      <div class="frame" id="viewer-frame">
+        <div class="viewer" id="viewer">
+          <img id="main-view" alt="Simulation" draggable="false">
+          <div class="viewer-badges">
+            <span class="chip-dark" id="badge-run" hidden><i class="dot live"></i><span>Live</span></span>
+            <span class="chip-dark mono" id="badge-time">t = 0.0 s</span>
+          </div>
+          <div class="viewer-hint">Ziehen: drehen · Rechts/Shift: verschieben · Rad: zoomen · Doppelklick: zurück</div>
+          <div class="caption">
+            <span class="caption-label" id="caption-label">Bereit</span>
+            <p id="caption-task">Warte auf den nächsten Prompt …</p>
+          </div>
+        </div>
+      </div>
+
+      <form class="prompt" id="taskbar">
+        <div class="prompt-main">
+          <input id="task" list="task-list" placeholder="Prompt für Dream-1, z. B. put apple into the bowl" autocomplete="off">
+          <datalist id="task-list"></datalist>
+          <button type="submit" class="send" id="btn-run" title="Mit Dream-1 starten" aria-label="Mit Dream-1 starten">
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
+        <div class="prompt-tools">
+          <label class="mini">Modell <input id="model"></label>
+          <label class="mini">Dauer <input id="seconds" type="number" min="5" max="3600" step="5" value="60"> s</label>
+          <span class="spacer"></span>
+          <button type="button" class="btn btn-outline btn-sm danger" id="btn-stop">■ Stop</button>
+          <button type="button" class="btn btn-outline btn-sm" id="btn-demo" title="Testbewegung ohne API (keine Credits)">Offline-Demo</button>
+          <button type="button" class="btn btn-outline btn-sm" id="btn-home" title="Arme in Ausgangspose fahren">Home</button>
+          <button type="button" class="btn btn-outline btn-sm" id="btn-reset" title="Objekte und Arme zurücksetzen">Reset</button>
+        </div>
       </form>
 
+      <div class="section-head"><h2 class="pixel">Roboter-Kameras</h2><span class="muted">Was Dream-1 sieht</span></div>
       <div class="cams" id="cams"></div>
     </section>
 
     <aside class="col col-right">
       <section class="card">
-        <h3>Aktueller Lauf</h3>
+        <div class="section-head"><h2 class="pixel">Aktueller Lauf</h2></div>
         <dl class="kv" id="run-info">
           <dt>Status</dt><dd id="ri-state">–</dd>
           <dt>Task</dt><dd id="ri-task">–</dd>
@@ -67,12 +97,12 @@
         </dl>
       </section>
       <section class="card">
-        <h3>Antwortzeit (RTT)</h3>
+        <div class="section-head"><h2 class="pixel">Antwortzeit</h2><span class="muted">RTT pro Request</span></div>
         <canvas id="rtt-chart" height="90"></canvas>
       </section>
       <div id="right-slot"></div>
       <section class="card grow">
-        <h3>Log <button class="link" id="btn-clear-log" type="button">leeren</button></h3>
+        <div class="section-head"><h2 class="pixel">Log</h2><button class="link" id="btn-clear-log" type="button">leeren</button></div>
         <ol class="log" id="log"></ol>
       </section>
     </aside>

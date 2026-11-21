@@ -104,7 +104,7 @@ function setupCameras(names) {
   for (const name of names) {
     const img = h("img", { src: `/stream/${name}.mjpg`, alt: name });
     img.onerror = () => setTimeout(() => (img.src = `/stream/${name}.mjpg?r=${Date.now()}`), 1500);
-    $("cams").append(h("div", { class: "cam" }, img, h("span", {}, labels[name] || name)));
+    $("cams").append(h("div", { class: "cam" }, h("div", { class: "cam-inner" }, img, h("span", {}, labels[name] || name))));
   }
 }
 
@@ -135,12 +135,18 @@ function updateControls(status) {
   const busy = status.running || status.queued > 0;
   for (const id of ["btn-run", "btn-demo", "btn-home"]) $(id).disabled = busy;
   $("btn-stop").disabled = !busy;
+  $("viewer-frame").classList.toggle("running", status.running);
+  $("status-dot").className = `dot ${busy ? "wait" : "live"}`;
   if (status.running) {
     const r = status.run;
-    setPill("pill-run", "busy", r.model === "offline" ? "Offline-Lauf" : "Dream-1 läuft");
+    const offline = r.model === "offline";
+    setPill("pill-run", "busy", offline ? "Offline-Lauf" : "Dream-1 läuft");
     $("badge-run").hidden = false;
-    $("badge-run").className = "badge live";
-    $("badge-run").textContent = `● ${r.label || r.task}`;
+    $("badge-run").lastChild.textContent = offline ? "Offline" : "Live";
+    $("status-text").textContent = offline ? "Offline-Lauf" : "Dream-1 arbeitet";
+    $("status-sub").textContent = r.label || r.source;
+    $("caption-label").textContent = offline ? "Offline · ohne API" : `Dream-1 · ${r.model}`;
+    $("caption-task").textContent = `“${r.task}”`;
     $("ri-state").textContent = "läuft";
     $("ri-task").textContent = r.task;
     $("ri-source").textContent = r.source + (r.label ? ` · ${r.label}` : "");
@@ -150,6 +156,10 @@ function updateControls(status) {
   } else {
     setPill("pill-run", status.queued ? "warn" : "ok", status.queued ? `${status.queued} wartend` : "Bereit");
     $("badge-run").hidden = true;
+    $("status-text").textContent = status.queued ? `${status.queued} wartend` : "Bereit";
+    $("status-sub").textContent = "Dein Prompt läuft als Nächstes";
+    $("caption-label").textContent = "Bereit";
+    $("caption-task").textContent = "Warte auf den nächsten Prompt …";
   }
 }
 
@@ -164,21 +174,33 @@ function drawRtt() {
   const ctx = canvas.getContext("2d");
   ctx.scale(dpr, dpr);
   ctx.clearRect(0, 0, w, hgt);
-  ctx.font = "11px system-ui";
-  ctx.fillStyle = "#8b949e";
+  const css = getComputedStyle(document.documentElement);
+  const color = (name) => css.getPropertyValue(name).trim();
+  ctx.font = `12px ${color("--font-sans")}`;
+  ctx.fillStyle = color("--ink-3");
   if (!rtts.length) { ctx.fillText("Noch keine Requests", 4, hgt / 2); return; }
-  const max = Math.max(1.5, ...rtts) * 1.1;
+  const max = Math.max(1.5, ...rtts) * 1.15;
   const step = w / Math.max(1, rtts.length - 1);
-  ctx.strokeStyle = "#2a313c";
-  const y1 = hgt - (1 / max) * hgt;
-  ctx.beginPath(); ctx.moveTo(0, y1); ctx.lineTo(w, y1); ctx.stroke();
-  ctx.fillText("1 s", 2, y1 - 3);
-  ctx.strokeStyle = "#6aa9ff"; ctx.lineWidth = 2; ctx.beginPath();
-  rtts.forEach((v, i) => { const x = i * step, y = hgt - (v / max) * hgt; i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+  const y = (v) => hgt - (v / max) * (hgt - 4);
+  ctx.strokeStyle = color("--grey-2");
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath(); ctx.moveTo(0, y(1)); ctx.lineTo(w, y(1)); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillText("1 s", 2, y(1) - 4);
+  const gradient = ctx.createLinearGradient(0, 0, 0, hgt);
+  gradient.addColorStop(0, "rgba(255, 184, 123, .45)");
+  gradient.addColorStop(1, "rgba(255, 232, 133, 0)");
+  ctx.beginPath();
+  rtts.forEach((v, i) => (i ? ctx.lineTo(i * step, y(v)) : ctx.moveTo(0, y(v))));
+  ctx.lineTo((rtts.length - 1) * step, hgt); ctx.lineTo(0, hgt); ctx.closePath();
+  ctx.fillStyle = gradient; ctx.fill();
+  ctx.strokeStyle = color("--creamsicle-deep"); ctx.lineWidth = 2; ctx.lineJoin = "round"; ctx.beginPath();
+  rtts.forEach((v, i) => (i ? ctx.lineTo(i * step, y(v)) : ctx.moveTo(0, y(v))));
   ctx.stroke();
   const avg = rtts.reduce((a, b) => a + b, 0) / rtts.length;
-  ctx.fillStyle = "#e6edf3";
-  ctx.fillText(`Ø ${avg.toFixed(2)} s · letzte ${rtts.at(-1).toFixed(2)} s`, w - 150, 12);
+  ctx.fillStyle = color("--ink");
+  ctx.textAlign = "right";
+  ctx.fillText(`Ø ${avg.toFixed(2)} s · letzte ${rtts.at(-1).toFixed(2)} s`, w - 2, 12);
 }
 
 // ---------------- Events ----------------

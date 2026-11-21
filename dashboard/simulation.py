@@ -38,6 +38,22 @@ JPEG_QUALITY = 80
 CAMERAS = ("top", "left", "right")
 
 
+## Heller, warmer Boden fuer die Hauptansicht (dreamlabs.ai "clay"/"stage"-Toene), RGBA 0..1.
+STAGE_FLOOR = (0.89, 0.875, 0.85, 1.0)  # ergibt mit emission ~#ede9e1 im Hintergrund
+
+
+def _stage_floor(model, scene: mujoco.MjvScene) -> None:
+    """Faerbt die Bodenebene NUR in dieser Szene (= nur Hauptansicht) hell ein.
+    Modell und Roboter-Kameras (= was Dream-1 sieht) bleiben unveraendert."""
+    for i in range(scene.ngeom):
+        geom = scene.geoms[i]
+        if geom.objtype == mujoco.mjtObj.mjOBJ_GEOM and model.geom_type[geom.objid] == mujoco.mjtGeom.mjGEOM_PLANE:
+            geom.rgba[:] = STAGE_FLOOR
+            geom.matid = -1
+            geom.emission = 0.6  # leuchtet selbst, damit der Hintergrund nicht ins Dunkle abfaellt
+            geom.reflectance = 0.0
+
+
 class OrbitCamera:
     """Freie Kamera der Hauptansicht; der Browser dreht/zoomt sie, der Sim-Thread rendert damit."""
 
@@ -319,6 +335,7 @@ class SimWorker(threading.Thread):
             self._last["main"] = now
             self.camera.apply(self.main_cam)
             self.main_renderer.update_scene(self.env.data, camera=self.main_cam)
+            _stage_floor(self.env.model, self.main_renderer.scene)
             for ext in self.extensions:
                 try:
                     ext.decorate(self.env, self.main_renderer.scene)
