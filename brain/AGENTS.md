@@ -1,5 +1,9 @@
 # Rules for the AI agent that keeps this wiki
 
+**Status: planned, not in use yet.** Today the script `build_wiki.py` keeps the wiki (see `README.md`). These rules
+are kept for when the team adds an AI agent. The agent must then leave the script's pages alone (they start with
+"made by brain/build_wiki.py") and write its own pages next to them; the script lists those in `wiki/index.md` too.
+
 This folder is the team's second brain for Dream-1 Lab. It follows Andrej Karpathy's "LLM wiki" idea: an AI agent
 reads sources and writes a wiki of linked Markdown pages; people read the wiki and ask questions; the agent keeps it
 up to date.

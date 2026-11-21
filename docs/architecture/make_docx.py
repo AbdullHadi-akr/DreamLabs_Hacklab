@@ -144,8 +144,8 @@ image("1-deployment.png", "Deployment diagram: host laptop with WSL, dashboard p
 p("One laptop, the host, does all the heavy work: physics, camera pictures, recording. Every other computer only "
   "shows a web page. The host is a teammate's laptop.")
 table(["Place", "What runs or lies there", "Status"], [
-    ["Host laptop, Windows 11", "The web browser of the operator. The AI agent (Claude Code or Codex) that keeps "
-     "the wiki of the second brain up to date; it can also run on any other laptop with the repository.", "Built."],
+    ["Host laptop, Windows 11", "The web browser of the operator. Planned: an AI agent (Claude Code or Codex) that "
+     "summarizes the team notes and answers questions about the wiki.", "Browser: built. AI agent: planned."],
     ["WSL 2, Ubuntu 24.04 (Linux inside Windows)", "The dashboard process (python start.py); cloudflared, the "
      "program that makes the public link, started from the menu entry Players; the code folders dream-tool (with "
      "the second brain folder brain/) and dreamlabs; the out/ folder with the database, the episodes and the test "
@@ -191,7 +191,8 @@ table(["Container", "Technology", "Job"], [
      "that Dream Labs checks: 3 camera videos, a table of arm values, description files."],
     ["Second brain", "Markdown files in the folder brain/, in git", "raw/: notes the dashboard writes by itself "
      "(every Dream-1 run, every robustness test, every export, a daily summary) and notes people write. wiki/: "
-     "pages an AI agent writes from raw/ when someone writes 'ingest'. People read it in Obsidian or on GitHub."],
+     "pages the script brain/build_wiki.py makes from raw/: per task, per model, robustness, exports, notes, "
+     "decisions. People read it in Obsidian or on GitHub. An AI agent that adds summaries is planned."],
 ], [2600, 4200, 7000], new_page=True)
 
 h2("2.3 Level 3: components of the dashboard application", page_break=True)
@@ -206,7 +207,8 @@ table(["Component", "File", "Job"], [
      "refuses a run that could pass the monthly limit of $100, and computes the balance from the starting balance "
      "of $150. The Dream Labs API does not report the balance, so the dashboard counts calls x price."],
     ["Second brain notes", "dashboard/brain.py", "Writes Markdown notes into brain/raw: one line per Dream-1 run, one "
-     "page per robustness test and per export, and a daily summary read from the lab database."],
+     "page per robustness test and per export, and a daily summary read from the lab database. After each note it "
+     "runs brain/build_wiki.py, which rewrites the wiki pages in brain/wiki."],
     ["Event bus", "dashboard/events.py", "Sends each event (run started, episode state, log line) to every open "
      "browser."],
     ["Sim worker", "dashboard/simulation.py", "The one thread that owns the simulator. Between runs it holds the "
@@ -255,8 +257,9 @@ table(["Part", "Status", "Where"], [
     ["Export with Dream Labs' own dataset check", "Built", "dashboard/episodes.py"],
     ["Multiplayer: second person controls one arm from another laptop", "Built", "dashboard/multiplayer.py"],
     ["Cloudflare quick tunnel with access code", "Built", "dashboard/multiplayer.py, ~/Hacklab/bin/cloudflared"],
-    ["Second brain: notes and wiki in the team repository, fed from the database", "Built",
-     "dashboard/brain.py, brain/"],
+    ["Second brain: notes and wiki pages made by a script, in the team repository", "Built",
+     "dashboard/brain.py, brain/build_wiki.py"],
+    ["Second brain: AI agent that summarizes notes and answers questions", "Planned", "rules in brain/AGENTS.md"],
     ["Credits: balance, estimate, ask above $0.10, monthly limit", "Built", "dashboard/credits.py"],
     ["More success rules (lift, push, next to, stack, ...)", "Built", "dreamtool/scene.py"],
     ["Report additions: cost per trial, one-file report", "Built", "dashboard/extensions/robustness/"],

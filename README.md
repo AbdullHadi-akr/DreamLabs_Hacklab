@@ -177,9 +177,10 @@ guest holds, and can free an arm. A quick link needs no Cloudflare account; it c
 ### Second brain
 
 `brain/` is the team's shared memory, after Andrej Karpathy's "LLM wiki" idea: the dashboard writes every Dream-1
-run, robustness campaign and export into `brain/raw/` by itself (plus a daily summary from the lab database); an AI
-agent reads `brain/AGENTS.md` and keeps `brain/wiki/` up to date (write `ingest` to it); people read the wiki, for
-example in Obsidian. See [brain/README.md](brain/README.md).
+run, robustness campaign and export into `brain/raw/` by itself (plus a daily summary from the lab database); the
+script `brain/build_wiki.py` then makes the wiki pages in `brain/wiki/` (per task, per model, robustness, exports,
+notes, decisions); people read the wiki, for example in Obsidian. Run it by hand with `python brain/build_wiki.py`.
+An AI agent (rules in `brain/AGENTS.md`) is planned for later. See [brain/README.md](brain/README.md).
 
 ### Architecture diagrams
 

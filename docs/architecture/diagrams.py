@@ -229,12 +229,12 @@ def deployment():
                "forwards to port 8000")
     g.artifact(110, 720, 500, 200, "«source» dreamlabs clone", "~/Hacklab/dreamlabs\nYAM simulator, dream client")
     g.artifact(640, 720, 500, 200, "«source» dream-tool", "~/Hacklab/dream-tool: the code\nbrain/raw: notes "
-               "the dashboard writes\nbrain/wiki: pages the AI agent writes")
+               "the dashboard writes\nbrain/wiki: pages build_wiki.py makes")
     g.artifact(110, 950, 500, 190, "«files» dream-tool/out/",
                "lab.db: SQLite database\nepisodes/, exports/: LeRobot folders\nextensions/: test reports")
     g.artifact(640, 950, 500, 190, "«file» API key", "~/.dreamlabs/credentials\nonly on this laptop, never in git")
     g.artifact(1210, 480, 360, 150, "«program» Web browser", "Opens http://localhost:8000")
-    g.artifact(1210, 700, 360, 160, "«program» AI agent", "Claude Code or Codex: 'ingest' in brain/")
+    g.artifact(1210, 700, 360, 160, "«program» AI agent", "Planned: Claude Code or Codex", planned=True)
 
     g.node(1700, 110, 650, 150, "«device» Guest laptop")
     g.artifact(1730, 160, 590, 85, "«program» Web browser", "Controls the one arm the guest took")
@@ -254,7 +254,7 @@ def deployment():
     g.arrow([(750, 640), (1680, 640), (1680, 705), (1730, 705)],
             "HTTPS: camera frames + arm state; back: arm moves", at=(965, 640), lw=380)
     g.arrow([(700, 670), (700, 720)])  # dashboard -> brain/raw
-    g.arrow([(1210, 780), (1140, 780)])  # AI agent -> brain/
+    g.arrow([(1210, 780), (1140, 780)], planned=True)  # AI agent -> brain/
     g.arrow([(1140, 890), (1660, 890), (1660, 1085), (1700, 1085)], "git: pull and push (code and brain/)",
             at=(1400, 890), both=True, lw=480)
     g.arrow([(360, 1140), (360, 1300), (2385, 1300), (2385, 830), (2320, 830)], planned=True)
@@ -274,8 +274,8 @@ def context():
     g.box(820, 520, 760, 330, "Dream-1 Lab", "Software system",
           "Runs the YAM robot simulation. Lets Dream-1 try tasks, lets people take over, records episodes, counts "
           "credits.", style=SYSTEM)
-    g.box(120, 560, 560, 250, "AI agent", "External system", "Claude Code or Codex. Keeps the wiki of the second "
-          "brain up to date.", style=EXTERNAL)
+    g.box(120, 560, 560, 250, "AI agent", "External system, planned", "Claude Code or Codex. Later: summarizes "
+          "notes, answers questions.", style=EXTERNAL, planned=True)
     g.box(1720, 560, 560, 250, "Cloudflare", "External system", "A public link to the host laptop. No account "
           "needed.", style=EXTERNAL)
     g.box(1720, 960, 560, 270, "Dream Labs platform", "External system",
@@ -291,7 +291,7 @@ def context():
     g.arrow([(1200, 850), (1200, 1095), (1720, 1095)], "asks for arm moves (HTTPS); uploads episodes (planned)",
             at=(1460, 1095), lw=360)
     g.arrow([(1000, 850), (1000, 1095), (680, 1095)], "code and notes of every run (git)", at=(840, 1095), lw=270)
-    g.arrow([(400, 810), (400, 960)], "reads the notes, writes the wiki", at=(400, 885), lw=420)
+    g.arrow([(400, 810), (400, 960)], "reads the notes, adds pages", at=(400, 885), lw=420, planned=True)
     g.legend(830, 1260)
     g.save("2-c4-context.png")
 
@@ -313,11 +313,12 @@ def containers():
     g.cylinder(900, 680, 660, 200, "Episode store", "Container: out/episodes, out/exports",
                "LeRobot v2.1 folders.")
     g.cylinder(900, 960, 660, 200, "Second brain", "Container: Markdown folder brain/, in git",
-               "raw/: notes. wiki/: pages.")
+               "raw/: notes. wiki/: pages from build_wiki.py.")
     g.box(1760, 400, 520, 190, "Cloudflare", "External system", "Public link", style=EXTERNAL)
     g.box(1760, 650, 520, 220, "Dream Labs", "External system", "Dream-1 API. Fine-tuning: planned.",
           style=EXTERNAL)
-    g.box(1760, 930, 520, 200, "AI agent", "External system", "Claude Code or Codex", style=EXTERNAL)
+    g.box(1760, 930, 520, 200, "AI agent", "External system, planned", "Claude Code or Codex", style=EXTERNAL,
+          planned=True)
     g.box(1760, 1180, 520, 140, "GitHub", "External system", None, style=EXTERNAL)
 
     g.arrow([(400, 310), (400, 420)], "uses", at=(470, 365), lw=120)
@@ -330,8 +331,8 @@ def containers():
     g.label((830, 860), "writes", 100)
     g.arrow([(760, 920), (1650, 920), (1650, 760), (1760, 760)], "HTTPS: frames and arm state; back: arm moves",
             at=(1230, 920), lw=700)
-    g.arrow([(760, 1060), (900, 1060)], "notes", at=(830, 1060), lw=100)
-    g.arrow([(1760, 1030), (1560, 1030)], "ingest", at=(1660, 1030), lw=120)
+    g.arrow([(760, 1060), (900, 1060)], "notes, wiki", at=(830, 1060), lw=100)
+    g.arrow([(1760, 1030), (1560, 1030)], "later", at=(1660, 1030), lw=120, planned=True)
     g.arrow([(1230, 1160), (1230, 1250), (1760, 1250)], "git push", at=(1500, 1250), lw=200)
     g.save("3-c4-containers.png")
 
@@ -356,13 +357,13 @@ def components():
     comp(2, 1, "Sim worker", "simulation.py", "One thread owns MuJoCo and does the jobs")
     comp(3, 1, "Players", "multiplayer.py", "Access code, arm owners, public link")
     comp(0, 2, "Success check", "dreamtool/scene.py", "Task rules: on, in, next to, lift, push ...")
-    comp(1, 2, "Second brain notes", "brain.py", "Notes on runs, tests, exports; daily summary")
+    comp(1, 2, "Second brain notes", "brain.py", "Notes into brain/raw, then runs build_wiki.py")
     comp(2, 2, "Simulator wrapper", "dreamtool/sim.py", "Physics and the 3 cameras")
     comp(3, 2, "Run loop", "dreamtool/runner.py", "Dream-1 calls, 20 steps per second")
 
     g.cylinder(40, 150, 330, 260, "Lab database", "SQLite", "out/lab.db")
     g.cylinder(40, 520, 330, 260, "Episode store", "LeRobot folders", "out/episodes")
-    g.cylinder(40, 900, 330, 250, "Second brain", "Markdown", "brain/raw")
+    g.cylinder(40, 900, 330, 250, "Second brain", "Markdown", "brain/raw, brain/wiki")
     g.box(2030, 160, 330, 250, "Web page", "Container", "Sends requests; gets video and events")
     g.box(2030, 530, 330, 250, "Cloudflare", "External system", "Tunnel made by cloudflared", style=EXTERNAL)
     g.box(2030, 900, 330, 250, "Dream-1 API", "External system", "Through the dream library", style=EXTERNAL)
@@ -387,7 +388,7 @@ def components():
     g.arrow([(460, 650), (370, 650)])
     g.arrow([(620, 800), (620, 880)], "is the task done?", at=(620, 840), lw=260)
     g.arrow([(1360, 800), (1360, 840), (1007, 840), (1007, 880)], "after each run", at=(1180, 840), lw=220)
-    g.arrow([(1007, 1170), (1007, 1215), (400, 1215), (400, 1100), (370, 1100)], "writes notes", at=(700, 1215),
+    g.arrow([(1007, 1170), (1007, 1215), (400, 1215), (400, 1100), (370, 1100)], "writes notes and wiki", at=(700, 1215),
             lw=200)
     g.save("4-c4-components.png")
 
@@ -412,7 +413,7 @@ def layers():
     row(112, 126, [("Operator", "browser at localhost:8000", PERSON),
                    ("Remote operator or judge", "browser, public link", PERSON),
                    ("Cloudflare tunnel", "public link + access code", EXTERNAL),
-                   ("AI agent", "keeps brain/wiki up to date", EXTERNAL)])
+                   ("AI agent", "planned: summaries, answers", EXTERNAL, True)])
     row(265, 120, [("Core page", "index.html, app.js", COMPONENT),
                    ("Join page", "join.html: code and name", COMPONENT),
                    ("Menu panels", "Episodes, Credits, Players", COMPONENT),
@@ -426,7 +427,7 @@ def layers():
                    ("Recorder", "episodes, take over, export", COMPONENT),
                    ("Credits", "estimate, limit, balance", COMPONENT),
                    ("Players", "access code, arm owners", COMPONENT),
-                   ("Brain notes", "notes for brain/raw", COMPONENT),
+                   ("Brain notes", "raw notes, then the wiki script", COMPONENT),
                    ("Extensions", "teleop, robustness tests", COMPONENT)], gap=16)
     row(782, 116, [("YAM simulator: MuJoCo physics", "two arms, 3 cameras at 640 x 360, fruit, bowl, plate",
                     CONTAINER),

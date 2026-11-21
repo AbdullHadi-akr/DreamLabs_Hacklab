@@ -2,8 +2,8 @@
 
 The second brain follows Andrej Karpathy's "LLM wiki" idea (see brain/AGENTS.md):
     brain/raw/    sources: written by the dashboard (and by people). An AI agent reads them; nobody edits them later.
-    brain/wiki/   the wiki: pages an AI agent writes and keeps up to date from raw/. People read it, e.g. in Obsidian.
-    brain/AGENTS.md  the rules the agent follows.
+    brain/wiki/   the wiki: pages the script brain/build_wiki.py makes from raw/ (later also an AI agent, see
+                  brain/AGENTS.md). People read it, e.g. in Obsidian.
 
 What the dashboard writes:
     raw/runs/<day>.md          one line per Dream-1 run (not test motions or Home)
@@ -11,18 +11,34 @@ What the dashboard writes:
     raw/exports/<name>.md      one file per export of episodes for a fine-tune
     raw/summaries/<day>.md     the day's summary from the lab database, rewritten after each run
 
+After each of these, rebuild_wiki() runs brain/build_wiki.py, so the wiki is always current.
 Nothing secret goes into these files: no API key, no access code, no personal data.
 """
 
 from __future__ import annotations
 
+import importlib.util
 import os
 import threading
 import time
 from pathlib import Path
 
 BRAIN_DIR = Path(os.environ.get("DREAM_BRAIN_DIR") or Path(__file__).resolve().parents[1] / "brain")
+WIKI_SCRIPT = Path(__file__).resolve().parents[1] / "brain" / "build_wiki.py"
 _lock = threading.Lock()
+
+
+def rebuild_wiki() -> dict | None:
+    """Runs brain/build_wiki.py on BRAIN_DIR. A failure is printed and never stops the dashboard."""
+    try:
+        spec = importlib.util.spec_from_file_location("build_wiki", WIKI_SCRIPT)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        with _lock:
+            return module.build(BRAIN_DIR)
+    except Exception as exc:  # the wiki is a convenience; a run must never fail because of it
+        print(f"[brain] wiki build failed: {exc}")
+        return None
 
 
 def _raw(*parts) -> Path:
@@ -89,6 +105,7 @@ def campaign_ended(summary: dict) -> Path:
         lines += [f"| {p['value']} {unit} | {p['n']} | {p['successes']} |" for p in per_value]
     path = _raw("robustness", f"{summary['id']}.md")
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    rebuild_wiki()
     return path
 
 
@@ -103,6 +120,7 @@ def export_done(result: dict, task: str, episodes: list[dict]) -> Path:
               for e in episodes]
     path = _raw("exports", f"{result['name']}.md")
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    rebuild_wiki()
     return path
 
 
@@ -126,4 +144,5 @@ def daily_summary(db, credits_summary: dict | None = None) -> Path:
     lines += [f"| {r['task']} | {r['episodes']} | {r['took_over']} |" for r in s["takeovers"]] or ["| - | - | - |"]
     path = _raw("summaries", f"{day}.md")
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    rebuild_wiki()  # comes right after run_ended, so one build covers the run and the summary
     return path
