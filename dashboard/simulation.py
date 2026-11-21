@@ -99,6 +99,8 @@ class RunRequest:
     teardown: Callable | None = None  # env -> None, after the run (also on errors)
     hooks: list = field(default_factory=list)
     stop_on_success: bool = True
+    prompt: str | None = None  # text sent to Dream-1 instead of `task` (the success check still uses `task`)
+    realtime: bool = True  # offline: play targets at 20 Hz wall clock; False = as fast as possible
     source: str = "core"  # who started the run (core or an extension id)
     label: str = ""
     id: int = 0
@@ -275,7 +277,8 @@ class SimWorker(threading.Thread):
         self.current = request
         self.run_stats = {"steps": 0, "requests": 0, "last_rtt_s": None, "started": time.time()}
         info = {"id": request.id, "task": request.task, "model": "offline" if request.offline else request.model,
-                "offline": request.offline, "source": request.source, "label": request.label}
+                "offline": request.offline, "source": request.source, "label": request.label,
+                "prompt": request.prompt or request.task}
         self.bus.emit("run.started", info)
         hooks = [_CoreHook(self, request)]
         for ext in self.extensions:
@@ -299,7 +302,7 @@ class SimWorker(threading.Thread):
                 started = time.monotonic()
                 for h in hooks:
                     h.on_start(env, request.task, "offline")
-                result.stop_reason = runner.run_scripted(env, targets, hooks=hooks, realtime=True)
+                result.stop_reason = runner.run_scripted(env, targets, hooks=hooks, realtime=request.realtime)
                 result.steps = self.run_stats["steps"]
                 result.seconds = time.monotonic() - started
                 result.success = bool(check(env)) if check else None
@@ -308,7 +311,7 @@ class SimWorker(threading.Thread):
             else:
                 result = runner.run_task(
                     request.task, model=request.model, seconds=request.seconds, env=env, hooks=hooks,
-                    viewer=False, verbose=False, stop_on_success=request.stop_on_success,
+                    viewer=False, verbose=False, stop_on_success=request.stop_on_success, prompt=request.prompt,
                 )
         except Exception as error:
             result.stop_reason = f"error: {type(error).__name__}: {error}"

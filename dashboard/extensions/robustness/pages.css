@@ -1,0 +1,51 @@
+/* Standalone pages of the Robustness extension (report.html, runs.html). */
+body { display: block; height: auto; background: var(--clay); }
+.rp { max-width: 1180px; margin: 0 auto; padding: 28px 24px 60px; }
+.rp-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; flex-wrap: wrap; }
+.rp-head h1 { margin: 0 0 6px; font-size: 26px; font-weight: 500; letter-spacing: -.4px; }
+.rp-meta { display: flex; flex-wrap: wrap; gap: 6px 16px; color: var(--ink-3); font-size: 14px; }
+.rp-meta b { color: var(--ink); font-weight: 500; }
+.rp-grid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 20px; margin-top: 20px; }
+.rp .card { background: var(--white); border-radius: var(--radius-lg); padding: 20px; border: 1px solid var(--line-soft); }
+.rp h2 { font-family: var(--font-pixel); font-weight: 400; text-transform: uppercase; letter-spacing: .04em; font-size: 15px; margin: 0 0 12px; }
+.rp .rb-verdict { font-size: 16px; padding: 14px 18px; margin: 18px 0 0; }
+.rp-scatter { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
+.rp-scatter h3 { font-size: 13px; font-weight: 500; margin: 0 0 4px; }
+.rp-trials { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; }
+.rp-trial { background: var(--white); border-radius: var(--radius); overflow: hidden; border: 1px solid var(--line-soft); scroll-margin-top: 20px; }
+.rp-trial:target { outline: 3px solid var(--creamsicle); }
+.rp-trial video { width: 100%; display: block; background: var(--ink); aspect-ratio: 960 / 360; }
+.rp-novideo { aspect-ratio: 960 / 360; display: grid; place-items: center; background: var(--grey-2); color: var(--ink-3); font-size: 13px; }
+.rp-trial-body { padding: 10px 14px 14px; font-size: 13px; display: flex; flex-direction: column; gap: 6px; }
+.rp-trial-top { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+.rp-trial-top b { font-family: var(--font-mono); font-weight: 500; }
+.rp-prompt { font-family: var(--font-mono); font-size: 12px; background: var(--grey-1); border-radius: 8px; padding: 4px 8px; overflow-wrap: anywhere; }
+.rp-metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px 10px; color: var(--ink-3); font-size: 12px; }
+.rp-metrics b { color: var(--ink); font-weight: 500; font-family: var(--font-mono); }
+.rp-filter { display: flex; gap: 14px; align-items: center; margin: 28px 0 12px; flex-wrap: wrap; }
+.rp-filter h2 { margin: 0; }
+.rp-note { font-size: 13px; color: var(--ink-3); max-width: 760px; }
+@media (max-width: 860px) { .rp-grid { grid-template-columns: 1fr; } .rp-trials { grid-template-columns: 1fr; } }
+
+.rp-head-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.rp-section { margin-top: 20px; }
+.rp-section-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.rp-section-head h2 { margin: 0; }
+.rp-filters { display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-end; margin-top: 18px; }
+.rp-filters label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--ink-3); }
+.rp-filters select { background: var(--white); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 6px 10px; min-width: 180px; color: var(--ink); }
+.rp-seg { display: inline-flex; border: 1px solid var(--ink); border-radius: 999px; overflow: hidden; }
+.rp-seg button { border: none; background: transparent; padding: 6px 14px; font-size: 13px; cursor: pointer; }
+.rp-seg button.on { background: var(--ink); color: var(--white); }
+.rp-runs { width: 100%; border-collapse: collapse; font-size: 13px; }
+.rp-runs th { text-align: left; color: var(--ink-3); font-weight: 400; font-size: 12px; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+.rp-runs td { padding: 8px; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+.rp-runs tr:hover td { background: var(--grey-1); }
+.rp-runs td.num { font-family: var(--font-mono); font-size: 12px; white-space: nowrap; }
+.rp-runs .rb-downloads .btn { padding: 3px 9px; font-size: 12px; }
+.rp-tag { display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 999px; background: var(--grey-2); color: var(--ink-2); white-space: nowrap; }
+.rp-tag.live { background: var(--creamsicle-tint); color: var(--creamsicle-text); }
+.rp-verdict-cell { max-width: 340px; color: var(--ink-2); }
+.rp-scroll { overflow-x: auto; }
+.rp-heat-wrap { overflow-x: auto; padding-bottom: 4px; }
+.rp-heat-wrap .rb-heat { min-width: 640px; }

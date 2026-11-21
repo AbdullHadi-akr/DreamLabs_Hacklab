@@ -20,7 +20,7 @@ Hacklab/
     │   ├── extension.py    Extension base class + loader + 3D overlay helpers
     │   ├── extensions/     ← new features go HERE (one folder each)
     │   │   ├── scene_inspector/   object positions, success zones, debug placement
-    │   │   ├── robustness/        perturbation sweeps (object/camera/light), success rate per strength
+    │   │   ├── robustness/        robustness test: perturb scene/vision/physics/prompt, find where Dream-1 breaks
     │   │   └── _template/         template to copy
     │   ├── static/         core UI (index.html, app.js, style.css, lib/api.js)
     │   └── EXTENSIONS.md   guide: writing your own extension
@@ -82,6 +82,36 @@ python start.py                      # or: python -m dashboard   → opens http:
 - **Offline demo**, **Home**, **Reset** and the **dry run** in the Robustness tab cost no credits.
   The **run** button and sweeps without dry run call Dream-1.
 - The server only listens locally (127.0.0.1). Ctrl+C stops it.
+
+### Robustness test
+
+Tab **Robustness**: change the world on purpose and see how and when Dream-1 fails.
+
+- **Sweep:** one perturbation at increasing strength (e.g. move the apple 0/2/4/6/8 cm) → success rate with a 95 %
+  interval per strength, progress score, and the **breaking point** (first strength at half the baseline or below).
+  The unperturbed baseline is always included; trial *i* uses the same random draw at every strength.
+- **Random mix:** every trial draws random strengths for several perturbations → which factor hurts most
+  (rank correlation with the progress score).
+- **15 perturbations** in five groups: scene layout (target/container/other objects moved, target rotated), vision
+  (camera shifted/tilted, dimmer light, table/target recolored, sensor noise), physics (heavier target, slippery
+  gripper pads), language (typos, rewordings) and during the run (target moved the moment the gripper arrives).
+- **How it failed**, not just whether: every trial is classified (never reached, no grasp, pushed away, wrong object,
+  lost on the way, placed next to the container, knocked off the table) with a progress score 0 / .25 / .5 / .75 / 1.
+  That gives a readable curve with only a few (expensive) trials.
+- **Fair trials only:** each setup is checked (on the table, in reach, no overlaps, not already solved) and re-drawn
+  if needed; a trial that ends with the target on the floor stops early to save credits.
+- **Report page** with chart, tables and an MP4 of every trial (overhead + wrist cameras = what Dream-1 saw).
+  Results live in `out/extensions/robustness/<campaign>/`.
+- **All runs, heatmap & downloads** (`/ext/robustness/runs.html`, linked in the tab): every stored run, a
+  **robustness map** (heatmap: perturbation × strength, colored by success rate or progress score, filtered by task
+  and policy so dry runs and Dream-1 are never pooled) and downloads per run (CSV, Excel CSV, JSON, ZIP with videos)
+  or for all filtered trials at once. The report page adds a trial × strength grid (sweep) or a two-factor heatmap
+  (random mix).
+- **Dry run** (default) replays a scripted pick-and-place planned once on the unperturbed scene: no credits, and a
+  reference for a policy that does not look (it breaks at ~2 cm and ignores all visual changes).
+
+Deliberately left out: latency (the sim pauses physics while waiting for Dream-1, so delays change nothing) and
+joint-encoder noise (real encoders are precise; the noise would also leak into the hold commands).
 
 **Building a new feature:** copy `dashboard/extensions/_template` → see
 [dashboard/EXTENSIONS.md](dashboard/EXTENSIONS.md).

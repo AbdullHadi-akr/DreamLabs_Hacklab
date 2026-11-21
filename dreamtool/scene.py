@@ -17,6 +17,9 @@ CONTAINERS = ("bowl", "plate")
 ## Rough container size: planar radius (m) and max. height above the container base (m).
 CONTAINER_SIZE = {"bowl": (0.075, 0.12), "plate": (0.065, 0.10)}
 
+## Free joint of each movable object (the bottle's joint is not named after its body).
+FREE_JOINTS = {"apple": "apple_free", "banana": "banana_free", "orange": "orange_free", "water_bottle": "bottle_free"}
+
 ## Words in the task text -> body names.
 ALIASES = {"bottle": "water_bottle", "water": "water_bottle", "dish": "plate"}
 
@@ -75,7 +78,7 @@ def success_check(task: str):
 
 def place(env, obj: str, container: str, height: float = 0.04) -> None:
     """Debug: put `obj` right above `container` (free joint), e.g. to test success checks."""
-    joint = env.data.joint(f"{obj}_free")
+    joint = env.data.joint(FREE_JOINTS[obj])
     joint.qpos[:3] = position(env, container) + np.array([0.0, 0.0, height])
     joint.qpos[3:7] = [1.0, 0.0, 0.0, 0.0]
     joint.qvel[:] = 0.0
@@ -83,7 +86,7 @@ def place(env, obj: str, container: str, height: float = 0.04) -> None:
 
 def shift(env, obj: str, offset) -> None:
     """Move `obj` by `offset` (dx, dy[, dz]) in meters."""
-    joint = env.data.joint(f"{obj}_free")
+    joint = env.data.joint(FREE_JOINTS[obj])
     offset = np.asarray(offset, dtype=float)
     joint.qpos[: len(offset)] += offset
     joint.qvel[:] = 0.0

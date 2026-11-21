@@ -20,11 +20,17 @@ def wait_idle(app, timeout=60):
 
 
 @pytest.fixture(scope="module")
-def client():
+def client(tmp_path_factory):
+    # results of test campaigns go to a temp folder, not into out/extensions/ next to the real runs
+    import dashboard.extension
+
+    original = dashboard.extension.DATA_DIR
+    dashboard.extension.DATA_DIR = tmp_path_factory.mktemp("extensions")
     app = create_app()
     with TestClient(app) as c:
         c.app_ref = app
         yield c
+    dashboard.extension.DATA_DIR = original
 
 
 def test_state_and_extensions(client):
@@ -90,7 +96,7 @@ def test_robustness_dry_run_sweep(client):
     wait_idle(app)
     original = app.state.sim.call(lambda env: env.model.camera("top").quat.copy()).result(timeout=5)
     body = {"task": "put apple into the bowl", "perturbation": "camera_tilt", "values": [0, 5], "trials": 1,
-            "seconds": 5, "dry_run": True}
+            "seconds": 5, "dry_run": True, "record": False}
     assert client.post("/api/ext/robustness/start", json=body).status_code == 200
     end = time.time() + 60
     while client.get("/api/ext/robustness/status").json()["state"] == "running" and time.time() < end:

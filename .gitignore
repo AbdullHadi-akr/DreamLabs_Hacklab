@@ -37,3 +37,6 @@ dreamlabs/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# MuJoCo writes its warnings here
+MUJOCO_LOG.TXT

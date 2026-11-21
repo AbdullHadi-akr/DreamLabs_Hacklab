@@ -37,7 +37,8 @@ From an HTTP handler or your own thread, always go through `ctx.sim`:
 
 `run_task` options: `model`, `seconds`, `offline` (no API), `targets` (offline: a list or `env -> list` of
 `(left, right)`), `setup` / `teardown` (`env -> None`, run on the sim thread before/after the run),
-`hooks` (only for this run), `stop_on_success`, `label`, `source`.
+`hooks` (only for this run), `stop_on_success`, `prompt` (text Dream-1 gets instead of the task; success is still
+judged on the task), `realtime` (offline: False = as fast as possible), `label`, `source`.
 
 ## Backend: `Extension`
 
@@ -109,6 +110,6 @@ Ready-made CSS classes from `static/style.css`: `btn`, `btn primary`, `btn dange
 ## Examples in the repo
 
 - `scene_inspector/`: live values from `sim.state`, a `decorate()` overlay, `ctx.sim.call()` for debug actions, a run hook.
-- `robustness/`: a background thread that queues many runs with `setup`/`teardown`. A new perturbation is one
-  function decorated with `@perturbation(...)` in `perturbations.py`.
+- `robustness/`: a background thread that queues many runs with run hooks and a `teardown`, plus a standalone report
+  page (`report.html`). A new perturbation is one function decorated with `@perturbation(...)` in `perturbations.py`.
 - `_template/`: minimal example to copy.

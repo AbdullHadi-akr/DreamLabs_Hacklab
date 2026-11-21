@@ -73,8 +73,13 @@ def run_task(
     api_key: str | None = None,
     stop_on_success: bool = True,
     verbose: bool = True,
+    prompt: str | None = None,
 ) -> RunResult:
-    """Runs a task with Dream-1 in the simulator. Needs an API key (see README)."""
+    """Runs a task with Dream-1 in the simulator. Needs an API key (see README).
+
+    `prompt` is the text Dream-1 receives (default: `task`). `task` still decides the success check, so a reworded
+    or misspelled prompt is judged against the original goal.
+    """
     hooks = hooks if isinstance(hooks, list) else [hooks] if hooks else []
     config = sim.settings()
     key = api_key or config.get("DREAM_API_KEY", "")
@@ -85,6 +90,7 @@ def run_task(
     own_env = env is None
     env = env if env is not None else sim.YamEnv()
     check = scene.success_check(task)
+    prompt = prompt or task
     result = RunResult(task=task, model=model, success=False if check else None)
     log = print if verbose else (lambda *a, **k: None)
     policy = None
@@ -112,7 +118,7 @@ def run_task(
                 h.on_start(env, task, model)
             poses = model in sim.POSE_MODELS
             policy = sim.open_policy(sim.policy_config(model, gateway, poses), key)
-            sim.feed(policy, env, windows, task, model, steps, every=0, station=poses)
+            sim.feed(policy, env, windows, prompt, model, steps, every=0, station=poses)
             deadline = time.monotonic() + seconds
             restarts = 0
 
@@ -151,7 +157,7 @@ def run_task(
                     policy.close()
                     poses = True
                     policy = sim.open_policy(sim.policy_config(model, gateway, poses), key)
-                    sim.feed(policy, env, windows, task, model, steps, every=0, station=poses)
+                    sim.feed(policy, env, windows, prompt, model, steps, every=0, station=poses)
                     continue
                 restarts = 0
                 rtt = time.monotonic() - t0
@@ -170,7 +176,7 @@ def run_task(
                     kept = steps % sim.FRAME_EVERY_STEPS == 0
                     images = sim.capture(env, windows, keep=kept)
                     if kept:
-                        sim.feed(policy, env, windows, task, model, steps, station=poses)
+                        sim.feed(policy, env, windows, prompt, model, steps, station=poses)
                     steps += 1
                     result.steps += 1
                     for h in hooks:
