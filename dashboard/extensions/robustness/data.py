@@ -144,14 +144,14 @@ def strength_bin(value: float, p) -> int:
 
 
 def robustness_map(results: list[dict]) -> dict:
-    """Pools all sweep trials per perturbation and strength bin: one row per perturbation, one cell per bin.
+    """Pools all sweep and adaptive-search trials per perturbation and strength bin: one row per perturbation, one cell per bin.
 
     Random-mix trials change several things at once, so they cannot be attributed to one cell and are left out.
     """
     cells: dict[tuple[str, int], dict] = {}
     campaigns: dict[str, set] = {}
     for result in results:
-        if result["mode"] != "sweep":
+        if result["mode"] not in ("sweep", "adaptive"):  # both test one perturbation at a time
             continue
         pid = result["perturbation"]["id"]
         p = REGISTRY.get(pid)

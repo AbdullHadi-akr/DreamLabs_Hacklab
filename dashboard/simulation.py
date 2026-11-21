@@ -169,10 +169,14 @@ class SimWorker(threading.Thread):
 
     # ---------- public, thread-safe API ----------
 
-    def call(self, fn: Callable) -> Future:
-        """Run fn(env) on the sim thread (between runs). Result/exception arrives through the Future."""
+    def call(self, fn: Callable, *, hold: bool = False) -> Future:
+        """Run fn(env) on the sim thread (between runs). Result/exception arrives through the Future.
+
+        Afterwards the arms hold the pose they are in. With hold=True, fn instead returns new step() targets,
+        {"left": 7 values, "right": 7 values} (either side may be missing), which the arms then drive to and hold
+        between runs (e.g. teleoperation). Such a call does not force an extra frame."""
         future: Future = Future()
-        self.jobs.put(("call", fn, future))
+        self.jobs.put(("call", fn, future, hold))
         return future
 
     def run_task(self, task: str, **options) -> Future:
@@ -251,7 +255,7 @@ class SimWorker(threading.Thread):
                 job = None
             if job is not None:
                 if job[0] == "call":
-                    self._execute_call(job[1], job[2])
+                    self._execute_call(*job[1:])
                 elif job[2].set_running_or_notify_cancel():
                     self._execute_run(job[1], job[2])
                 continue
@@ -263,13 +267,19 @@ class SimWorker(threading.Thread):
         self.env.close()
         self.main_renderer.close()
 
-    def _execute_call(self, fn, future: Future):
+    def _execute_call(self, fn, future: Future, hold: bool = False):
         if not future.set_running_or_notify_cancel():
             return
         try:
-            future.set_result(fn(self.env))
+            result = fn(self.env)
+            targets = _hold_targets(result) if hold else {}
+            future.set_result(result)
         except Exception as error:
             future.set_exception(error)
+            targets = {}
+        if hold:
+            self.hold = {**self.hold, **targets}
+            return
         self.hold = self.env.state()
         self.publish(force=True)
 
@@ -370,6 +380,19 @@ class SimWorker(threading.Thread):
         if ok:
             self._seq += 1
             self.frames[name] = (self._seq, jpeg.tobytes())
+
+
+def _hold_targets(result) -> dict:
+    """Checks the targets of a call(fn, hold=True): an invalid hold target would stop the sim loop."""
+    targets = {}
+    for side, values in (result or {}).items():
+        values = np.asarray(values, dtype=float)
+        if side not in ("left", "right") or values.shape != (7,) or not np.isfinite(values).all():
+            raise ValueError(f"hold target for {side!r} must be seven finite values")
+        if not 0 <= values[6] <= 1:
+            raise ValueError("gripper opening must be between zero and one")
+        targets[side] = values
+    return targets
 
 
 class _SafeHook(Hooks):

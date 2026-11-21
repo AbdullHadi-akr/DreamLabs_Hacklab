@@ -62,6 +62,21 @@
 .rb-history { width: 100% !important; }
 .rb-history-row { display: flex; flex-direction: column; gap: 8px; }
 
+/* ---------- adaptive search ---------- */
+.rb-ad-band { fill: #b7d3f6; opacity: .55; }
+.rb-ad-mean { fill: none; stroke: #2a78d6; stroke-width: 2; }
+.rb-ad-ci { fill: var(--error); opacity: .08; }
+.rb-ad-dot { stroke: var(--white); stroke-width: 1.5; }
+.rb-ad-next { fill: var(--ink); }
+.rb-ad-belief { fill: #86b6ef; opacity: .7; }
+.rb-key-ad { width: 14px; height: 8px; background: #b7d3f6; border-top: 2px solid #2a78d6; }
+.rb-key-belief { width: 14px; height: 8px; background: #86b6ef; }
+.rb-ad-status { margin: 4px 0 10px; }
+.rb-inline { display: flex; align-items: center; gap: 6px; }
+.rb-inline input { min-width: 0; }
+.rb-inline span { color: var(--ink-3); font-size: 13px; }
+.rb-modes .btn { padding: 5px 11px; }
+
 /* ---------- heatmaps ---------- */
 .rb-heat { display: grid; gap: 2px; font-size: 12px; align-items: stretch; }
 .rb-heat-head { color: var(--ink-3); font-size: 11px; padding: 2px 4px 6px; align-self: end; }

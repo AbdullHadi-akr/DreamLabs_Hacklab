@@ -79,6 +79,11 @@ python start.py                      # or: python -m dashboard   → opens http:
 - **Center:** 3D view of the sim (drag = orbit, right/Shift = pan, wheel = zoom, double-click = reset),
   with the prompt bar and the three robot cameras below.
 - **Left:** extension tabs (Scene, Robustness, …). **Right:** current run, RTT chart, log.
+- **Teleop tab:** move the grippers yourself between runs. Drag the colored ball at a gripper (Shift = up/down),
+  or use W A S D / E Q (directions as the robot's overhead camera sees them, switchable to the 3D view);
+  Z / X or the mouse wheel on the ball rotates the gripper, R / F tilts it; Space
+  opens/closes it, 1/2 picks the arm. The tool center point coordinates, rotation and tilt are shown next to each
+  gripper; a colored line shows the direction the fingers open in. Costs no credits.
 - **Offline demo**, **Home**, **Reset** and the **dry run** in the Robustness tab cost no credits.
   The **run** button and sweeps without dry run call Dream-1.
 - The server only listens locally (127.0.0.1). Ctrl+C stops it.
@@ -96,6 +101,12 @@ Tab **Robustness**: change the world on purpose and see how and when Dream-1 fai
 - **Sweep:** one perturbation at increasing strength (e.g. move the apple 0/2/4/6/8 cm) → success rate with a 95 %
   interval per strength, progress score, and the **breaking point** (first strength at half the baseline or below).
   The unperturbed baseline is always included; trial *i* uses the same random draw at every strength.
+- **Breaking point (adaptive search):** Bayesian active learning (psi method): after a few baseline trials,
+  every next strength is the one with the largest expected information gain about the breaking point θ; stops when
+  θ is pinned down (80 % interval), when nothing breaks in the range, or at the budget. The measured stage can be
+  success, carried, lifted or reached (useful when Dream-1 rarely succeeds unperturbed). In simulation with known
+  breaking points: ~30 % smaller error than a fixed 5 × 3 sweep with the same 15 trials, and it stops after ~6
+  trials when nothing breaks.
 - **Random mix:** every trial draws random strengths for several perturbations → which factor hurts most
   (rank correlation with the progress score).
 - **15 perturbations** in five groups: scene layout (target/container/other objects moved, target rotated), vision
@@ -104,6 +115,9 @@ Tab **Robustness**: change the world on purpose and see how and when Dream-1 fai
 - **How it failed**, not just whether: every trial is classified (never reached, no grasp, pushed away, wrong object,
   lost on the way, placed next to the container, knocked off the table) with a progress score 0 / .25 / .5 / .75 / 1.
   That gives a readable curve with only a few (expensive) trials.
+- **Task wording:** success is measured from the task, so it must name one object and the goal container
+  (e.g. "Pick up the banana and put it on the green plate", "move the apple from the plate to the bowl", also
+  German "Leg den Apfel in die Schüssel"). The exact wording still goes to Dream-1 unchanged.
 - **Fair trials only:** each setup is checked (on the table, in reach, no overlaps, not already solved) and re-drawn
   if needed; a trial that ends with the target on the floor stops early to save credits.
 - **Report page** with chart, tables and an MP4 of every trial (overhead + wrist cameras = what Dream-1 saw).
