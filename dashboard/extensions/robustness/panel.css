@@ -117,3 +117,16 @@ button.rb-cell:hover, button.rb-cell:focus-visible { outline: 2px solid var(--in
 .rb-tip-list div { display: flex; align-items: center; gap: 6px; }
 .rb-tip-list i { width: 9px; height: 9px; border-radius: 3px; flex: none; }
 .rb-downloads { display: flex; gap: 6px; flex-wrap: wrap; }
+
+/* ---------- strategy A/B ---------- */
+.rb-key-square { width: 8px; height: 8px; background: var(--creamsicle-deep); }
+.rb-key-base { width: 14px; border-top: 2px dotted var(--ink-3); }
+.rb-cmp-label { font-size: 11px; fill: var(--ink-2); }
+.rb-cmp-best { font-weight: 700; fill: var(--ink); }
+.rb-row-best td { background: var(--grass-wash); }
+.rb-strategies { display: flex; flex-direction: column; gap: 2px; margin-bottom: 10px; }
+.rb-strategy { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; padding: 3px 0; }
+.rb-strategy input { accent-color: var(--ink); width: 15px; height: 15px; flex: none; margin-top: 2px; }
+.rb-strategy small { display: block; color: var(--ink-3); font-size: 11px; line-height: 1.35; }
+.rb-jerk-bar { fill: #2a78d6; }
+.rb-jerk-base { fill: var(--ink-3); }

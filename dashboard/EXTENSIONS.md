@@ -40,7 +40,9 @@ From an HTTP handler or your own thread, always go through `ctx.sim`:
 `run_task` options: `model`, `seconds`, `offline` (no API), `targets` (offline: a list or `env -> list` of
 `(left, right)`), `setup` / `teardown` (`env -> None`, run on the sim thread before/after the run),
 `hooks` (only for this run), `stop_on_success`, `prompt` (text Dream-1 gets instead of the task; success is still
-judged on the task), `realtime` (offline: False = as fast as possible), `label`, `source`.
+judged on the task), `realtime` (offline: False = as fast as possible), `strategy` (how action chunks are executed:
+`chunk`, `receding-N`, `ensemble-N`, `crossfade-N`; see `dreamtool/inference.py`), `max_steps` (budget in simulated
+control steps, 20 per second, independent of request time), `label`, `source`.
 
 ## Backend: `Extension`
 

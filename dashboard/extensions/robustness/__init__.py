@@ -8,12 +8,20 @@ Two modes:
   random  every trial draws a random strength for each selected perturbation -> which factor hurts most.
   adaptive  Bayesian search for the breaking point of one perturbation: every next strength is the one that tells
           the most about where the model breaks (see adaptive.py). Fewer trials than a sweep for the same answer.
+  compare  Strategy A/B: the same trials (same seed, optionally under one fixed perturbation) with different inference
+          strategies, i.e. ways of executing Dream-1's action chunks (dreamtool/inference.py). Paired statistics in
+          compare.py.
+
+Trials are budgeted in simulated time (`seconds` x 20 control steps), not wall time: physics pauses while a request is
+in flight, so a strategy that asks more often must not lose time to the network.
 
 Every trial is watched by a TrialMonitor (reach / lift / carry / place, outcome, optional MP4). Results stream to the
 panel and are saved in out/extensions/robustness/<campaign>/result.json; the report page shows them in full.
 
 "Dry run" replaces Dream-1 with a scripted pick-and-place that is planned once on the unperturbed scene and replayed
-blindly. No API, no credits, and a useful reference for what a non-adaptive policy does.
+blindly. No API, no credits, and a useful reference for what a non-adaptive policy does. In a strategy comparison the
+dry run cuts that plan into noisy 48-step chunks (inference.simulated_chunks), so the strategies have something to
+differ on.
 """
 
 from __future__ import annotations
@@ -34,9 +42,9 @@ from pydantic import BaseModel, Field
 from starlette.background import BackgroundTask
 
 from dashboard.extension import Extension
-from dreamtool import scene, sim
+from dreamtool import inference, scene, sim
 
-from . import adaptive, analysis, data, replay
+from . import adaptive, analysis, compare, data, replay
 from .monitor import OUTCOMES, TrialMonitor
 from .perturbations import GROUPS, REGISTRY, InvalidSetup, Target, prepare, rewrite
 
@@ -45,11 +53,14 @@ CAMPAIGN_ID = re.compile(r"^[0-9]{8}-[0-9]{6}-[a-z_]+$")
 
 class StartBody(BaseModel):
     task: str = Field(min_length=2, max_length=300)
-    mode: Literal["sweep", "random", "adaptive"] = "sweep"
-    perturbation: str = "target_shift"  # sweep, adaptive
+    mode: Literal["sweep", "random", "adaptive", "compare"] = "sweep"
+    perturbation: str = "target_shift"  # sweep, adaptive; compare: "none" or one applied at `strength`
+    strength: float | None = None  # compare: strength of the perturbation (default: its middle default)
+    strategy: str = "chunk"  # inference strategy for sweep, random, adaptive
+    strategies: list[str] = Field(default_factory=list, max_length=6)  # compare; the first one is the baseline
     values: list[float] = Field(default_factory=list, max_length=20)  # sweep; empty = defaults
     factors: dict[str, float] = Field(default_factory=dict)  # random: id -> max strength
-    trials: int = Field(3, ge=1, le=100)  # sweep: per strength; random, adaptive: total budget
+    trials: int = Field(3, ge=1, le=100)  # sweep: per strength; compare: per strategy; random, adaptive: total budget
     max_strength: float | None = None  # adaptive: upper end of the searched range (default: the perturbation's max)
     measure: Literal["success", "carried", "lifted", "reached"] = "success"  # adaptive: which stage must hold
     baseline_trials: int = Field(3, ge=1, le=10)  # adaptive: unperturbed trials first
@@ -58,6 +69,7 @@ class StartBody(BaseModel):
     dry_run: bool = True
     record: bool = True
     seed: int = 0
+    budget: Literal["sim", "wall"] = "sim"  # what `seconds` limits: simulated time (default) or wall time (old runs)
 
 
 class Campaign:
@@ -69,7 +81,7 @@ class Campaign:
         self.state = "running"
         self.current: dict | None = None
         self.started = time.time()
-        name = body.perturbation if body.mode != "random" else "random"
+        name = {"random": "random", "compare": "compare"}.get(body.mode, body.perturbation)
         self.id = f"{time.strftime('%Y%m%d-%H%M%S')}-{name}"
         self.dir = ext.ctx.data_dir / self.id
         self.plan = None
@@ -87,6 +99,14 @@ class Campaign:
             self.values = values
             # trial-major order: a stopped sweep still covers every strength equally
             self.schedule = [{"value": v, "trial": t} for t in range(body.trials) for v in values]
+        elif body.mode == "compare":
+            self.strategies = [inference.parse(s).describe() for s in body.strategies]
+            p = REGISTRY.get(body.perturbation)
+            self.strength = None if p is None else body.strength if body.strength is not None else _middle(p)
+            self.values = []
+            # trial-major: every strategy sees trial i (same seed) before trial i+1 starts
+            self.schedule = [{"strategy": st["id"], "trial": t, **({"value": self.strength} if p else {})}
+                             for t in range(body.trials) for st in self.strategies]
         else:
             self.values = []
             self.schedule = [{"trial": t} for t in range(body.trials)]
@@ -102,9 +122,15 @@ class Campaign:
             "done": len(self.rows), "total": self.total, "current": self.current,
             "started": self.started, "elapsed_s": round(time.time() - self.started, 1),
             "rows": self.rows, "outcome_labels": OUTCOMES,
-            "policy": "scripted blind replay (dry run)" if b.dry_run else b.model,
+            "policy": ("scripted replay in noisy chunks (dry run)" if b.mode == "compare" else
+                       "scripted blind replay (dry run)") if b.dry_run else b.model,
+            "strategy": None if b.mode == "compare" else inference.parse(b.strategy).describe(),
         }
-        if b.mode == "adaptive":
+        if b.mode == "compare":
+            p = REGISTRY.get(b.perturbation)
+            data.update(perturbation=None if p is None else _describe(p) | {"strength": self.strength},
+                        strategies=self.strategies, analysis=compare.compare_summary(self.strategies, self.rows))
+        elif b.mode == "adaptive":
             p = REGISTRY[b.perturbation]
             data.update(perturbation=_describe(p) | {"max": self.top},
                         values=sorted({r["value"] for r in self.rows}),
@@ -163,6 +189,8 @@ class Campaign:
 
     def _items(self, entry, rng):
         """(perturbation, strength) pairs for one trial."""
+        if self.body.mode == "compare":
+            return [(REGISTRY[self.body.perturbation], entry["value"])] if "value" in entry else []
         if self.body.mode != "random":
             return [(REGISTRY[self.body.perturbation], entry["value"])]
         return [(REGISTRY[fid], REGISTRY[fid].sample(rng, top)) for fid, top in self.body.factors.items()]
@@ -174,6 +202,10 @@ class Campaign:
         elif body.mode == "adaptive":
             mode_text = (f"breaking point of {REGISTRY[body.perturbation].label} up to {self.top:g}, "
                          f"measure {body.measure}, budget {body.trials} trials")
+        elif body.mode == "compare":
+            p = REGISTRY.get(body.perturbation)
+            mode_text = (f"strategies {', '.join(s['id'] for s in self.strategies)}, {body.trials} paired trials"
+                         + (f" under {p.label} {self.strength:g}{p.unit}" if p else ""))
         else:
             mode_text = f"random mix of {', '.join(body.factors)}, {body.trials} trials"
         ctx.log(f"Robustness {body.mode} started: {mode_text}" + (" (dry run)" if body.dry_run else ""))
@@ -218,12 +250,18 @@ class Campaign:
         prompt = rewrite(body.task, text_items, self.target, seed)
         params = {p.id: v for p, v in items}
         number = index + 1
-        label = (f"{items[0][0].label} {entry['value']:g}{items[0][0].unit}" if body.mode != "random"
-                 else "Random mix") + f" · trial {number}/{self.total}"
+        strategy = entry.get("strategy", body.strategy)
+        if body.mode == "compare":
+            label = f"{inference.parse(strategy).label} · pair {entry['trial'] + 1}"
+        else:
+            label = (f"{items[0][0].label} {entry['value']:g}{items[0][0].unit}" if body.mode != "random"
+                     else "Random mix")
+        label += f" · trial {number}/{self.total}"
         self.current = {"index": number, "label": label, "params": params, "prompt": prompt}
         ctx.emit("trial", self.current)
         row = {"index": number, "trial": entry["trial"] + 1, "params": params, "prompt": prompt, "info": {},
-               "stop_reason": "", "steps": 0, "seconds": 0.0, "mean_rtt_s": None, "redraws": 0, "video": None}
+               "stop_reason": "", "steps": 0, "seconds": 0.0, "mean_rtt_s": None, "redraws": 0, "video": None,
+               "strategy": strategy, "requests": 0, "commands": {}}
         if "value" in entry:
             row["value"] = entry["value"]
         if "why" in entry:  # adaptive: why this strength was chosen
@@ -248,19 +286,30 @@ class Campaign:
         video = self.dir / f"trial-{number:03d}.mp4" if body.record else None
         monitor = TrialMonitor(self.target.obj, self.target.container, video)
         self.dir.mkdir(parents=True, exist_ok=True)
+        steps = int(round(body.seconds * inference.HZ))
+        simulated = None  # dry-run strategy comparison: the plan cut into noisy chunks
         if body.dry_run:
-            targets = (lambda env: self.plan) if self.plan else replay.hold_still
+            plan = self.plan[:steps] if self.plan else None
+            if plan and body.mode == "compare":
+                targets, simulated = inference.simulated_chunks(plan, strategy, seed)
+            else:
+                targets = (lambda env: plan) if plan else replay.hold_still
         else:
             targets = None
+        sim_budget = body.budget == "sim" and not body.dry_run
         result = ctx.sim.run_task(
-            body.task, prompt=prompt if prompt != body.task else None, model=body.model, seconds=body.seconds,
-            offline=body.dry_run, realtime=not body.dry_run, targets=targets, teardown=teardown,
+            body.task, prompt=prompt if prompt != body.task else None, model=body.model,
+            # simulated-time budget: the wall clock only guards against a hanging API
+            seconds=body.seconds * 6 + 60 if sim_budget else body.seconds, max_steps=steps if sim_budget else None,
+            strategy=strategy, offline=body.dry_run, realtime=not body.dry_run, targets=targets, teardown=teardown,
             hooks=[monitor, *(h for e in effects for h in e.hooks)], source=ctx.id, label=label,
         ).result()
 
         row.update(
             stop_reason=result.stop_reason, steps=result.steps, seconds=round(result.seconds, 1),
             mean_rtt_s=None if result.mean_rtt_s is None else round(result.mean_rtt_s, 2),
+            requests=simulated["executions"] if simulated else result.requests,
+            commands=simulated or (result.commands if not body.dry_run else {}),
             info={p.id: e.info for (p, _), e in zip(env_items, effects) if e.info},
             video=video.name if video is not None and video.is_file() and monitor.frames else None,
         )
@@ -270,6 +319,23 @@ class Campaign:
             row["note"] = m.pop("note")
             ctx.log(f"Trial {number}: {row['note']}.", "warn")
         self.rows.append(row)
+
+
+def _refresh(result: dict) -> dict:
+    """Strategy comparisons: recompute the analysis from the stored rows, so older campaigns are judged by the current
+    rules (e.g. smoothness by jitter share, not by absolute jerk, which mostly measures speed)."""
+    if result.get("mode") == "compare" and result.get("strategies"):
+        try:
+            result["analysis"] = compare.compare_summary(result["strategies"], result.get("rows", []))
+        except Exception:
+            pass
+    return result
+
+
+def _middle(p):
+    """Default strength for a strategy comparison: a middle value of the perturbation's defaults (not the baseline)."""
+    values = [v for v in p.defaults if v != p.neutral] or [p.max]
+    return values[(len(values) - 1) // 2]
 
 
 def _describe(p):
@@ -288,6 +354,7 @@ class RobustnessLab(Extension):
         {"id": "sweep", "title": "Robustness Sweep", "subtitle": "Failure curve", "icon": "⫶"},
         {"id": "adaptive", "title": "Breaking Point", "subtitle": "Adaptive search", "icon": "◎"},
         {"id": "random", "title": "Perturbation Mix", "subtitle": "Which factor hurts", "icon": "⁂"},
+        {"id": "compare", "title": "Strategy A/B", "subtitle": "Chunk execution", "icon": "⇄"},
     ]
 
     def setup(self):
@@ -308,6 +375,10 @@ class RobustnessLab(Extension):
         def perturbations():
             return {"groups": GROUPS, "items": [_describe(p) for p in REGISTRY.values()]}
 
+        @r.get("/strategies")
+        def strategies():
+            return {"presets": [inference.parse(s).describe() for s in inference.PRESETS]}
+
         @r.get("/status")
         def status():
             return self.campaign.summary() if self.campaign else None
@@ -319,8 +390,18 @@ class RobustnessLab(Extension):
                                          "be measured. Name one object (apple, banana, orange, bottle) and the goal "
                                          "after into/in/on/to (bowl, plate), e.g. \"pick up the banana and put it "
                                          "on the plate\".")
-            if body.mode != "random" and body.perturbation not in REGISTRY:
+            if body.mode in ("sweep", "adaptive") and body.perturbation not in REGISTRY:
                 raise HTTPException(400, f"Unknown perturbation: {body.perturbation}")
+            try:
+                body.strategy = inference.parse(body.strategy).id
+                body.strategies = list(dict.fromkeys(inference.parse(x).id for x in body.strategies))
+            except ValueError as error:
+                raise HTTPException(400, str(error))
+            if body.mode == "compare":
+                if len(body.strategies) < 2:
+                    raise HTTPException(400, "Pick at least two different strategies to compare.")
+                if body.perturbation != "none" and body.perturbation not in REGISTRY:
+                    raise HTTPException(400, f"Unknown perturbation: {body.perturbation}")
             if body.mode == "adaptive":
                 p = REGISTRY.get(body.perturbation)
                 if p is None or p.discrete:
@@ -355,6 +436,8 @@ class RobustnessLab(Extension):
                 self.ctx.sim.stop()
             return {"ok": True}
 
+        data_label = data.label
+
         @r.get("/history")
         def history():
             items = []
@@ -365,7 +448,7 @@ class RobustnessLab(Extension):
                     continue
                 items.append({
                     "id": data["id"], "mode": data["mode"], "state": data["state"], "task": data["config"]["task"],
-                    "label": data.get("perturbation", {}).get("label") or "Random mix",
+                    "label": data_label(data),
                     "dry_run": data["config"]["dry_run"], "done": data["done"], "total": data["total"],
                     "verdict": data["analysis"]["verdict"]["text"],
                 })
@@ -375,12 +458,12 @@ class RobustnessLab(Extension):
         def results(campaign_id: str):
             if self.campaign and self.campaign.id == campaign_id:
                 return self.campaign.summary()
-            return json.loads((self._campaign_dir(campaign_id) / "result.json").read_text(encoding="utf-8"))
+            return _refresh(json.loads((self._campaign_dir(campaign_id) / "result.json").read_text(encoding="utf-8")))
 
         # ---------- stored runs & downloads ----------
 
         def stored(task=None, policy=None):
-            results = data.load_all(self.ctx.data_dir)
+            results = [_refresh(r) for r in data.load_all(self.ctx.data_dir)]
             if self.campaign:  # the running campaign: live state instead of the last save
                 results = [self.campaign.summary() if r["id"] == self.campaign.id else r for r in results]
             return [r for r in results if data.matches(r, task, policy)]

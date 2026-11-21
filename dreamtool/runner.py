@@ -3,7 +3,8 @@
 Flow (synchronous, like the official example):
   1. collect 9 camera frames per camera (0.2 s apart in simulated time)
   2. get_action() -> action chunk (up to 48 rows x 7 values per arm); physics pauses meanwhile
-  3. execute the rows at 20 Hz while feeding new frames to the client
+  3. execute the rows at 20 Hz while feeding new frames to the client (how many rows, and whether consecutive chunks
+     are blended, is the inference strategy: see inference.py)
   4. repeat until time is up, success is detected or a hook stops the run
 
 Plug in your own logic with a `Hooks` subclass (monitoring, safety checks, metrics, UI ...).
@@ -19,7 +20,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from . import scene, sim
+from . import inference, scene, sim
 
 
 class Hooks:
@@ -56,6 +57,8 @@ class RunResult:
     success: bool | None = None  # None = no success check known for this task
     steps: int = 0
     requests: int = 0
+    strategy: str = "chunk"
+    commands: dict = field(default_factory=dict)  # smoothness of the executed commands (inference.CommandStats)
     rtts_s: list[float] = field(default_factory=list)
     seconds: float = 0.0
 
@@ -91,11 +94,16 @@ def run_task(
     prompt: str | None = None,
     max_requests: int | None = None,
     capture_each_step: bool = True,
+    strategy: "str | inference.Strategy" = "chunk",
+    max_steps: int | None = None,
 ) -> RunResult:
     """Runs a task with Dream-1 in the simulator. Needs an API key (see README).
 
     `prompt` is the text Dream-1 receives (default: `task`). `task` still decides the success check, so a reworded
     or misspelled prompt is judged against the original goal.
+    `strategy` decides how each action chunk is executed (inference.py). `max_steps` ends the run after that many
+    control steps (a budget in simulated time, independent of how long the requests take); `seconds` stays the
+    wall-clock limit.
     """
     hooks = hooks if isinstance(hooks, list) else [hooks] if hooks else []
     config = sim.settings()
@@ -109,7 +117,10 @@ def run_task(
     managed = max_requests is not None
     check = None if managed else scene.success_check(task)
     prompt = prompt or task
-    result = RunResult(task=task, model=model, success=False if check else None)
+    strategy = inference.parse(strategy)
+    executor = inference.ChunkExecutor(strategy, actions_per_reply)
+    stats = inference.CommandStats()
+    result = RunResult(task=task, model=model, success=False if check else None, strategy=strategy.id)
     log = print if verbose else (lambda *a, **k: None)
     policy = None
     started_at = time.monotonic()
@@ -165,6 +176,8 @@ def run_task(
                         return reason
                 if time.monotonic() >= deadline:
                     return "task_deadline" if managed else "timeout"
+                if max_steps is not None and result.steps >= max_steps:
+                    return "timeout"
                 if view is not None and not view.is_running():
                     return "viewer closed"
                 if check and check(env):
@@ -226,12 +239,14 @@ def run_task(
                 for h in hooks:
                     h.on_reply(env, reply, rtt)
 
-                left, right = sim.validate_chunk(env, reply, actions_per_reply, verbose=False)
-                for l_row, r_row in zip(left, right):
+                left, right = sim.validate_chunk(env, reply, inference.CHUNK, verbose=False)
+                left, right = executor.plan(result.steps, left, right)
+                for row, (l_row, r_row) in enumerate(zip(left, right)):
                     if stop_reason() is not None:
                         break
                     tick = time.monotonic()
                     env.step(l_row, r_row)
+                    stats.add(l_row, r_row, seam=row == 0)
                     kept = steps % sim.FRAME_EVERY_STEPS == 0
                     images = sim.capture(env, windows, keep=kept) if kept or capture_each_step else {}
                     if kept:
@@ -258,6 +273,7 @@ def run_task(
         else:
             result.stop_reason = f"error: {type(error).__name__}: {error}"
     finally:
+        result.commands = stats.summary()
         if managed:
             if result.stop_reason == "task_deadline":
                 ended_at = deadline

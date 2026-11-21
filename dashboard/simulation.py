@@ -103,6 +103,8 @@ class RunRequest:
     capture_each_step: bool = True
     prompt: str | None = None  # text sent to Dream-1 instead of `task` (the success check still uses `task`)
     realtime: bool = True  # offline: play targets at 20 Hz wall clock; False = as fast as possible
+    strategy: str = "chunk"  # how action chunks are executed (dreamtool/inference.py)
+    max_steps: int | None = None  # budget in simulated control steps (20 per second), besides the wall-clock `seconds`
     source: str = "core"  # who started the run (core or an extension id)
     label: str = ""
     id: int = 0
@@ -290,7 +292,7 @@ class SimWorker(threading.Thread):
         self.run_stats = {"steps": 0, "requests": 0, "last_rtt_s": None, "started": time.time()}
         info = {"id": request.id, "task": request.task, "model": "offline" if request.offline else request.model,
                 "offline": request.offline, "source": request.source, "label": request.label,
-                "prompt": request.prompt or request.task}
+                "prompt": request.prompt or request.task, "strategy": None if request.offline else request.strategy}
         self.bus.emit("run.started", info)
         hooks = [_CoreHook(self, request)]
         for ext in self.extensions:
@@ -324,7 +326,7 @@ class SimWorker(threading.Thread):
                 result = runner.run_task(
                     request.task, model=request.model, seconds=request.seconds, env=env, hooks=hooks,
                     viewer=False, verbose=False, stop_on_success=request.stop_on_success, prompt=request.prompt,
-                    max_requests=request.max_requests,
+                    max_requests=request.max_requests, strategy=request.strategy, max_steps=request.max_steps,
                     capture_each_step=request.capture_each_step,
                 )
         except Exception as error:

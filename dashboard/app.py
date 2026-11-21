@@ -13,6 +13,7 @@ from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from dreamtool import inference
 from dreamtool import sim as dsim
 
 from .events import EventBus
@@ -38,6 +39,7 @@ class RunBody(BaseModel):
     model: str = dsim.BETA_MODEL
     seconds: float = Field(60, gt=0, le=3600)
     offline: bool = False
+    strategy: str = "chunk"
 
 
 class CameraBody(BaseModel):
@@ -105,6 +107,7 @@ def create_app() -> FastAPI:
             "default_model": dsim.BETA_MODEL,
             "tasks": TASK_SUGGESTIONS,
             "cameras": list(CAMERAS),
+            "strategies": [inference.parse(s).describe() for s in inference.PRESETS],
             "camera": worker.camera.get(),
             "status": worker.status(),
             "sim": worker.state_snapshot,
@@ -120,7 +123,10 @@ def create_app() -> FastAPI:
         require_idle()
         if not body.offline and not dsim.settings().get("DREAM_API_KEY"):
             raise HTTPException(400, "No API key configured (see README). The offline demo still works.")
+        if not inference.is_valid(body.strategy):
+            raise HTTPException(400, f"Unknown inference strategy: {body.strategy}")
         worker.run_task(body.task, model=body.model, seconds=body.seconds, offline=body.offline,
+                        strategy=inference.parse(body.strategy).id,
                         targets=demo_motion if body.offline else None, label="Offline demo" if body.offline else "")
         return {"ok": True}
 

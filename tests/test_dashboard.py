@@ -123,3 +123,30 @@ def test_robustness_adaptive_search(client):
     assert all(r["search"]["why"] == "most informative" for r in status["rows"][1:])
     assert status["analysis"]["stopped_because"] == "budget used up"
     assert client.get(f"/api/ext/robustness/download/{status['id']}/trials.csv").text.count("\n") == 5
+
+
+def test_robustness_strategy_comparison(client):
+    app = client.app_ref
+    wait_idle(app)
+    presets = client.get("/api/ext/robustness/strategies").json()["presets"]
+    assert [p["id"] for p in presets][:3] == ["chunk", "receding-16", "ensemble-16"]
+    body = {"task": "put apple into the bowl", "mode": "compare", "strategies": ["chunk", "ensemble-16"],
+            "perturbation": "none", "trials": 1, "seconds": 5, "dry_run": True, "record": False}
+    assert client.post("/api/ext/robustness/start", json={**body, "strategies": ["chunk"]}).status_code == 400
+    assert client.post("/api/ext/robustness/start", json={**body, "strategies": ["chunk", "blend-3"]}).status_code == 400
+    assert client.post("/api/ext/robustness/start", json=body).status_code == 200
+    end = time.time() + 60
+    while client.get("/api/ext/robustness/status").json()["state"] == "running" and time.time() < end:
+        time.sleep(0.2)
+    status = client.get("/api/ext/robustness/status").json()
+    assert status["state"] == "done" and status["done"] == 2, [(r["stop_reason"], r.get("note")) for r in status["rows"]]
+    assert [r["strategy"] for r in status["rows"]] == ["chunk", "ensemble-16"]
+    assert all(r["trial"] == 1 for r in status["rows"]), "both strategies run the same pair"
+    assert status["rows"][1]["requests"] > status["rows"][0]["requests"]
+    assert status["rows"][1]["commands"]["seams"] > 0
+    assert [p["id"] for p in status["analysis"]["per_strategy"]] == ["chunk", "ensemble-16"]
+    assert status["analysis"]["pairs"][0]["n"] in (0, 1)
+    csv_text = client.get(f"/api/ext/robustness/download/{status['id']}/trials.csv").text
+    assert "strategy" in csv_text.splitlines()[0] and "ensemble-16" in csv_text
+    assert client.get("/api/state").json()["strategies"][0]["id"] == "chunk"
+    assert client.post("/api/run", json={"task": "x y", "strategy": "nope"}).status_code in (400, 409)

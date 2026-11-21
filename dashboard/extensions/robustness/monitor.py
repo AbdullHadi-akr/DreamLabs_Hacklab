@@ -21,6 +21,7 @@ import mujoco
 import numpy as np
 
 from dreamtool import scene
+from dreamtool.inference import Smoothness
 from dreamtool.runner import Hooks
 
 REACH_M = 0.04
@@ -86,6 +87,7 @@ class TrialMonitor(Hooks):
         self.t0 = 0.0
         self.frames = 0
         self.warnings0 = 0
+        self.motion = Smoothness()  # measured arm joints
         self.metrics: dict = {}
 
     def on_start(self, env, task, model):
@@ -120,6 +122,8 @@ class TrialMonitor(Hooks):
             self.others_moved = max(self.others_moved, float(np.linalg.norm(q[:2] - q0[:2])))
         if p[2] < OFF_TABLE_Z:
             self.off_table = True
+        state = env.state()
+        self.motion.add(np.r_[state["left"][:6], state["right"][:6]])
         if self.success_at is None and scene.is_in(env, self.obj, self.container):
             self.success_at = float(env.data.time) - self.t0
         if self.recorder is not None:
@@ -168,6 +172,7 @@ class TrialMonitor(Hooks):
             success = False
         progress = None if unstable else 1.0 if success else 0.75 if (lifted and carried) else 0.5 if lifted else 0.25 if reached else 0.0
         finite = lambda v: None if not np.isfinite(v) else round(float(v) * 100, 1)  # noqa: E731
+        motion = self.motion.summary()
         self.metrics = {
             "outcome": outcome,
             "progress": progress,
@@ -178,6 +183,11 @@ class TrialMonitor(Hooks):
             "final_to_container_cm": round(float(np.linalg.norm(p[:2] - c[:2])) * 100, 1),
             "others_moved_cm": round(self.others_moved * 100, 1),
             "time_to_success_s": None if self.success_at is None else round(self.success_at, 1),
+            # measured arm joints: RMS speed (rad/s), RMS jerk (rad/s^3) and the share of the motion that is jitter
+            # (inference.Smoothness): how fast and how smoothly the arms actually moved
+            "joint_speed": motion["speed"],
+            "joint_jerk": motion["jerk"],
+            "joint_jitter": motion["jitter"],
         }
         if unstable:
             self.metrics["note"] = "physics became unstable (simulator issue, not counted)"
