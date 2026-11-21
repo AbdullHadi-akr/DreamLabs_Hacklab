@@ -1,6 +1,11 @@
 /* Standalone pages of the Robustness extension (report.html, runs.html). */
-body { display: block; height: auto; background: var(--clay); }
+body.rp-page { display: block; height: auto; background: var(--clay); }
 .rp { max-width: 1180px; margin: 0 auto; padding: 28px 24px 60px; }
+/* inside the Test Suite report area */
+.rp.rp-embedded { max-width: none; padding: 0; }
+.rp-embedded .rp-head h1 { font-size: 20px; }
+.rp-embedded .rb-verdict { font-size: 14px; }
+.rp-embedded .card { box-shadow: none; }
 .rp-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; flex-wrap: wrap; }
 .rp-head h1 { margin: 0 0 6px; font-size: 26px; font-weight: 500; letter-spacing: -.4px; }
 .rp-meta { display: flex; flex-wrap: wrap; gap: 6px 16px; color: var(--ink-3); font-size: 14px; }
@@ -49,3 +54,11 @@ body { display: block; height: auto; background: var(--clay); }
 .rp-scroll { overflow-x: auto; }
 .rp-heat-wrap { overflow-x: auto; padding-bottom: 4px; }
 .rp-heat-wrap .rb-heat { min-width: 640px; }
+
+/* narrow containers (the Test Suite report column): stack the two report cards, let wide tables scroll */
+.rp-grid > * { min-width: 0; overflow-x: auto; }
+.rp.rp-embedded { container-type: inline-size; }
+@container (max-width: 900px) {
+  .rp-grid { grid-template-columns: 1fr; }
+  .rp-trials { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+}

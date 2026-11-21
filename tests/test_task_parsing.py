@@ -31,7 +31,29 @@ NOT_UNDERSTOOD = [
     "put the red fruit into the bowl",  # no object named: cannot be measured
     "pick up the bowl",
     "put the apple on the table",
+    "Do not place the apple in the bowl.",  # negated
+    "don't put the banana on the plate",
+    "Leg den Apfel nicht in die Schüssel",
+    "Put the banana on the plate and then remove it",  # acts again after placing: no single final goal
+    "put the apple in the bowl, then take it out again",
 ]
+
+ALSO_UNDERSTOOD = [
+    ("put the apple in the bowl next to the plate", ("apple", "bowl")),  # "next to" describes the bowl
+    ("put the apple in the bowl please", ("apple", "bowl")),
+]
+
+
+@pytest.mark.parametrize("task,expected", ALSO_UNDERSTOOD)
+def test_also_understood(task, expected):
+    assert parse_task(task) == expected
+
+
+@pytest.mark.parametrize("task", ["Pick up the Banana and put it on the green plate", "Leg den Apfel in die Schüssel"])
+def test_test_suite_understands_natural_sentences(task):
+    from dashboard.extensions.test_suite.evaluation import placement
+
+    assert placement(task) == parse_task(task) is not None
 
 
 @pytest.mark.parametrize("task,expected", UNDERSTOOD)

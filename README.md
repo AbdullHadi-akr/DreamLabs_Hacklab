@@ -84,7 +84,7 @@ python start.py                      # or: python -m dashboard   → opens http:
   Z / X or the mouse wheel on the ball rotates the gripper, R / F tilts it; Space
   opens/closes it, 1/2 picks the arm. The tool center point coordinates, rotation and tilt are shown next to each
   gripper; a colored line shows the direction the fingers open in. Costs no credits.
-- **Offline demo**, **Home**, **Reset** and the **dry run** in the Robustness tab cost no credits.
+- **Offline demo**, **Home**, **Reset** and the **dry run** of the robustness tests cost no credits.
   The **run** button and sweeps without dry run call Dream-1.
 - The server only listens locally (127.0.0.1). Ctrl+C stops it.
 
@@ -96,7 +96,8 @@ Placement outcomes use simulated contact, release, and stability evidence. Repor
 
 ### Robustness test
 
-Tab **Robustness**: change the world on purpose and see how and when Dream-1 fails.
+**Test Suite → Robustness** (three tiles in the Test Builder: Robustness Sweep, Breaking Point, Perturbation Mix):
+change the world on purpose and see how and when Dream-1 fails. The full report appears in the Test Report area.
 
 - **Sweep:** one perturbation at increasing strength (e.g. move the apple 0/2/4/6/8 cm) → success rate with a 95 %
   interval per strength, progress score, and the **breaking point** (first strength at half the baseline or below).
@@ -122,7 +123,7 @@ Tab **Robustness**: change the world on purpose and see how and when Dream-1 fai
   if needed; a trial that ends with the target on the floor stops early to save credits.
 - **Report page** with chart, tables and an MP4 of every trial (overhead + wrist cameras = what Dream-1 saw).
   Results live in `out/extensions/robustness/<campaign>/`.
-- **All runs, heatmap & downloads** (`/ext/robustness/runs.html`, linked in the tab): every stored run, a
+- **All runs, heatmap & downloads** (`/ext/robustness/runs.html`, linked in the robustness panel): every stored run, a
   **robustness map** (heatmap: perturbation × strength, colored by success rate or progress score, filtered by task
   and policy so dry runs and Dream-1 are never pooled) and downloads per run (CSV, Excel CSV, JSON, ZIP with videos)
   or for all filtered trials at once. The report page adds a trial × strength grid (sweep) or a two-factor heatmap

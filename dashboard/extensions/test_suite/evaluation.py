@@ -49,7 +49,9 @@ def placement(text):
         normalized,
     )
     if not match:
-        return None
+        # Natural sentences ("Pick up the banana and put it on the green plate", German, "from ... to ...") use the
+        # shared task reader; it refuses negated tasks and tasks that act again after placing, like the pattern above.
+        return scene.parse_task(text)
     obj, target = match.groups()
     if obj == "water":
         return None  # The simulator models the bottle; it has no liquid telemetry.

@@ -73,8 +73,16 @@ def _tokens(task: str) -> list[str]:
     return re.findall(r"->|→|[a-zäöüß]+", text)
 
 
-def _goal(tokens: list[str]) -> tuple[str, int] | None:
-    """The goal container and the index of its placement word: the last container that follows a placement word."""
+## Words that negate the task ("do not put ...", "don't", "never", German "nicht"/"kein").
+_NEGATION = {"not", "never", "dont", "nicht", "kein", "keine", "niemals"}
+## Actions after the goal change the final state ("... and then remove it"): no single goal to measure.
+_LATER_ACTION = {"then", "remove", "take", "lift", "pick", "move", "put", "place", "drop", "back", "again",
+                 "dann", "danach", "wieder", "nimm", "nehme"}
+
+
+def _goal(tokens: list[str]) -> tuple[str, int, int] | None:
+    """(container, index of its placement word, index of the container word): the last container that follows a
+    placement word."""
     for i in range(len(tokens) - 1, -1, -1):
         if tokens[i] not in CONTAINER_WORDS:
             continue
@@ -85,7 +93,7 @@ def _goal(tokens: list[str]) -> tuple[str, int] | None:
             if word in _PLACE:
                 if j > 0 and tokens[j - 1] in _NOT_PLACE:  # "next to the bowl", "close to"
                     break
-                return CONTAINER_WORDS[tokens[i]], j
+                return CONTAINER_WORDS[tokens[i]], j, i
     return None
 
 
@@ -97,12 +105,19 @@ def parse_task(task: str) -> tuple[str, str] | None:
     "Leg den Apfel in die Schüssel". The goal is the container after the last placement word (into, in, on, to,
     auf ...); the object is the first object named before it. Color/size words are ignored, and an object word used
     as an adjective ("the orange bowl") is not taken as the object.
+
+    Returns None when the goal cannot be measured: negated tasks ("Do not place the apple in the bowl") and tasks
+    that act again after placing ("Put the banana on the plate and then remove it").
     """
-    tokens = _tokens(task)
+    tokens = _tokens(task.replace("n't", " not").replace("n’t", " not"))
+    if _NEGATION & set(tokens):
+        return None
     goal = _goal(tokens)
     if goal is None:
         return None
-    container, place_at = goal
+    container, place_at, container_at = goal
+    if _LATER_ACTION & set(tokens[container_at + 1:]):
+        return None
     for k, word in enumerate(tokens[:place_at]):
         if word not in OBJECT_WORDS:
             continue

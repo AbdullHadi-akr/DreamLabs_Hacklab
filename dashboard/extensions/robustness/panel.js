@@ -4,6 +4,7 @@ import {
   adaptiveChart, adaptiveLegend, adaptiveStatus, chartLegend, describeParams, factorTable, outcomeChip, outcomeLegend,
   pct, sweepChart, sweepTable,
 } from "./charts.js";
+import { renderReport } from "./report_view.js";
 
 const MEASURES = [
   ["success", "Success (object in container)"],
@@ -142,8 +143,23 @@ export async function mount(root, api) {
 
   const reportUrl = (id, trial) => `${api.asset("report.html")}?id=${encodeURIComponent(id)}${trial ? `#trial-${trial}` : ""}`;
 
+  // Inside the Test Suite the builder tiles pick the mode and the full report fills the wide report area.
+  const embedded = root.classList.contains("suite-extension");
+  const wideReport = () => document.getElementById("robustness-wide-report");
+  let shown = null;
+
   function render(s) {
-    if (!s) return;
+    if (!s) {
+      const wide = wideReport();
+      if (embedded && wide && !wide.childElementCount) {
+        wide.append(h("div", { class: "rb-wide-empty" }, h("h2", { class: "pixel" }, "Robustness report"),
+          h("p", { class: "muted" }, "Start a robustness test on the left, or open a past one from its history.")));
+      }
+      return;
+    }
+    shown = s;
+    const wide = embedded ? wideReport() : null;
+    if (wide) renderReport(wide, s, { standalone: false });
     const running = s.state === "running";
     startBtn.disabled = running;
     stopBtn.disabled = !running;
@@ -155,6 +171,13 @@ export async function mount(root, api) {
     const a = s.analysis;
     const scored = s.rows.filter((r) => r.outcome !== "invalid");
     const invalid = s.rows.length - scored.length;
+    if (wide) {  // the details are in the wide report; keep only the verdict here
+      results.replaceChildren(h("div", { class: `rb-verdict ${a.verdict.breaking_point != null || a.verdict.most_harmful ? "bad" : ""}` },
+        h("strong", {}, s.mode === "sweep" ? s.perturbation.label : s.mode === "adaptive" ? `Breaking point · ${s.perturbation.label}` : "Random mix"),
+        h("span", {}, a.verdict.text)),
+        invalid ? h("p", { class: "muted" }, `${invalid} trial(s) not counted (no fair setup found, or the simulator glitched).`) : "");
+      return;
+    }
     results.replaceChildren(h("div", {},
       h("div", { class: `rb-verdict ${a.verdict.breaking_point !== null && a.verdict.breaking_point !== undefined || a.verdict.most_harmful ? "bad" : ""}` },
         h("strong", {}, s.mode === "sweep" ? s.perturbation.label : s.mode === "adaptive" ? `Breaking point · ${s.perturbation.label}` : "Random mix"),
@@ -187,8 +210,18 @@ export async function mount(root, api) {
     try { render(await api.get(`/results/${history.value}`)); } catch (e) { api.ui.toast(e.message, "error"); }
   };
 
+  const modeRow = h("div", { class: "row rb-modes", hidden: embedded }, modeButtons.sweep, modeButtons.random, modeButtons.adaptive);
+  const modeTitle = h("h3", { class: "rb-suite-title", hidden: !embedded });
+  const MODE_TITLES = { sweep: "Robustness sweep", adaptive: "Breaking point search", random: "Perturbation mix" };
+  // The Test Suite's tiles send {detail: "sweep" | "adaptive" | "random"}; also re-show the last report.
+  root.addEventListener("suite-mode", (event) => {
+    setMode(event.detail);
+    modeTitle.textContent = MODE_TITLES[event.detail] || "";
+    if (shown) render(shown); else render(null);
+  });
+
   root.append(
-    h("div", { class: "row rb-modes" }, modeButtons.sweep, modeButtons.random, modeButtons.adaptive),
+    modeTitle, modeRow,
     h("label", { class: "field" }, h("span", {}, "Task"), task),
     sweepBox, randomBox,
     h("div", { class: "row" },

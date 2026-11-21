@@ -283,6 +283,12 @@ class RobustnessLab(Extension):
     icon = "🧪"
     description = "Perturb the scene and see how and when Dream-1 fails"
     order = 20
+    slot = "suite"  # three tiles in the Test Suite builder (a normal tab when there is no Test Suite)
+    suite_modes = [
+        {"id": "sweep", "title": "Robustness Sweep", "subtitle": "Failure curve", "icon": "⫶"},
+        {"id": "adaptive", "title": "Breaking Point", "subtitle": "Adaptive search", "icon": "◎"},
+        {"id": "random", "title": "Perturbation Mix", "subtitle": "Which factor hurts", "icon": "⁂"},
+    ]
 
     def setup(self):
         self.campaign: Campaign | None = None

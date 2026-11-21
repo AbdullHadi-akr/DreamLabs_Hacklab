@@ -76,7 +76,23 @@ export async function mount(root, api) {
       if (key === "reproduction") loadFailures().catch(showError);
     }, {class: "suite-mode", "aria-pressed": "false"}),
   ]);
-  const modeGrid = h("div", {class: "suite-modes", role: "group", "aria-label": "Select test mode"}, modeButtons.map(([, node]) => node));
+  // Other extensions can add test modes (slot "suite"), e.g. the Robustness Lab: one tile per mode. Selecting such a
+  // tile shows that extension's own panel instead of this form and its report instead of this report.
+  const extensions = api.workspace?.extensions() || [];
+  const extensionTiles = extensions.flatMap((ext) => (ext.suite_modes || []).map((m) => [
+    `${ext.id}:${m.id}`, button([h("span", {"aria-hidden": "true"}, m.icon || ext.icon), h("strong", {}, m.title), h("small", {}, m.subtitle)], () => {
+      mode.value = `${ext.id}:${m.id}`;
+      updatePlan();
+    }, {class: "suite-mode", "aria-pressed": "false", "aria-label": `${m.title}: ${m.subtitle}`}),
+  ]));
+  modeButtons.push(...extensionTiles);
+  const extensionReports = Object.fromEntries(extensions.map((ext) =>
+    [ext.id, h("div", { id: `${ext.id}-wide-report`, class: "suite-extension-report", hidden: true })]));
+  const extensionOf = (key) => extensions.find((ext) => key.startsWith(`${ext.id}:`));
+  const modeGrid = h("div", {class: "suite-modes", role: "group", "aria-label": "Select test mode"},
+    modeButtons.filter(([key]) => !key.includes(":")).map(([, node]) => node),
+    extensions.flatMap((ext) => [h("div", { class: "suite-mode-group" }, ext.title),
+      ...extensionTiles.filter(([key]) => key.startsWith(`${ext.id}:`)).map(([, node]) => node)]));
   const task = h("textarea", { required: true, maxlength: 300, rows: 2, placeholder: "Put the banana on the plate" }, "Put the banana on the plate");
   const repeats = integer(1, 1, 100);
   const position = h("input", {type: "range", value: 0, min: 0, max: 20});
@@ -122,14 +138,15 @@ export async function mount(root, api) {
   const submit = h("button", { type: "submit", class: "btn btn-outline" }, "Start campaign");
   const stop = button("Stop", () => control("stop"), { disabled: true, title: "Stop the current run and end the campaign" });
   const cancel = button("Cancel pending", () => control("cancel"), { disabled: true, title: "Finish the current run and cancel pending runs" });
-  const form = h("form", { class: "suite-form" }, modeGrid, taskField, candidateField, repeatField, variation, stressField, failedField,
+  const form = h("form", { class: "suite-form" }, taskField, candidateField, repeatField, variation, stressField, failedField,
     advanced, plan, h("div", { class: "suite-actions" }, submit, stop, cancel), errorMessage);
-  root.append(h("h2", { class: "pixel" }, "Test builder"), form);
+  root.append(h("h2", { class: "pixel" }, "Test builder"), modeGrid, form, ...extensions.map((ext) => ext.root));
 
   const history = h("select", { "aria-label": "Campaign history" });
   results.tabIndex = -1;
   const content = h("div");
-  results.append(h("div", { class: "section-head" }, h("h2", { class: "pixel" }, "Test report"), history), content);
+  const reportHead = h("div", { class: "section-head" }, h("h2", { class: "pixel" }, "Test report"), history);
+  results.append(reportHead, content, ...Object.values(extensionReports));
   const liveTask = h("p");
   const liveStatus = h("p", { role: "status" });
   const elapsed = h("p", { class: "muted" });
@@ -158,6 +175,18 @@ export async function mount(root, api) {
   }
 
   function updatePlan() {
+    const external = extensionOf(mode.value);
+    for (const [key, node] of modeButtons) node.setAttribute("aria-pressed", String(key === mode.value));
+    form.hidden = Boolean(external);
+    reportHead.hidden = content.hidden = Boolean(external);
+    for (const ext of extensions) {
+      ext.root.hidden = ext !== external;
+      extensionReports[ext.id].hidden = ext !== external;
+    }
+    if (external) {
+      external.root.dispatchEvent(new CustomEvent("suite-mode", { detail: mode.value.slice(external.id.length + 1) }));
+      return;
+    }
     const sweep = mode.value === "sweep";
     const replay = mode.value === "reproduction";
     const paired = mode.value === "ab";

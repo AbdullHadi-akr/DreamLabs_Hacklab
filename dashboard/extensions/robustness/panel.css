@@ -1,5 +1,10 @@
 /* Robustness panel + report (shared classes, prefix rb-). */
 .rb-modes { margin-bottom: 12px; }
+/* inside the Test Suite builder */
+.suite-extension { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line-soft); }
+.rb-suite-title { margin: 0 0 10px; font-size: 15px; font-weight: 600; }
+.rb-wide-empty { padding: 24px 4px; }
+.rb-wide-empty h2 { margin: 0 0 6px; font-size: 16px; }
 .rb-desc { margin: -4px 0 12px; }
 .rb-factors { display: flex; flex-direction: column; gap: 2px; margin-bottom: 12px; }
 .rb-factor-group { font-size: 11px; color: var(--ink-3); text-transform: uppercase; letter-spacing: .05em; margin-top: 8px; }

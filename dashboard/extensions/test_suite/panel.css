@@ -43,7 +43,8 @@
 .suite-frame img { width: 100%; height: auto; border-radius: 6px; display: block; }
 .suite-frame figcaption { margin-top: 4px; color: var(--muted); }
 .suite-table tr.suite-selected { background: #fff2e8; }
-.suite-modes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.suite-modes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin-bottom: 12px; }
+.suite-mode-group { grid-column: 1 / -1; margin-top: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-3); }
 .suite-mode { border: 1px solid var(--line-soft); border-radius: 8px; background: var(--glass-white); color: var(--ink); cursor: pointer; min-height: 65px; padding: 6px; text-align: left; display: grid; grid-template-columns: auto 1fr; align-content: center; gap: 2px 6px; font: inherit; }
 .suite-mode[aria-pressed="true"] { background: var(--creamsicle-wash); border-color: var(--creamsicle-deep); }
 .suite-mode small { grid-column: 2; color: var(--ink-2); }

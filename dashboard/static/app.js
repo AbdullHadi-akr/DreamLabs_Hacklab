@@ -241,7 +241,9 @@ function setupEvents() {
 
 async function loadExtensions(extensions) {
   const tabs = $("ext-tabs"), panels = $("ext-panels");
-  const left = extensions.filter((e) => e.slot !== "right" && e.slot !== "workspace");
+  // slot "suite" lives in the Test Suite builder; without a Test Suite it falls back to a normal tab
+  const hasSuite = extensions.some((e) => e.slot === "workspace");
+  const left = extensions.filter((e) => e.slot !== "right" && e.slot !== "workspace" && !(hasSuite && e.slot === "suite"));
   const right = extensions.filter((e) => e.slot === "right");
   if (left.length) panels.innerHTML = "";
 
@@ -300,7 +302,16 @@ async function main() {
   window.addEventListener("resize", drawRtt);
   await loadExtensions(state.extensions);
   const suite = state.extensions.find((ext) => ext.id === "test_suite");
-  if (suite) await mountPanel(suite, $("test-suite-config"));
+  if (suite) {
+    // Extensions that add test modes to the builder are mounted first; the Test Suite shows them as tiles.
+    core.suiteExtensions = [];
+    for (const ext of state.extensions.filter((e) => e.slot === "suite")) {
+      const root = h("div", { class: "suite-extension", "data-id": ext.id, hidden: true });
+      await mountPanel(ext, root);
+      core.suiteExtensions.push({ ...ext, root });
+    }
+    await mountPanel(suite, $("test-suite-config"));
+  }
 }
 
 main().catch((error) => {
