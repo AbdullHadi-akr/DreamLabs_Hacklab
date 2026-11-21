@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dream-1 Lab</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="logo">◆</span> Dream-1 Lab</div>
+    <div class="pills">
+      <span class="pill" id="pill-ws"><i></i>Verbindung</span>
+      <span class="pill" id="pill-sim"><i></i>Simulation</span>
+      <span class="pill" id="pill-key"><i></i>API-Key</span>
+      <span class="pill" id="pill-run"><i></i>Bereit</span>
+    </div>
+  </header>
+
+  <main class="layout">
+    <aside class="col col-left">
+      <nav class="tabs" id="ext-tabs"></nav>
+      <div class="panels" id="ext-panels">
+        <div class="empty">Keine Extensions geladen.</div>
+      </div>
+    </aside>
+
+    <section class="col col-center">
+      <div class="viewer" id="viewer">
+        <img id="main-view" alt="Simulation" draggable="false">
+        <div class="viewer-badges">
+          <span class="badge" id="badge-time">t = 0.0 s</span>
+          <span class="badge" id="badge-run" hidden></span>
+        </div>
+        <div class="viewer-hint">Ziehen: drehen · Rechts/Shift: verschieben · Rad: zoomen · Doppelklick: zurücksetzen</div>
+      </div>
+
+      <form class="taskbar" id="taskbar">
+        <input id="task" list="task-list" placeholder="Task für Dream-1, z. B. put apple into the bowl" autocomplete="off">
+        <datalist id="task-list"></datalist>
+        <input id="model" class="small" title="Modell">
+        <label class="seconds" title="Maximale Dauer">
+          <input id="seconds" type="number" min="5" max="3600" step="5" value="60"> s
+        </label>
+        <button type="submit" class="btn primary" id="btn-run">▶ Start</button>
+        <button type="button" class="btn danger" id="btn-stop">■ Stop</button>
+        <span class="sep"></span>
+        <button type="button" class="btn" id="btn-demo" title="Testbewegung ohne API (keine Credits)">Offline-Demo</button>
+        <button type="button" class="btn" id="btn-home" title="Arme in Ausgangspose fahren">Home</button>
+        <button type="button" class="btn" id="btn-reset" title="Objekte und Arme zurücksetzen">Reset</button>
+      </form>
+
+      <div class="cams" id="cams"></div>
+    </section>
+
+    <aside class="col col-right">
+      <section class="card">
+        <h3>Aktueller Lauf</h3>
+        <dl class="kv" id="run-info">
+          <dt>Status</dt><dd id="ri-state">–</dd>
+          <dt>Task</dt><dd id="ri-task">–</dd>
+          <dt>Quelle</dt><dd id="ri-source">–</dd>
+          <dt>Schritte</dt><dd id="ri-steps">–</dd>
+          <dt>Requests</dt><dd id="ri-requests">–</dd>
+          <dt>Letzte RTT</dt><dd id="ri-rtt">–</dd>
+          <dt>Ergebnis</dt><dd id="ri-result">–</dd>
+        </dl>
+      </section>
+      <section class="card">
+        <h3>Antwortzeit (RTT)</h3>
+        <canvas id="rtt-chart" height="90"></canvas>
+      </section>
+      <div id="right-slot"></div>
+      <section class="card grow">
+        <h3>Log <button class="link" id="btn-clear-log" type="button">leeren</button></h3>
+        <ol class="log" id="log"></ol>
+      </section>
+    </aside>
+  </main>
+
+  <div class="toasts" id="toasts"></div>
+  <script type="module" src="/static/app.js"></script>
+</body>
+</html>

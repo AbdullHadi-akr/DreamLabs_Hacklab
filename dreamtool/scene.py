@@ -50,15 +50,40 @@ def _name(word: str) -> str:
     return ALIASES.get(word, word)
 
 
-def success_check(task: str):
-    """Ein Erfolgs-Check fuer Tasks der Form "put <objekt> into/in/on the <ablage>", sonst None.
-
-    @return Funktion env -> bool, oder None wenn der Task nicht verstanden wird.
-    """
+def parse_task(task: str) -> tuple[str, str] | None:
+    """(objekt, ablage) aus Tasks der Form "put <objekt> into/in/on the <ablage>", sonst None."""
     match = re.search(r"put (?:the |an? )?(\w+) (?:into|in|onto|on) (?:the |a )?(\w+)", task.lower())
     if not match:
         return None
     obj, container = _name(match[1]), _name(match[2])
     if obj not in OBJECTS or container not in CONTAINERS:
         return None
+    return obj, container
+
+
+def success_check(task: str):
+    """Ein Erfolgs-Check fuer Tasks, die parse_task versteht.
+
+    @return Funktion env -> bool, oder None wenn der Task nicht verstanden wird.
+    """
+    parsed = parse_task(task)
+    if parsed is None:
+        return None
+    obj, container = parsed
     return lambda env: is_in(env, obj, container)
+
+
+def place(env, obj: str, container: str, height: float = 0.04) -> None:
+    """Debug: `obj` direkt ueber `container` setzen (Freejoint), z. B. um Erfolgs-Checks zu testen."""
+    joint = env.data.joint(f"{obj}_free")
+    joint.qpos[:3] = position(env, container) + np.array([0.0, 0.0, height])
+    joint.qpos[3:7] = [1.0, 0.0, 0.0, 0.0]
+    joint.qvel[:] = 0.0
+
+
+def shift(env, obj: str, offset) -> None:
+    """`obj` um `offset` (dx, dy[, dz]) in Metern verschieben."""
+    joint = env.data.joint(f"{obj}_free")
+    offset = np.asarray(offset, dtype=float)
+    joint.qpos[: len(offset)] += offset
+    joint.qvel[:] = 0.0

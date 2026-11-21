@@ -1,0 +1,102 @@
+"""Stoerungen fuer den Robustness-Test. Neue Stoerung = eine Funktion mit @perturbation dekorieren.
+
+Signatur:  fn(env, value, rng, target) -> restore | None
+  env     YamEnv (direkt nach env.reset())
+  value   Staerke in der angegebenen Einheit (z. B. cm oder Grad)
+  rng     numpy Generator (reproduzierbar pro Trial)
+  target  Ziel-Objekt aus dem Task (z. B. "apple") oder None
+  restore optional: Funktion env -> None, die Aenderungen am Modell (Kameras, Licht ...) rueckgaengig macht.
+          Objekt-Positionen muessen nicht zurueckgesetzt werden, das macht der naechste env.reset().
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Callable
+
+import mujoco
+import numpy as np
+
+from dreamtool import scene
+
+
+@dataclass
+class Perturbation:
+    id: str
+    label: str
+    unit: str
+    defaults: list[float]
+    description: str
+    apply: Callable
+
+
+REGISTRY: dict[str, Perturbation] = {}
+
+
+def perturbation(id: str, label: str, unit: str, defaults: list[float], description: str = ""):
+    def register(fn):
+        REGISTRY[id] = Perturbation(id, label, unit, defaults, description or (fn.__doc__ or "").strip(), fn)
+        return fn
+
+    return register
+
+
+def _random_direction(rng, dims=2):
+    v = rng.normal(size=dims)
+    return v / (np.linalg.norm(v) or 1.0)
+
+
+@perturbation("object_shift", "Ziel-Objekt verschieben", "cm", [0, 2, 4, 6, 8])
+def object_shift(env, value, rng, target):
+    """Verschiebt das Ziel-Objekt um `value` cm in eine zufaellige Richtung auf dem Tisch."""
+    scene.shift(env, target or "apple", _random_direction(rng) * value / 100)
+
+
+@perturbation("all_objects_shift", "Alle Objekte verschieben", "cm", [0, 2, 4, 6])
+def all_objects_shift(env, value, rng, target):
+    """Verschiebt jedes bewegliche Objekt unabhaengig um `value` cm."""
+    for obj in scene.OBJECTS:
+        scene.shift(env, obj, _random_direction(rng) * value / 100)
+
+
+@perturbation("camera_shift", "Overhead-Kamera verschieben", "cm", [0, 1, 2, 4])
+def camera_shift(env, value, rng, target):
+    """Verschiebt die Overhead-Kamera (wie eine schlecht montierte Kamera am echten Roboter)."""
+    cam = env.model.camera("top")
+    original = cam.pos.copy()
+    cam.pos[:] = original + _random_direction(rng, 3) * value / 100
+
+    def restore(env):
+        env.model.camera("top").pos[:] = original
+
+    return restore
+
+
+@perturbation("camera_tilt", "Overhead-Kamera neigen", "°", [0, 2, 4, 8])
+def camera_tilt(env, value, rng, target):
+    """Kippt die Overhead-Kamera um `value` Grad um eine zufaellige Achse."""
+    cam = env.model.camera("top")
+    original = cam.quat.copy()
+    axis = _random_direction(rng, 3)
+    delta = np.zeros(4)
+    mujoco.mju_axisAngle2Quat(delta, axis, np.deg2rad(value))
+    result = np.zeros(4)
+    mujoco.mju_mulQuat(result, original, delta)
+    cam.quat[:] = result
+
+    def restore(env):
+        env.model.camera("top").quat[:] = original
+
+    return restore
+
+
+@perturbation("light_dim", "Licht dimmen", "%", [0, 25, 50, 75])
+def light_dim(env, value, rng, target):
+    """Reduziert die Helligkeit aller Lichter um `value` Prozent."""
+    original = env.model.light_diffuse.copy()
+    env.model.light_diffuse[:] = original * (1 - value / 100)
+
+    def restore(env):
+        env.model.light_diffuse[:] = original
+
+    return restore

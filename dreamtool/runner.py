@@ -34,6 +34,9 @@ class Hooks:
     def on_step(self, env, step: int, images: dict[str, np.ndarray]) -> None:
         """Nach jedem 50-ms-Physikschritt. `images`: top/left/right RGB 360x640."""
 
+    def on_wait(self, env) -> None:
+        """Alle ~20 ms, waehrend auf die Antwort von Dream-1 gewartet wird (Physik pausiert)."""
+
     def should_stop(self, env) -> str | None:
         """Gib einen Grund (str) zurueck, um den Lauf zu beenden, sonst None."""
         return None
@@ -134,6 +137,8 @@ def run_task(
                 while not future.done():  # Physik pausiert, Viewer bleibt bedienbar
                     if view is not None:
                         view.sync()
+                    for h in hooks:
+                        h.on_wait(env)
                     time.sleep(0.02)
                 try:
                     reply = future.result()
@@ -194,6 +199,8 @@ def run_scripted(env, targets, hooks: Hooks | list[Hooks] | None = None, realtim
     """Fuehrt eine Liste von (left, right)-Zielen ohne API aus. Gut zum Testen deiner Hooks offline."""
     hooks = hooks if isinstance(hooks, list) else [hooks] if hooks else []
     for step, (left, right) in enumerate(targets, 1):
+        if any(h.should_stop(env) for h in hooks):
+            return "stopped"
         tick = time.monotonic()
         env.step(left, right)
         images = env.images() if any(type(h).on_step is not Hooks.on_step for h in hooks) else {}
@@ -201,3 +208,4 @@ def run_scripted(env, targets, hooks: Hooks | list[Hooks] | None = None, realtim
             h.on_step(env, step, images)
         if realtime:
             time.sleep(max(0.0, 0.05 - (time.monotonic() - tick)))
+    return "done"

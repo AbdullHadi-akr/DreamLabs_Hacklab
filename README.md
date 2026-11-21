@@ -14,6 +14,17 @@ Hacklab/
 ├── dreamlabs/          Klon des offiziellen Repos (nicht ändern, nur lesen)
 │   └── dream_library/examples/yam_mujoco/   ← der Simulator (2 YAM-Arme, 3 Kameras, Obst, Schüssel, Teller)
 └── dream-tool/         ← DEIN Projekt (dieses Repo)
+    ├── dashboard/        ← lokale Web-App (FastAPI + Plain-JS), Sim in der Mitte
+    │   ├── app.py          HTTP-API, MJPEG-Streams, WebSocket-Events
+    │   ├── simulation.py   Sim-Thread: besitzt Physik + Rendering, führt Läufe aus
+    │   ├── extension.py    Extension-Basisklasse + Loader + 3D-Overlay-Helfer
+    │   ├── extensions/     ← HIER kommen neue Features rein (je ein Ordner)
+    │   │   ├── scene_inspector/   Objekt-Positionen, Erfolgszonen, Debug-Platzieren
+    │   │   ├── robustness/        Störungs-Sweeps (Objekt/Kamera/Licht), Erfolgsquote pro Stärke
+    │   │   └── _template/         Vorlage zum Kopieren
+    │   ├── static/         Core-UI (index.html, app.js, style.css, lib/api.js)
+    │   └── EXTENSIONS.md   Anleitung: eigene Extension schreiben
+    ├── start.py          startet das Dashboard
     ├── dreamtool/
     │   ├── sim.py        findet den Simulator, re-exportiert YamEnv + Request-Helfer
     │   ├── runner.py     Kontrollschleife Dream-1 ↔ Sim, mit Hooks für dein Tool
@@ -58,7 +69,23 @@ DREAM_API_KEY=dl_live_...
 
 Jeder Task-Lauf verbraucht Credits auf dem Account.
 
-## Loslegen
+## Dashboard
+
+```powershell
+python start.py                      # oder: python -m dashboard   → öffnet http://localhost:8000
+```
+
+- **Mitte:** 3D-Ansicht der Sim (ziehen = drehen, rechts/Shift = verschieben, Rad = zoomen, Doppelklick = zurück),
+  darunter Taskleiste und die drei Roboter-Kameras.
+- **Links:** Extension-Tabs (Szene, Robustness, …). **Rechts:** aktueller Lauf, RTT-Verlauf, Log.
+- **Offline-Demo**, **Home**, **Reset** und der **Trockenlauf** im Robustness-Tab kosten keine Credits.
+  **Start** und Sweeps ohne Trockenlauf rufen Dream-1 auf.
+- Der Server läuft nur lokal (127.0.0.1). Strg+C beendet ihn.
+
+**Neues Feature bauen:** `dashboard/extensions/_template` kopieren → Anleitung in
+[dashboard/EXTENSIONS.md](dashboard/EXTENSIONS.md).
+
+## Loslegen (CLI)
 
 ```powershell
 python check_setup.py --online       # alles grün? (--online prüft den Key gegen die API)
