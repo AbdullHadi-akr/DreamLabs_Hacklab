@@ -92,7 +92,7 @@ def load_extensions(sim, bus) -> list[Extension]:
                 and obj.__module__ == module.__name__
             ]
             if not classes:
-                raise TypeError("keine Extension-Unterklasse gefunden")
+                raise TypeError("no Extension subclass found")
             cls = classes[0]
             ext_id = cls.id or info.name
             ext = cls(ExtensionContext(ext_id, sim, bus))
@@ -102,7 +102,7 @@ def load_extensions(sim, bus) -> list[Extension]:
             ext.setup()
             loaded.append(ext)
         except Exception:
-            bus.log(f"Extension '{info.name}' nicht geladen:\n{traceback.format_exc()}", "error")
+            bus.log(f"Extension '{info.name}' not loaded:\n{traceback.format_exc()}", "error")
     loaded.sort(key=lambda e: (e.order, e.id))
     return loaded
 

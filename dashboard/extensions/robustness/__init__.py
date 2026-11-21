@@ -67,8 +67,8 @@ class Sweep:
         ctx, body = self.ext.ctx, self.body
         p = REGISTRY[body.perturbation]
         target = (scene.parse_task(body.task) or (None, None))[0]
-        ctx.log(f"Sweep gestartet: {p.label}, Werte {body.values}, {body.trials} Trials"
-                + (" (Trockenlauf)" if body.dry_run else ""))
+        ctx.log(f"Sweep started: {p.label}, values {body.values}, {body.trials} trials"
+                + (" (dry run)" if body.dry_run else ""))
         try:
             for vi, value in enumerate(body.values):
                 for trial in range(body.trials):
@@ -90,7 +90,7 @@ class Sweep:
                     future = ctx.sim.run_task(
                         body.task, model=body.model, seconds=body.seconds, offline=body.dry_run,
                         targets=hold_still if body.dry_run else None, setup=setup, teardown=teardown,
-                        source=ctx.id, label=f"{p.label} {value:g}{p.unit} · Trial {trial + 1}/{body.trials}",
+                        source=ctx.id, label=f"{p.label} {value:g}{p.unit} · trial {trial + 1}/{body.trials}",
                     )
                     result = future.result()
                     self.rows.append({"value": value, "trial": trial + 1, "success": result.success,
@@ -99,25 +99,25 @@ class Sweep:
                     ctx.emit("progress", self.summary())
                     if result.stop_reason == "stopped" or result.stop_reason.startswith("error"):
                         if result.stop_reason.startswith("error"):
-                            ctx.log(f"Trial fehlgeschlagen ({result.stop_reason}), Sweep bricht ab.", "error")
+                            ctx.log(f"Trial failed ({result.stop_reason}), aborting sweep.", "error")
                         raise InterruptedError
             self.state = "done"
         except InterruptedError:
             self.state = "stopped"
         except Exception as error:
             self.state = "error"
-            ctx.log(f"Sweep-Fehler: {error}", "error")
+            ctx.log(f"Sweep error: {error}", "error")
         finally:
             path = ctx.data_dir / f"sweep-{time.strftime('%Y%m%d-%H%M%S')}.json"
             path.write_text(json.dumps(self.summary(), indent=2, default=float))
-            ctx.log(f"Sweep {self.state}: {len(self.rows)}/{self.total} Trials, gespeichert in {path.name}")
+            ctx.log(f"Sweep {self.state}: {len(self.rows)}/{self.total} trials, saved to {path.name}")
             ctx.emit("progress", self.summary())
 
 
 class RobustnessLab(Extension):
     title = "Robustness"
     icon = "🧪"
-    description = "Dream-1 unter Stoerungen testen: Erfolgsquote pro Stoerstaerke"
+    description = "Stress-test Dream-1: success rate per perturbation strength"
     order = 20
 
     def setup(self):
@@ -138,13 +138,13 @@ class RobustnessLab(Extension):
         @r.post("/start")
         def start(body: SweepBody):
             if body.perturbation not in REGISTRY:
-                raise HTTPException(400, f"Unbekannte Stoerung: {body.perturbation}")
+                raise HTTPException(400, f"Unknown perturbation: {body.perturbation}")
             if self.sweep and self.sweep.state == "running":
-                raise HTTPException(409, "Es laeuft schon ein Sweep.")
+                raise HTTPException(409, "A sweep is already running.")
             if self.ctx.sim.busy:
-                raise HTTPException(409, "Die Simulation ist beschaeftigt. Erst den laufenden Lauf stoppen.")
+                raise HTTPException(409, "The simulation is busy. Stop the current run first.")
             if not body.dry_run and not sim.settings().get("DREAM_API_KEY"):
-                raise HTTPException(400, "Kein API-Key: nur Trockenlauf moeglich.")
+                raise HTTPException(400, "No API key: only dry runs are possible.")
             self.sweep = Sweep(self, body)
             self.sweep.thread.start()
             return self.sweep.summary()

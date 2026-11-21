@@ -35,9 +35,9 @@ class CountSteps(Hooks):
 
 
 class TemplateExtension(Extension):
-    title = "Vorlage"
+    title = "Template"
     icon = "🧩"
-    description = "Kopiere mich fuer eine neue Extension."
+    description = "Copy me to start a new extension."
 
     def setup(self):
         self.clicks = 0
@@ -47,7 +47,7 @@ class TemplateExtension(Extension):
 
         @r.get("/hello")
         def hello():
-            return {"message": "Hallo aus dem Backend", "clicks": self.clicks}
+            return {"message": "Hello from the backend", "clicks": self.clicks}
 
         @r.post("/click")
         def click():

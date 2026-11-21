@@ -79,7 +79,7 @@ def run_task(
     config = sim.settings()
     key = api_key or config.get("DREAM_API_KEY", "")
     if not key:
-        raise RuntimeError("Kein API-Key: setze DREAM_API_KEY oder schreibe ~/.dreamlabs/credentials (siehe README).")
+        raise RuntimeError("No API key: set DREAM_API_KEY or write ~/.dreamlabs/credentials (see README).")
     gateway = config.get("DREAM_GATEWAY_URL", "https://api.dreamlabs.ai")
 
     own_env = env is None

@@ -1,4 +1,4 @@
-// Core-UI des Dashboards: Viewer, Taskleiste, Status, Log und das Laden der Extension-Panels.
+// Core UI of the dashboard: viewer, prompt bar, status, log, and loading the extension panels.
 import { EventHub, createExtensionApi, h, request } from "./lib/api.js";
 
 const $ = (id) => document.getElementById(id);
@@ -20,7 +20,7 @@ function toast(message, level = "info", ms = 4000) {
 }
 
 function log(message, level = "info", source = "core") {
-  const time = new Date().toLocaleTimeString("de-DE");
+  const time = new Date().toLocaleTimeString("en-GB");
   const item = h("li", { class: level }, h("time", {}, time), h("span", { class: "src" }, source), message);
   const list = $("log");
   list.append(item);
@@ -100,7 +100,7 @@ function setupViewer(camera) {
 }
 
 function setupCameras(names) {
-  const labels = { top: "Overhead", left: "Handgelenk links", right: "Handgelenk rechts" };
+  const labels = { top: "Overhead", left: "Left wrist", right: "Right wrist" };
   for (const name of names) {
     const img = h("img", { src: `/stream/${name}.mjpg`, alt: name });
     img.onerror = () => setTimeout(() => (img.src = `/stream/${name}.mjpg?r=${Date.now()}`), 1500);
@@ -118,7 +118,7 @@ function setupTaskbar(state) {
   $("taskbar").addEventListener("submit", (e) => {
     e.preventDefault();
     const task = core.currentTask();
-    if (!task) return toast("Bitte einen Task eingeben.", "error");
+    if (!task) return toast("Please enter a task.", "error");
     action(request("POST", "/api/run", { task, model: $("model").value.trim(), seconds: Number($("seconds").value) }));
   });
   $("btn-stop").onclick = () => action(request("POST", "/api/stop"));
@@ -127,7 +127,7 @@ function setupTaskbar(state) {
   $("btn-reset").onclick = () => action(request("POST", "/api/reset"));
   $("btn-clear-log").onclick = () => ($("log").innerHTML = "");
   if (!state.has_api_key) {
-    $("btn-run").title = "Kein API-Key konfiguriert – siehe README";
+    $("btn-run").title = "No API key configured – see README";
   }
 }
 
@@ -140,26 +140,26 @@ function updateControls(status) {
   if (status.running) {
     const r = status.run;
     const offline = r.model === "offline";
-    setPill("pill-run", "busy", offline ? "Offline-Lauf" : "Dream-1 läuft");
+    setPill("pill-run", "busy", offline ? "Offline run" : "Dream-1 running");
     $("badge-run").hidden = false;
     $("badge-run").lastChild.textContent = offline ? "Offline" : "Live";
-    $("status-text").textContent = offline ? "Offline-Lauf" : "Dream-1 arbeitet";
+    $("status-text").textContent = offline ? "Offline run" : "Dream-1 is working";
     $("status-sub").textContent = r.label || r.source;
-    $("caption-label").textContent = offline ? "Offline · ohne API" : `Dream-1 · ${r.model}`;
+    $("caption-label").textContent = offline ? "Offline · no API" : `Dream-1 · ${r.model}`;
     $("caption-task").textContent = `“${r.task}”`;
-    $("ri-state").textContent = "läuft";
+    $("ri-state").textContent = "running";
     $("ri-task").textContent = r.task;
     $("ri-source").textContent = r.source + (r.label ? ` · ${r.label}` : "");
     $("ri-steps").textContent = r.steps ?? 0;
     $("ri-requests").textContent = r.requests ?? 0;
     $("ri-rtt").textContent = r.last_rtt_s ? `${r.last_rtt_s.toFixed(2)} s` : "–";
   } else {
-    setPill("pill-run", status.queued ? "warn" : "ok", status.queued ? `${status.queued} wartend` : "Bereit");
+    setPill("pill-run", status.queued ? "warn" : "ok", status.queued ? `${status.queued} queued` : "Ready");
     $("badge-run").hidden = true;
-    $("status-text").textContent = status.queued ? `${status.queued} wartend` : "Bereit";
-    $("status-sub").textContent = "Dein Prompt läuft als Nächstes";
-    $("caption-label").textContent = "Bereit";
-    $("caption-task").textContent = "Warte auf den nächsten Prompt …";
+    $("status-text").textContent = status.queued ? `${status.queued} queued` : "Ready";
+    $("status-sub").textContent = "Your prompt runs next";
+    $("caption-label").textContent = "Ready";
+    $("caption-task").textContent = "Waiting for the next prompt…";
   }
 }
 
@@ -178,7 +178,7 @@ function drawRtt() {
   const color = (name) => css.getPropertyValue(name).trim();
   ctx.font = `12px ${color("--font-sans")}`;
   ctx.fillStyle = color("--ink-3");
-  if (!rtts.length) { ctx.fillText("Noch keine Requests", 4, hgt / 2); return; }
+  if (!rtts.length) { ctx.fillText("No requests yet", 4, hgt / 2); return; }
   const max = Math.max(1.5, ...rtts) * 1.15;
   const step = w / Math.max(1, rtts.length - 1);
   const y = (v) => hgt - (v / max) * (hgt - 4);
@@ -200,42 +200,42 @@ function drawRtt() {
   const avg = rtts.reduce((a, b) => a + b, 0) / rtts.length;
   ctx.fillStyle = color("--ink");
   ctx.textAlign = "right";
-  ctx.fillText(`Ø ${avg.toFixed(2)} s · letzte ${rtts.at(-1).toFixed(2)} s`, w - 2, 12);
+  ctx.fillText(`avg ${avg.toFixed(2)} s · last ${rtts.at(-1).toFixed(2)} s`, w - 2, 12);
 }
 
 // ---------------- Events ----------------
 
 function setupEvents() {
   const ev = core.events;
-  ev.on("ws.open", () => setPill("pill-ws", "ok", "Verbunden"));
-  ev.on("ws.close", () => { setPill("pill-ws", "bad", "Getrennt"); setPill("pill-sim", "", "Simulation"); });
+  ev.on("ws.open", () => setPill("pill-ws", "ok", "Connected"));
+  ev.on("ws.close", () => { setPill("pill-ws", "bad", "Disconnected"); setPill("pill-sim", "", "Simulation"); });
   ev.on("sim.state", (s) => {
     core.sim = s;
     core.status = s.status;
     $("badge-time").textContent = `t = ${s.time.toFixed(1)} s`;
-    setPill("pill-sim", s.status.error ? "bad" : "ok", s.status.error ? "Sim-Fehler" : "Simulation");
+    setPill("pill-sim", s.status.error ? "bad" : "ok", s.status.error ? "Sim error" : "Simulation");
     updateControls(s.status);
   });
   ev.on("log", (d) => log(d.message, d.level, d.source));
-  ev.on("run.queued", (d) => log(`Eingereiht: ${d.label || d.task}`, "info", d.source));
+  ev.on("run.queued", (d) => log(`Queued: ${d.label || d.task}`, "info", d.source));
   ev.on("run.started", (d) => {
-    log(`Start: ${d.task} (${d.model})${d.label ? " · " + d.label : ""}`, "info", d.source);
+    log(`Started: ${d.task} (${d.model})${d.label ? " · " + d.label : ""}`, "info", d.source);
     $("ri-result").textContent = "–";
     $("ri-result").className = "";
     if (!d.offline) { rtts.length = 0; drawRtt(); }
   });
-  ev.on("run.cancelled", (d) => log(`Verworfen: ${d.label || d.task}`, "warn", d.source));
+  ev.on("run.cancelled", (d) => log(`Cancelled: ${d.label || d.task}`, "warn", d.source));
   ev.on("run.reply", (d) => { rtts.push(d.rtt_s); if (rtts.length > 60) rtts.shift(); drawRtt(); });
   ev.on("run.ended", (d) => {
     const r = d.result;
-    const success = r.success === true ? "✔ Erfolg" : r.success === false ? "✘ kein Erfolg" : "–";
+    const success = r.success === true ? "✔ success" : r.success === false ? "✘ no success" : "–";
     $("ri-state").textContent = r.stop_reason;
     $("ri-steps").textContent = r.steps;
     $("ri-requests").textContent = r.requests;
     $("ri-result").textContent = `${success} · ${r.seconds.toFixed(1)} s`;
     $("ri-result").className = r.success ? "good" : r.success === false ? "bad" : "";
     const level = r.stop_reason.startsWith("error") ? "error" : "info";
-    log(`Ende: ${r.stop_reason} · ${success} · ${r.steps} Schritte · ${r.requests} Requests`, level, d.source);
+    log(`Ended: ${r.stop_reason} · ${success} · ${r.steps} steps · ${r.requests} requests`, level, d.source);
   });
 }
 
@@ -272,7 +272,7 @@ async function loadExtensions(extensions) {
 
 async function mountPanel(ext, root) {
   if (!ext.has_panel) {
-    root.append(h("p", { class: "muted" }, ext.description || "Diese Extension hat kein Panel."));
+    root.append(h("p", { class: "muted" }, ext.description || "This extension has no panel."));
     return;
   }
   try {
@@ -281,7 +281,7 @@ async function mountPanel(ext, root) {
     await module.mount(root, createExtensionApi(ext, core));
   } catch (error) {
     console.error(error);
-    root.append(h("div", { class: "panel-error" }, `Panel "${ext.id}" konnte nicht geladen werden:\n${error.message}`));
+    root.append(h("div", { class: "panel-error" }, `Panel "${ext.id}" failed to load:\n${error.message}`));
     log(`Panel ${ext.id}: ${error.message}`, "error", ext.id);
   }
 }
@@ -293,7 +293,7 @@ async function main() {
   core.events.connect();
   const state = await request("GET", "/api/state");
   core.sim = state.sim;
-  setPill("pill-key", state.has_api_key ? "ok" : "warn", state.has_api_key ? "API-Key" : "Kein API-Key");
+  setPill("pill-key", state.has_api_key ? "ok" : "warn", state.has_api_key ? "API key" : "No API key");
   setupViewer(state.camera);
   setupCameras(state.cameras);
   setupTaskbar(state);
@@ -305,5 +305,5 @@ async function main() {
 
 main().catch((error) => {
   console.error(error);
-  toast(`Dashboard-Start fehlgeschlagen: ${error.message}`, "error", 10000);
+  toast(`Dashboard failed to start: ${error.message}`, "error", 10000);
 });

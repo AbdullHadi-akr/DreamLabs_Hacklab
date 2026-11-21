@@ -110,15 +110,15 @@ def create_app() -> FastAPI:
 
     def require_idle():
         if worker.busy:
-            raise HTTPException(409, "Es laeuft bereits ein Lauf (oder einer wartet). Erst stoppen.")
+            raise HTTPException(409, "A run is already active (or queued). Stop it first.")
 
     @app.post("/api/run")
     def run(body: RunBody):
         require_idle()
         if not body.offline and not dsim.settings().get("DREAM_API_KEY"):
-            raise HTTPException(400, "Kein API-Key konfiguriert (siehe README). Offline-Demo geht trotzdem.")
+            raise HTTPException(400, "No API key configured (see README). The offline demo still works.")
         worker.run_task(body.task, model=body.model, seconds=body.seconds, offline=body.offline,
-                        targets=demo_motion if body.offline else None, label="Offline-Demo" if body.offline else "")
+                        targets=demo_motion if body.offline else None, label="Offline demo" if body.offline else "")
         return {"ok": True}
 
     @app.post("/api/stop")
@@ -132,13 +132,13 @@ def create_app() -> FastAPI:
         worker.cancel_queued()
         worker.stop()
         worker.call(lambda env: env.reset())
-        bus.log("Szene zurueckgesetzt.")
+        bus.log("Scene reset.")
         return {"ok": True}
 
     @app.post("/api/home")
     def home():
         require_idle()
-        worker.run_task("arme nach hause", offline=True, targets=lambda env: dsim.home_path(env.state()),
+        worker.run_task("move arms home", offline=True, targets=lambda env: dsim.home_path(env.state()),
                         label="Home", stop_on_success=False)
         return {"ok": True}
 
@@ -212,6 +212,6 @@ def create_app() -> FastAPI:
             if router is not None:
                 app.include_router(router, prefix=f"/api/ext/{ext.id}", tags=[ext.id])
         except Exception as error:
-            bus.log(f"Router von {ext.id} fehlgeschlagen: {error}", "error", ext.id)
+            bus.log(f"Router of {ext.id} failed: {error}", "error", ext.id)
 
     return app

@@ -31,9 +31,9 @@ class LiftTracker(Hooks):
 
 
 class SceneInspector(Extension):
-    title = "Szene"
+    title = "Scene"
     icon = "🍎"
-    description = "Objekt-Positionen, Erfolgszonen, Debug-Aktionen"
+    description = "Object positions, success zones, debug actions"
     order = 10
 
     def setup(self):
@@ -60,11 +60,11 @@ class SceneInspector(Extension):
         @r.post("/place")
         def place(body: PlaceBody):
             if body.object not in scene.OBJECTS or body.container not in scene.CONTAINERS:
-                raise HTTPException(400, "Unbekanntes Objekt/Ablage")
+                raise HTTPException(400, "Unknown object or container")
             if self.ctx.sim.busy:
-                raise HTTPException(409, "Waehrend eines Laufs nicht moeglich.")
+                raise HTTPException(409, "Not possible while a run is active.")
             self.ctx.sim.call(lambda env: scene.place(env, body.object, body.container)).result(timeout=5)
-            self.ctx.log(f"{body.object} auf {body.container} gesetzt (Debug).")
+            self.ctx.log(f"{body.object} placed on {body.container} (debug).")
             return {"ok": True}
 
         return r

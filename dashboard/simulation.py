@@ -233,11 +233,11 @@ class SimWorker(threading.Thread):
             self.main_cam = mujoco.MjvCamera()
             self.hold = self.env.state()
             self.ready.set()
-            self.bus.log("Simulation bereit.")
+            self.bus.log("Simulation ready.")
         except Exception as error:
             self.error = f"{type(error).__name__}: {error}"
             self.ready.set()
-            self.bus.log(f"Simulation konnte nicht starten: {self.error}", "error")
+            self.bus.log(f"Simulation failed to start: {self.error}", "error")
             return
 
         while not self.shutdown_event.is_set():
@@ -284,7 +284,7 @@ class SimWorker(threading.Thread):
                 if hook is not None:
                     hooks.append(hook)
             except Exception:
-                self.bus.log(f"run_hooks von {ext.id} fehlgeschlagen:\n{traceback.format_exc()}", "error", ext.id)
+                self.bus.log(f"run_hooks of {ext.id} failed:\n{traceback.format_exc()}", "error", ext.id)
         hooks.extend(request.hooks)
         hooks = [_SafeHook(h, self.bus) if not isinstance(h, _CoreHook) else h for h in hooks]
 
@@ -312,13 +312,13 @@ class SimWorker(threading.Thread):
                 )
         except Exception as error:
             result.stop_reason = f"error: {type(error).__name__}: {error}"
-            self.bus.log(f"Lauf fehlgeschlagen: {error}", "error", request.source)
+            self.bus.log(f"Run failed: {error}", "error", request.source)
         finally:
             if request.teardown:
                 try:
                     request.teardown(env)
                 except Exception as error:
-                    self.bus.log(f"teardown fehlgeschlagen: {error}", "error", request.source)
+                    self.bus.log(f"teardown failed: {error}", "error", request.source)
             self.hold = env.state()
             self.current = None
             self.stop_event.clear()
@@ -340,7 +340,7 @@ class SimWorker(threading.Thread):
                 try:
                     ext.decorate(self.env, self.main_renderer.scene)
                 except Exception as error:
-                    self.bus.log(f"decorate von {ext.id}: {error}", "error", ext.id)
+                    self.bus.log(f"decorate of {ext.id}: {error}", "error", ext.id)
             self._store("main", self.main_renderer.render())
         if force or now - self._last["cams"] >= 1 / CAM_FPS:
             self._last["cams"] = now
@@ -378,7 +378,7 @@ class _SafeHook(Hooks):
             return getattr(self.inner, name)(*args)
         except Exception:
             self.failed.add(name)
-            self.bus.log(f"Hook {type(self.inner).__name__}.{name} deaktiviert:\n{traceback.format_exc()}", "error")
+            self.bus.log(f"Hook {type(self.inner).__name__}.{name} disabled:\n{traceback.format_exc()}", "error")
             return None
 
     def on_start(self, *a): self._call("on_start", *a)  # noqa: E704

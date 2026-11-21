@@ -35,7 +35,7 @@ REGISTRY: dict[str, Perturbation] = {}
 
 def perturbation(id: str, label: str, unit: str, defaults: list[float], description: str = ""):
     def register(fn):
-        REGISTRY[id] = Perturbation(id, label, unit, defaults, description or (fn.__doc__ or "").strip(), fn)
+        REGISTRY[id] = Perturbation(id, label, unit, defaults, description or (fn.__doc__ or "").strip().replace("`", ""), fn)
         return fn
 
     return register
@@ -46,22 +46,22 @@ def _random_direction(rng, dims=2):
     return v / (np.linalg.norm(v) or 1.0)
 
 
-@perturbation("object_shift", "Ziel-Objekt verschieben", "cm", [0, 2, 4, 6, 8])
+@perturbation("object_shift", "Shift target object", "cm", [0, 2, 4, 6, 8])
 def object_shift(env, value, rng, target):
-    """Verschiebt das Ziel-Objekt um `value` cm in eine zufaellige Richtung auf dem Tisch."""
+    """Moves the target object by `value` cm in a random direction on the table."""
     scene.shift(env, target or "apple", _random_direction(rng) * value / 100)
 
 
-@perturbation("all_objects_shift", "Alle Objekte verschieben", "cm", [0, 2, 4, 6])
+@perturbation("all_objects_shift", "Shift all objects", "cm", [0, 2, 4, 6])
 def all_objects_shift(env, value, rng, target):
-    """Verschiebt jedes bewegliche Objekt unabhaengig um `value` cm."""
+    """Moves every movable object independently by `value` cm."""
     for obj in scene.OBJECTS:
         scene.shift(env, obj, _random_direction(rng) * value / 100)
 
 
-@perturbation("camera_shift", "Overhead-Kamera verschieben", "cm", [0, 1, 2, 4])
+@perturbation("camera_shift", "Shift overhead camera", "cm", [0, 1, 2, 4])
 def camera_shift(env, value, rng, target):
-    """Verschiebt die Overhead-Kamera (wie eine schlecht montierte Kamera am echten Roboter)."""
+    """Moves the overhead camera, like a badly mounted camera on a real robot."""
     cam = env.model.camera("top")
     original = cam.pos.copy()
     cam.pos[:] = original + _random_direction(rng, 3) * value / 100
@@ -72,9 +72,9 @@ def camera_shift(env, value, rng, target):
     return restore
 
 
-@perturbation("camera_tilt", "Overhead-Kamera neigen", "°", [0, 2, 4, 8])
+@perturbation("camera_tilt", "Tilt overhead camera", "°", [0, 2, 4, 8])
 def camera_tilt(env, value, rng, target):
-    """Kippt die Overhead-Kamera um `value` Grad um eine zufaellige Achse."""
+    """Tilts the overhead camera by `value` degrees around a random axis."""
     cam = env.model.camera("top")
     original = cam.quat.copy()
     axis = _random_direction(rng, 3)
@@ -90,9 +90,9 @@ def camera_tilt(env, value, rng, target):
     return restore
 
 
-@perturbation("light_dim", "Licht dimmen", "%", [0, 25, 50, 75])
+@perturbation("light_dim", "Dim lights", "%", [0, 25, 50, 75])
 def light_dim(env, value, rng, target):
-    """Reduziert die Helligkeit aller Lichter um `value` Prozent."""
+    """Reduces the brightness of all lights by `value` percent."""
     original = env.model.light_diffuse.copy()
     env.model.light_diffuse[:] = original * (1 - value / 100)
 

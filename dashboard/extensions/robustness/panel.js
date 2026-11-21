@@ -1,4 +1,4 @@
-// Robustness-Panel: Sweep konfigurieren, starten/stoppen, Erfolgsquote pro Stoerstaerke live anzeigen.
+// Robustness panel: configure a sweep, start/stop it, show the success rate per perturbation strength live.
 
 export async function mount(root, api) {
   const { h } = api.ui;
@@ -13,8 +13,8 @@ export async function mount(root, api) {
   const dry = h("input", { type: "checkbox", checked: true });
   const desc = h("p", { class: "muted" });
   const estimate = h("p", { class: "muted" });
-  const startBtn = h("button", { class: "btn primary", onclick: start }, "Sweep starten");
-  const stopBtn = h("button", { class: "btn danger", onclick: () => api.post("/stop"), disabled: true }, "Stoppen");
+  const startBtn = h("button", { class: "btn primary", onclick: start }, "Start sweep");
+  const stopBtn = h("button", { class: "btn danger", onclick: () => api.post("/stop"), disabled: true }, "Stop");
   const progressBar = h("div", { style: { width: "0%" } });
   const progressText = h("span", { class: "muted" });
   const results = h("div");
@@ -29,8 +29,8 @@ export async function mount(root, api) {
   const updateEstimate = () => {
     const n = parseValues().length * Number(trials.value || 0);
     estimate.textContent = dry.checked
-      ? `${n} Trials im Trockenlauf (ohne API, ~2 s pro Trial).`
-      : `${n} Dream-1-Läufe à max. ${seconds.value} s → bis ~${Math.ceil((n * Number(seconds.value)) / 60)} min, verbraucht Credits.`;
+      ? `${n} trials as a dry run (no API, ~2 s per trial).`
+      : `${n} Dream-1 runs of up to ${seconds.value} s each → up to ~${Math.ceil((n * Number(seconds.value)) / 60)} min, uses credits.`;
   };
   kind.onchange = updateKind;
   for (const el of [values, trials, seconds, dry]) el.addEventListener("input", updateEstimate);
@@ -51,10 +51,10 @@ export async function mount(root, api) {
     startBtn.disabled = running;
     stopBtn.disabled = !running;
     progressBar.style.width = `${(100 * s.done) / s.total}%`;
-    progressText.textContent = `${s.done}/${s.total} Trials · ${s.state}${s.config.dry_run ? " · Trockenlauf" : ""}`;
+    progressText.textContent = `${s.done}/${s.total} trials · ${s.state}${s.config.dry_run ? " · dry run" : ""}`;
     results.replaceChildren(
       h("table", { class: "table" },
-        h("thead", {}, h("tr", {}, h("th", {}, `${s.label}`), h("th", {}, "Erfolg"), h("th", {}, ""))),
+        h("thead", {}, h("tr", {}, h("th", {}, `${s.label}`), h("th", {}, "Success"), h("th", {}, ""))),
         h("tbody", {}, s.per_value.map((v) => h("tr", {},
           h("td", { class: "num" }, `${v.value} ${s.unit}`),
           h("td", { class: "num" }, v.rate === null ? `– (${v.done})` : `${v.successes}/${v.done}`),
@@ -67,13 +67,13 @@ export async function mount(root, api) {
 
   root.append(
     h("label", { class: "field" }, h("span", {}, "Task"), task),
-    h("label", { class: "field" }, h("span", {}, "Störung"), kind),
+    h("label", { class: "field" }, h("span", {}, "Perturbation"), kind),
     desc,
-    h("label", { class: "field" }, h("span", {}, "Stärken (kommagetrennt)"), values),
+    h("label", { class: "field" }, h("span", {}, "Strengths (comma-separated)"), values),
     h("div", { class: "row" },
-      h("label", { class: "field" }, h("span", {}, "Trials pro Stärke"), trials),
-      h("label", { class: "field" }, h("span", {}, "Sekunden pro Trial"), seconds)),
-    h("label", { class: "check" }, dry, "Trockenlauf (ohne API, keine Credits)"),
+      h("label", { class: "field" }, h("span", {}, "Trials per strength"), trials),
+      h("label", { class: "field" }, h("span", {}, "Seconds per trial"), seconds)),
+    h("label", { class: "check" }, dry, "Dry run (no API, no credits)"),
     estimate,
     h("div", { class: "row" }, startBtn, stopBtn),
     h("div", { class: "progress" }, h("div", { class: "bar" }, progressBar), progressText),

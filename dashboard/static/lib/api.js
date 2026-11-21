@@ -53,7 +53,7 @@ export class EventHub {
   dispatch(message) {
     for (const key of [message.type, "*"]) {
       for (const fn of this.listeners.get(key) || []) {
-        try { fn(message.data, message); } catch (error) { console.error(`Listener fuer ${key}:`, error); }
+        try { fn(message.data, message); } catch (error) { console.error(`Listener for ${key}:`, error); }
       }
     }
   }
