@@ -1,8 +1,8 @@
-"""Einen Task mit Dream-1 im Simulator ausfuehren.
+"""Run a task with Dream-1 in the simulator.
 
-    python run.py "put apple into the bowl"                 # mit 3D-Viewer
+    python run.py "put apple into the bowl"                 # with 3D viewer
     python run.py "put banana on the plate" --headless --record out/banana.mp4
-    python run.py --offline --record out/offline.mp4        # ohne API: Arme fahren ein Skript ab
+    python run.py --offline --record out/offline.mp4        # no API: the arms follow a script
 """
 
 import argparse
@@ -13,7 +13,7 @@ from dreamtool import Hooks, VideoRecorder, run_scripted, run_task, scene, sim
 
 
 class PrintProgress(Hooks):
-    """Beispiel-Hook: zeigt alle 2 s die Position des Ziel-Objekts. Ersetze/erweitere das mit deinem Tool."""
+    """Example hook: prints the target object's position every 2 s. Replace/extend it with your tool."""
 
     def __init__(self, watch="apple"):
         self.watch = watch
@@ -26,8 +26,8 @@ class PrintProgress(Hooks):
     def on_end(self, env, result):
         rtt = f"{result.mean_rtt_s:.2f}s" if result.mean_rtt_s else "-"
         print(
-            f"Fertig: {result.stop_reason} · Erfolg={result.success} · {result.steps} Schritte · "
-            f"{result.requests} Requests · RTT {rtt} · {result.seconds:.1f}s"
+            f"Done: {result.stop_reason} · success={result.success} · {result.steps} steps · "
+            f"{result.requests} requests · RTT {rtt} · {result.seconds:.1f}s"
         )
 
 
@@ -40,7 +40,7 @@ class RecordHook(Hooks):
 
     def on_end(self, env, result):
         self.recorder.close()
-        print(f"Video gespeichert: {self.recorder.path} ({self.recorder.frames} Frames)")
+        print(f"Video saved: {self.recorder.path} ({self.recorder.frames} frames)")
 
 
 def main():
@@ -48,10 +48,10 @@ def main():
     parser.add_argument("task", nargs="?", default="put apple into the bowl")
     parser.add_argument("--model", type=sim.resolve_model, default=sim.BETA_MODEL)
     parser.add_argument("--seconds", type=float, default=60)
-    parser.add_argument("--actions", type=int, default=48, help="Zeilen pro Antwort ausfuehren (1-48)")
-    parser.add_argument("--headless", action="store_true", help="ohne 3D-Viewer")
-    parser.add_argument("--record", help="MP4-Datei fuer die drei Kamerabilder")
-    parser.add_argument("--offline", action="store_true", help="kein API-Call: Arme fahren eine Testbewegung")
+    parser.add_argument("--actions", type=int, default=48, help="rows to execute per reply (1-48)")
+    parser.add_argument("--headless", action="store_true", help="without the 3D viewer")
+    parser.add_argument("--record", help="MP4 file for the three camera images")
+    parser.add_argument("--offline", action="store_true", help="no API call: the arms perform a test motion")
     args = parser.parse_args()
 
     watch = next((o for o in scene.OBJECTS if o.split("_")[0] in args.task.lower()), "apple")
@@ -67,7 +67,7 @@ def main():
         for h in hooks:
             if isinstance(h, RecordHook):
                 h.on_end(env, None)
-        print("Offline-Lauf OK:", {k: np.round(v, 3).tolist() for k, v in scene.positions(env).items()})
+        print("Offline run OK:", {k: np.round(v, 3).tolist() for k, v in scene.positions(env).items()})
         env.close()
         return
 

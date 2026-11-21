@@ -1,4 +1,4 @@
-# Zusaetzlich zur Dream-Library (die setup.ps1 aus dem dreamlabs-Klon installiert):
+# In addition to the Dream library (which setup.ps1 installs from the dreamlabs clone):
 fastapi>=0.115
 uvicorn>=0.30
 pytest>=8

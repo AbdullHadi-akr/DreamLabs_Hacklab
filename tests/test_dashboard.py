@@ -1,4 +1,4 @@
-"""Dashboard-Tests ohne API: Server, Streams, Offline-Lauf, Extensions (Szene, Robustness-Trockenlauf)."""
+"""Dashboard tests without the API: server, streams, offline run, extensions (scene, robustness dry run)."""
 
 import time
 import warnings
@@ -98,4 +98,4 @@ def test_robustness_dry_run_sweep(client):
     status = client.get("/api/ext/robustness/status").json()
     assert status["state"] == "done" and status["done"] == 2
     after = app.state.sim.call(lambda env: env.model.camera("top").quat.copy()).result(timeout=5)
-    assert (after == original).all(), "Kamera-Stoerung wurde nicht zurueckgesetzt"
+    assert (after == original).all(), "camera perturbation was not restored"

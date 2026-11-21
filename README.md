@@ -1,64 +1,65 @@
 # dream-tool – Dream Labs Track
 
-Grundgerüst für den Track **„Build a Tool for Dream-1 Users“**: ein Tool, das echte Dream-1-Nutzer verwenden
-würden, gebaut auf [dreamlabs-co/dreamlabs](https://github.com/dreamlabs-co/dreamlabs) und getestet im Simulator.
+Our project for the **"Build a Tool for Dream-1 Users"** track: a tool that real Dream-1 users would pick up and use,
+built on [dreamlabs-co/dreamlabs](https://github.com/dreamlabs-co/dreamlabs) and tested in the simulator.
 
-**Bewertung (100 Punkte):** Real-user value 25 · Robustness 25 · Technical difficulty 20 · Demo quality 20 ·
-Presentation 10. Sonntag: 3 Minuten Live-Demo + 2 Minuten Fragen.
+**Judging (100 points):** Real-user value 25 · Robustness 25 · Technical difficulty 20 · Demo quality 20 ·
+Presentation 10. Sunday: 3-minute live demo + 2 minutes of questions.
 
-## Ordnerstruktur
+## Folder layout
 
 ```
 Hacklab/
-├── .venv/              Python 3.12 mit dreamlabs + dreamlabs-client (aus dem Klon installiert)
-├── dreamlabs/          Klon des offiziellen Repos (nicht ändern, nur lesen)
-│   └── dream_library/examples/yam_mujoco/   ← der Simulator (2 YAM-Arme, 3 Kameras, Obst, Schüssel, Teller)
-└── dream-tool/         ← DEIN Projekt (dieses Repo)
-    ├── dashboard/        ← lokale Web-App (FastAPI + Plain-JS), Sim in der Mitte
-    │   ├── app.py          HTTP-API, MJPEG-Streams, WebSocket-Events
-    │   ├── simulation.py   Sim-Thread: besitzt Physik + Rendering, führt Läufe aus
-    │   ├── extension.py    Extension-Basisklasse + Loader + 3D-Overlay-Helfer
-    │   ├── extensions/     ← HIER kommen neue Features rein (je ein Ordner)
-    │   │   ├── scene_inspector/   Objekt-Positionen, Erfolgszonen, Debug-Platzieren
-    │   │   ├── robustness/        Störungs-Sweeps (Objekt/Kamera/Licht), Erfolgsquote pro Stärke
-    │   │   └── _template/         Vorlage zum Kopieren
-    │   ├── static/         Core-UI (index.html, app.js, style.css, lib/api.js)
-    │   └── EXTENSIONS.md   Anleitung: eigene Extension schreiben
-    ├── start.py          startet das Dashboard
+├── .venv/              Python 3.12 with dreamlabs + dreamlabs-client (installed from the clone)
+├── dreamlabs/          clone of the official repo (read-only, do not edit)
+│   └── dream_library/examples/yam_mujoco/   ← the simulator (2 YAM arms, 3 cameras, fruit, bowl, plate)
+└── dream-tool/         ← OUR project (this repo)
+    ├── dashboard/        ← local web app (FastAPI + plain JS), sim in the middle
+    │   ├── app.py          HTTP API, MJPEG streams, WebSocket events
+    │   ├── simulation.py   sim thread: owns physics + rendering, executes runs
+    │   ├── extension.py    Extension base class + loader + 3D overlay helpers
+    │   ├── extensions/     ← new features go HERE (one folder each)
+    │   │   ├── scene_inspector/   object positions, success zones, debug placement
+    │   │   ├── robustness/        perturbation sweeps (object/camera/light), success rate per strength
+    │   │   └── _template/         template to copy
+    │   ├── static/         core UI (index.html, app.js, style.css, lib/api.js)
+    │   └── EXTENSIONS.md   guide: writing your own extension
+    ├── start.py          starts the dashboard
     ├── dreamtool/
-    │   ├── sim.py        findet den Simulator, re-exportiert YamEnv + Request-Helfer
-    │   ├── runner.py     Kontrollschleife Dream-1 ↔ Sim, mit Hooks für dein Tool
-    │   ├── scene.py      Objekt-Positionen + einfache Erfolgserkennung („apple in bowl“)
-    │   └── recorder.py   MP4-Aufnahme der 3 Kameras (für die Demo)
-    ├── run.py            CLI: Task ausführen, optional aufnehmen
-    ├── check_setup.py    prüft, ob alles läuft
-    ├── tests/            Offline-Tests (kein API-Key nötig)
-    └── setup.ps1         Setup für Teammitglieder
+    │   ├── sim.py        locates the simulator, re-exports YamEnv + request helpers
+    │   ├── runner.py     Dream-1 ↔ sim control loop, with hooks for your tool
+    │   ├── scene.py      object positions + simple success detection ("apple in bowl")
+    │   └── recorder.py   MP4 recording of the 3 cameras (for the demo)
+    ├── run.py            CLI: run a task, optionally record it
+    ├── check_setup.py    checks that everything works
+    ├── tests/            offline tests (no API key needed)
+    └── setup.ps1         setup for team members
 ```
 
 ## Setup
 
-Auf diesem Rechner ist alles schon installiert. Für Teammitglieder (Windows, Python 3.12 + git):
+Requirements: Windows, Python 3.12 and git.
 
 ```powershell
-git clone <euer-repo> Hacklab\dream-tool
+git clone https://github.com/AbdullHadi-akr/DreamLabs_Hacklab.git Hacklab\dream-tool
 cd Hacklab\dream-tool
 powershell -ExecutionPolicy Bypass -File setup.ps1
 ```
 
-Aktivieren (jede neue Shell):
+The script clones `dreamlabs/` next to this repo, creates `..\.venv`, installs everything and runs `check_setup.py`.
+Activate the environment in every new shell:
 
 ```powershell
 ..\.venv\Scripts\Activate.ps1
 ```
 
-### API-Key
+### API key
 
-Key erstellen auf [platform.dreamlabs.ai/api-keys](https://platform.dreamlabs.ai/api-keys) (wird nur einmal
-angezeigt). Dann **eins** davon:
+Create a key at [platform.dreamlabs.ai/api-keys](https://platform.dreamlabs.ai/api-keys) (it is shown only once).
+Then do **one** of these:
 
-- `$env:DREAM_API_KEY = "dl_live_..."` (nur aktuelle Shell)
-- Datei `%USERPROFILE%\.dreamlabs\credentials` mit diesen vier Zeilen:
+- `$env:DREAM_API_KEY = "dl_live_..."` (current shell only)
+- create `%USERPROFILE%\.dreamlabs\credentials` with these four lines:
 
 ```
 DREAM_GATEWAY_URL=https://api.dreamlabs.ai
@@ -67,84 +68,84 @@ DREAM_DATA_URL=https://data.dreamlabs.ai
 DREAM_API_KEY=dl_live_...
 ```
 
-Jeder Task-Lauf verbraucht Credits auf dem Account.
+Every Dream-1 run uses credits on the account.
 
 ## Dashboard
 
 ```powershell
-python start.py                      # oder: python -m dashboard   → öffnet http://localhost:8000
+python start.py                      # or: python -m dashboard   → opens http://localhost:8000
 ```
 
-- **Mitte:** 3D-Ansicht der Sim (ziehen = drehen, rechts/Shift = verschieben, Rad = zoomen, Doppelklick = zurück),
-  darunter Taskleiste und die drei Roboter-Kameras.
-- **Links:** Extension-Tabs (Szene, Robustness, …). **Rechts:** aktueller Lauf, RTT-Verlauf, Log.
-- **Offline-Demo**, **Home**, **Reset** und der **Trockenlauf** im Robustness-Tab kosten keine Credits.
-  **Start** und Sweeps ohne Trockenlauf rufen Dream-1 auf.
-- Der Server läuft nur lokal (127.0.0.1). Strg+C beendet ihn.
+- **Center:** 3D view of the sim (drag = orbit, right/Shift = pan, wheel = zoom, double-click = reset),
+  with the prompt bar and the three robot cameras below.
+- **Left:** extension tabs (Scene, Robustness, …). **Right:** current run, RTT chart, log.
+- **Offline demo**, **Home**, **Reset** and the **dry run** in the Robustness tab cost no credits.
+  The **run** button and sweeps without dry run call Dream-1.
+- The server only listens locally (127.0.0.1). Ctrl+C stops it.
 
-**Neues Feature bauen:** `dashboard/extensions/_template` kopieren → Anleitung in
+**Building a new feature:** copy `dashboard/extensions/_template` → see
 [dashboard/EXTENSIONS.md](dashboard/EXTENSIONS.md).
 
-## Loslegen (CLI)
+## Getting started (CLI)
 
 ```powershell
-python check_setup.py --online       # alles grün? (--online prüft den Key gegen die API)
-python -m pytest -q                  # Offline-Tests
-python run.py --offline --record out/offline.mp4   # Sim ohne API, Video als Beweis
-python run.py "put apple into the bowl"            # Dream-1 steuert die Arme, 3D-Viewer geht auf
+python check_setup.py --online       # all green? (--online checks the key against the API)
+python -m pytest -q                  # offline tests
+python run.py --offline --record out/offline.mp4   # sim without the API, video as proof
+python run.py "put apple into the bowl"            # Dream-1 drives the arms, 3D viewer opens
 python run.py "put banana on the plate" --headless --record out/banana.mp4 --seconds 90
 ```
 
-Der offizielle interaktive Simulator (mit Task-Terminal, `/reset`, `/model` …):
+The official interactive simulator (with task terminal, `/reset`, `/model` …):
 
 ```powershell
 cd ..\dreamlabs\dream_library\examples\yam_mujoco
 python yam_mujoco.py
 ```
 
-> **Windows-Hinweise:** `dreamcli` läuft unter Windows nicht (nutzt `fcntl`) – braucht man für den Sim aber nicht.
-> `yam_mujoco.py` braucht eine echte Konsole (PowerShell / Windows Terminal), nicht Git Bash.
+> **Windows notes:** `dreamcli` does not run on Windows (it uses `fcntl`), but the sim does not need it.
+> `yam_mujoco.py` needs a real console (PowerShell / Windows Terminal), not Git Bash.
 
-## Dein Tool einhängen
+## Plugging in your tool
 
-Die ganze Logik kommt über **Hooks** in die Schleife – du musst die Kontrollschleife nicht anfassen:
+All logic enters the loop through **hooks**, so you never have to touch the control loop:
 
 ```python
 from dreamtool import Hooks, run_task, scene
 
-class MeinTool(Hooks):
-    def on_start(self, env, task, model): ...           # vor dem ersten Request
-    def on_reply(self, env, reply, rtt_s): ...          # jeder Action-Chunk: reply["q_l_chunk"], ["q_r_chunk"] je [H,7]
-    def on_step(self, env, step, images): ...           # alle 50 ms: env.state(), images["top"|"left"|"right"]
-    def should_stop(self, env): return None             # "Grund" zurückgeben → Lauf stoppt
+class MyTool(Hooks):
+    def on_start(self, env, task, model): ...           # before the first request
+    def on_reply(self, env, reply, rtt_s): ...          # every action chunk: reply["q_l_chunk"], ["q_r_chunk"], each [H, 7]
+    def on_step(self, env, step, images): ...           # every 50 ms: env.state(), images["top"|"left"|"right"]
+    def should_stop(self, env): return None             # return a reason string → the run stops
     def on_end(self, env, result): ...                  # RunResult: success, stop_reason, rtts_s, steps …
 
-result = run_task("put apple into the bowl", hooks=[MeinTool()], viewer=False, seconds=60)
+result = run_task("put apple into the bowl", hooks=[MyTool()], viewer=False, seconds=60)
 ```
 
-Nützlich: `scene.positions(env)`, `scene.is_in(env, "apple", "bowl")`, `env.state()` (Gelenke in rad +
-Greifer 0–1), `env.reset()`, `sim.home_path(env.state())`. Offline testen ohne Credits: `run_scripted(env, targets, hooks)`.
+Useful: `scene.positions(env)`, `scene.is_in(env, "apple", "bowl")`, `env.state()` (joints in rad +
+gripper 0–1), `env.reset()`, `sim.home_path(env.state())`. Test offline without credits: `run_scripted(env, targets, hooks)`.
 
-**Fakten zum Modell:** `dreamlabs/dream-1-beta`, 20 Hz Steuerung, bis 48 Aktionen pro Antwort, Input = je 9 Frames
-(320×176 JPEG, 0,2 s Abstand) von 3 Kameras + Gelenkzustände + Text-Prompt. Der Simulator erkennt **keinen
-Aufgaben-Erfolg** von sich aus. Laut Doku: Apfel/Orange → Schüssel klappt manchmal, Banane → Teller ist unzuverlässig.
+**Model facts:** `dreamlabs/dream-1-beta`, 20 Hz control, up to 48 actions per reply, input = 9 frames each
+(320×176 JPEG, 0.2 s apart) from 3 cameras + joint states + text prompt. The simulator does **not** detect task
+success by itself. According to the docs: apple/orange → bowl works sometimes, banana → plate is unreliable.
 
-## Ideen (passend zu den Kriterien)
+## Ideas (mapped to the judging criteria)
 
-1. **Eval-/Benchmark-Runner** – N Durchläufe pro Prompt, automatische Erfolgserkennung (`scene.py` ausbauen),
-   Erfolgsquote, Latenz-Statistik, Video pro Trial → HTML-Report. Beantwortet die Frage jedes Nutzers: *„Welcher
-   Prompt / welches Modell / welcher Fine-Tune funktioniert wirklich?“* (Real-user value + Robustness)
-2. **Safety-Guard** – jeden Action-Chunk vor der Ausführung in einer Kopie der Physik vorsimulieren; bei Kollision,
-   Arm-Kreuzung oder Verlassen des Arbeitsbereichs stoppen/abbremsen. Auf echte Roboter übertragbar.
-3. **Run-Debugger** – geplante vs. ausgeführte Trajektorien, RTT-Timeline, Seam-Sprünge zwischen Chunks visualisieren.
-4. **Prompt-Optimizer** – Varianten eines Tasks automatisch durchprobieren und die beste Formulierung finden.
-5. **Datensatz-Recorder** – erfolgreiche Sim-Läufe als Fine-Tuning-Datensatz exportieren (`client.validate_dataset`).
+1. **Eval / benchmark runner** – N runs per prompt, automatic success detection (extend `scene.py`), success rate,
+   latency stats, video per trial → HTML report. Answers every user's question: *"Which prompt / model / fine-tune
+   actually works?"* (real-user value + robustness)
+2. **Safety guard** – pre-simulate each action chunk in a copy of the physics before executing it; stop or slow down
+   on collisions, crossing arms or leaving the workspace. Transfers to real robots.
+3. **Run debugger** – visualize planned vs. executed trajectories, RTT timeline, seam jumps between chunks.
+4. **Prompt optimizer** – automatically try variants of a task and find the best wording.
+5. **Dataset recorder** – export successful sim runs as a fine-tuning dataset (`client.validate_dataset`).
 
-Tipp für die Demo: Läufe vorher mit `--record` aufnehmen als Backup, falls API/WLAN live hakt.
+Demo tip: record runs beforehand with `--record` as a backup in case the API or Wi-Fi acts up live.
 
 ## Links
 
-- Doku: <https://platform.dreamlabs.ai/api-documentation>
-- Client-Referenz: `../dreamlabs/dream_library/dream_client/README.md`
+- Docs: <https://platform.dreamlabs.ai/api-documentation>
+- Client reference: `../dreamlabs/dream_library/dream_client/README.md`
 - Simulator: `../dreamlabs/dream_library/examples/yam_mujoco/README.md`
 - Discord: <https://discord.gg/UAPxxH6tTg>

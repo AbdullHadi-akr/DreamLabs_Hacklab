@@ -1,6 +1,6 @@
-# Einmaliges Setup fuer Teammitglieder (Windows PowerShell), aus dem Ordner dream-tool\ heraus:
+# One-time setup for team members (Windows PowerShell), run from the dream-tool\ folder:
 #   powershell -ExecutionPolicy Bypass -File setup.ps1
-# Legt an: ..\dreamlabs (Repo-Klon), ..\.venv (Python 3.12) mit dem Dream-Library + pytest.
+# Creates: ..\dreamlabs (repo clone), ..\.venv (Python 3.12) with the Dream library + dashboard deps + pytest.
 
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot

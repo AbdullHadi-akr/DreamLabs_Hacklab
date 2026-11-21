@@ -1,4 +1,4 @@
-"""Nimmt die Simulator-Kameras als MP4 auf, z. B. fuer das Demo-Video."""
+"""Records the simulator cameras as MP4, e.g. for the demo video."""
 
 from __future__ import annotations
 
@@ -9,9 +9,9 @@ import numpy as np
 
 
 class VideoRecorder:
-    """Schreibt RGB-Frames (H x W x 3, uint8) in eine MP4-Datei.
+    """Writes RGB frames (H x W x 3, uint8) to an MP4 file.
 
-    Standard: die drei Kameras nebeneinander (top | left | right).
+    Default: the three cameras side by side (top | left | right).
     """
 
     def __init__(self, path: str | Path, fps: int = 20, cameras=("top", "left", "right")):

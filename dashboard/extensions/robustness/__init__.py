@@ -1,9 +1,9 @@
-"""Robustness Lab: Dream-1 unter gezielten Stoerungen testen und die Erfolgsquote pro Staerke messen.
+"""Robustness Lab: test Dream-1 under targeted perturbations and measure the success rate per strength.
 
-Ein Sweep = fuer jeden Wert (z. B. 0, 2, 4, 6 cm) N Trials. Jeder Trial: Szene zuruecksetzen, Stoerung anwenden,
-Task laufen lassen, Erfolg messen. Ergebnisse gehen live ans Panel und landen als JSON in out/extensions/robustness/.
+A sweep = N trials for each value (e.g. 0, 2, 4, 6 cm). Each trial: reset the scene, apply the perturbation,
+run the task, measure success. Results stream live to the panel and are saved as JSON in out/extensions/robustness/.
 
-"Trockenlauf" ersetzt Dream-1 durch kurzes Stillhalten: testet die ganze Pipeline ohne API und ohne Credits.
+"Dry run" replaces Dream-1 with a short hold: tests the whole pipeline without the API and without credits.
 """
 
 from __future__ import annotations

@@ -1,4 +1,4 @@
-"""dream-tool: Hackathon-Grundgeruest fuer ein Tool rund um Dream-1 (Dream Labs Track)."""
+"""dream-tool: hackathon toolkit for building tools around Dream-1 (Dream Labs track)."""
 
 from . import scene, sim
 from .recorder import VideoRecorder

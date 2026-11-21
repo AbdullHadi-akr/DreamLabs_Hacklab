@@ -1,10 +1,10 @@
-"""Extension-API (dieses Modul) + Loader. Jede Extension ist ein Ordner in dashboard/extensions/<name>/:
+"""Extension API (this module) + loader. Every extension is a folder in dashboard/extensions/<name>/:
 
-    __init__.py   Python: eine Unterklasse von `Extension` (Backend: API, Run-Hooks, 3D-Overlays)
-    panel.js      optional, Browser: `export function mount(root, api)` rendert das Panel im Dashboard
-    panel.css     optional, wird automatisch geladen
+    __init__.py   Python: a subclass of `Extension` (backend: API, run hooks, 3D overlays)
+    panel.js      optional, browser: `export function mount(root, api)` renders the panel in the dashboard
+    panel.css     optional, loaded automatically
 
-Ordner, die mit "_" beginnen (z. B. _template), werden nicht geladen. Neue Extension = _template kopieren.
+Folders starting with "_" (e.g. _template) are not loaded. New extension = copy _template.
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ DATA_DIR = Path(__file__).resolve().parents[1] / "out" / "extensions"
 
 
 class ExtensionContext:
-    """Alles, was eine Extension von der App braucht."""
+    """Everything an extension needs from the app."""
 
     def __init__(self, ext_id: str, sim, bus):
         self.id = ext_id
@@ -33,7 +33,7 @@ class ExtensionContext:
         self.bus = bus
 
     def emit(self, event: str, data=None, *, keep: bool = True) -> None:
-        """Event an alle Browser senden. Kommt im Panel an als api.on("<event>", fn)."""
+        """Send an event to all browsers. Arrives in the panel as api.on("<event>", fn)."""
         self.bus.emit(f"ext.{self.id}.{event}", data, keep=keep)
 
     def log(self, message: str, level: str = "info") -> None:
@@ -41,45 +41,45 @@ class ExtensionContext:
 
     @property
     def data_dir(self) -> Path:
-        """Ordner fuer Ergebnisse/Dateien dieser Extension (out/extensions/<id>/)."""
+        """Folder for this extension's results/files (out/extensions/<id>/)."""
         path = DATA_DIR / self.id
         path.mkdir(parents=True, exist_ok=True)
         return path
 
 
 class Extension:
-    """Basisklasse. Ueberschreibe nur, was du brauchst."""
+    """Base class. Override only what you need."""
 
-    id: str = ""  # eindeutig, URL-tauglich; Standard: Ordnername
+    id: str = ""  # unique, URL-safe; default: folder name
     title: str = ""
     icon: str = "🧩"
     description: str = ""
-    slot: str = "left"  # "left" = Tab in der linken Spalte, "right" = Karte in der rechten Spalte
-    order: int = 100  # Sortierung (klein = weiter vorne)
+    slot: str = "left"  # "left" = tab in the left column, "right" = card in the right column
+    order: int = 100  # sort order (smaller = further up front)
 
     def __init__(self, ctx: ExtensionContext):
         self.ctx = ctx
 
     def setup(self) -> None:
-        """Einmal nach dem Laden."""
+        """Once after loading."""
 
     def router(self) -> APIRouter | None:
-        """Eigene HTTP-API, erreichbar unter /api/ext/<id>/..."""
+        """Your own HTTP API, served under /api/ext/<id>/..."""
         return None
 
     def run_hooks(self, run: dict) -> Hooks | None:
-        """Wird fuer JEDEN Lauf aufgerufen (auch die anderer Extensions). `run`: id, task, model, source, ..."""
+        """Called for EVERY run (including other extensions' runs). `run`: id, task, model, source, ..."""
         return None
 
     def decorate(self, env, scene: mujoco.MjvScene) -> None:
-        """Vor jedem Frame der Hauptansicht: eigene 3D-Marker zeichnen (siehe overlay_*-Helfer unten)."""
+        """Before every frame of the main view: draw your own 3D markers (see the overlay_* helpers below)."""
 
     def shutdown(self) -> None:
-        """Beim Beenden der App."""
+        """When the app shuts down."""
 
 
 def load_extensions(sim, bus) -> list[Extension]:
-    """Alle Extensions finden und laden. Eine kaputte Extension wird geloggt und uebersprungen."""
+    """Find and load all extensions. A broken extension is logged and skipped."""
     loaded = []
     for info in pkgutil.iter_modules([str(EXTENSIONS_DIR)]):
         if info.name.startswith("_") or not info.ispkg:
@@ -114,7 +114,7 @@ def describe(ext: Extension) -> dict:
     }
 
 
-# ---------- 3D-Overlay-Helfer fuer Extension.decorate() ----------
+# ---------- 3D overlay helpers for Extension.decorate() ----------
 
 _IDENTITY = np.eye(3).ravel()
 
@@ -134,7 +134,7 @@ def overlay_sphere(scene, pos, radius=0.01, rgba=(1, 0.3, 0.2, 0.8)):
 
 
 def overlay_disk(scene, pos, radius=0.05, height=0.002, rgba=(0.2, 0.8, 0.4, 0.3)):
-    """Flacher Zylinder, z. B. als Zielzone auf dem Tisch."""
+    """Flat cylinder, e.g. as a target zone on the table."""
     _add_geom(scene, mujoco.mjtGeom.mjGEOM_CYLINDER, (radius, height, 0), pos, rgba)
 
 

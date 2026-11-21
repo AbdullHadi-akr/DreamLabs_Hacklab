@@ -1,1 +1,1 @@
-"""Extensions: ein Unterordner pro Extension. Siehe dashboard/extension.py und _template/."""
+"""Extensions: one subfolder per extension. See dashboard/extension.py and _template/."""

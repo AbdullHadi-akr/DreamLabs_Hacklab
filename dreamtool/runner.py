@@ -1,12 +1,12 @@
-"""Die Kontrollschleife: Dream-1 im Simulator laufen lassen, mit Hooks fuer dein eigenes Tool.
+"""The control loop: run Dream-1 in the simulator, with hooks for your own tool.
 
-Ablauf (synchron, wie im offiziellen Beispiel):
-  1. 9 Kamera-Frames pro Kamera sammeln (0.2 s Abstand in Simulationszeit)
-  2. get_action() -> Action-Chunk (bis 48 Zeilen x 7 Werte pro Arm), Physik pausiert waehrenddessen
-  3. Zeilen mit 20 Hz ausfuehren, dabei neue Frames an den Client geben
-  4. wiederholen bis Zeit um, Erfolg erkannt oder ein Hook stoppt
+Flow (synchronous, like the official example):
+  1. collect 9 camera frames per camera (0.2 s apart in simulated time)
+  2. get_action() -> action chunk (up to 48 rows x 7 values per arm); physics pauses meanwhile
+  3. execute the rows at 20 Hz while feeding new frames to the client
+  4. repeat until time is up, success is detected or a hook stops the run
 
-Eigene Logik haengst du ueber eine `Hooks`-Unterklasse ein (Monitoring, Sicherheits-Checks, Metriken, UI ...).
+Plug in your own logic with a `Hooks` subclass (monitoring, safety checks, metrics, UI ...).
 """
 
 from __future__ import annotations
@@ -23,26 +23,26 @@ from . import scene, sim
 
 
 class Hooks:
-    """Ueberschreibe, was du brauchst. Alle Methoden sind optional."""
+    """Override what you need. All methods are optional."""
 
     def on_start(self, env, task: str, model: str) -> None:
-        """Vor dem ersten Request."""
+        """Before the first request."""
 
     def on_reply(self, env, reply: dict, rtt_s: float) -> None:
-        """Nach jedem get_action(): `reply["q_l_chunk"]`, `reply["q_r_chunk"]` sind [H, 7]-Chunks."""
+        """After every get_action(): `reply["q_l_chunk"]`, `reply["q_r_chunk"]` are [H, 7] chunks."""
 
     def on_step(self, env, step: int, images: dict[str, np.ndarray]) -> None:
-        """Nach jedem 50-ms-Physikschritt. `images`: top/left/right RGB 360x640."""
+        """After every 50 ms physics step. `images`: top/left/right RGB 360x640."""
 
     def on_wait(self, env) -> None:
-        """Alle ~20 ms, waehrend auf die Antwort von Dream-1 gewartet wird (Physik pausiert)."""
+        """Every ~20 ms while waiting for Dream-1's reply (physics paused)."""
 
     def should_stop(self, env) -> str | None:
-        """Gib einen Grund (str) zurueck, um den Lauf zu beenden, sonst None."""
+        """Return a reason (str) to end the run, otherwise None."""
         return None
 
     def on_end(self, env, result: "RunResult") -> None:
-        """Nach dem Lauf."""
+        """After the run."""
 
 
 @dataclass
@@ -50,7 +50,7 @@ class RunResult:
     task: str
     model: str
     stop_reason: str = "timeout"
-    success: bool | None = None  # None = kein Erfolgs-Check fuer diesen Task bekannt
+    success: bool | None = None  # None = no success check known for this task
     steps: int = 0
     requests: int = 0
     rtts_s: list[float] = field(default_factory=list)
@@ -74,7 +74,7 @@ def run_task(
     stop_on_success: bool = True,
     verbose: bool = True,
 ) -> RunResult:
-    """Fuehrt einen Task mit Dream-1 im Simulator aus. Braucht einen API-Key (siehe README)."""
+    """Runs a task with Dream-1 in the simulator. Needs an API key (see README)."""
     hooks = hooks if isinstance(hooks, list) else [hooks] if hooks else []
     config = sim.settings()
     key = api_key or config.get("DREAM_API_KEY", "")
@@ -134,7 +134,7 @@ def run_task(
             while (reason := stop_reason()) is None:
                 t0 = time.monotonic()
                 future = pool.submit(policy.get_action)
-                while not future.done():  # Physik pausiert, Viewer bleibt bedienbar
+                while not future.done():  # physics paused, viewer stays responsive
                     if view is not None:
                         view.sync()
                     for h in hooks:
@@ -157,7 +157,7 @@ def run_task(
                 rtt = time.monotonic() - t0
                 result.requests += 1
                 result.rtts_s.append(rtt)
-                log(f"  Dream · RTT {rtt:.2f}s · Request {result.requests} · Schritt {steps}")
+                log(f"  Dream · RTT {rtt:.2f}s · request {result.requests} · step {steps}")
                 for h in hooks:
                     h.on_reply(env, reply, rtt)
 
@@ -196,7 +196,7 @@ def run_task(
 
 
 def run_scripted(env, targets, hooks: Hooks | list[Hooks] | None = None, realtime: bool = False):
-    """Fuehrt eine Liste von (left, right)-Zielen ohne API aus. Gut zum Testen deiner Hooks offline."""
+    """Executes a list of (left, right) targets without the API. Good for testing your hooks offline."""
     hooks = hooks if isinstance(hooks, list) else [hooks] if hooks else []
     for step, (left, right) in enumerate(targets, 1):
         if any(h.should_stop(env) for h in hooks):

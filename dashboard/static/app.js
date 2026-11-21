@@ -4,12 +4,12 @@ import { EventHub, createExtensionApi, h, request } from "./lib/api.js";
 const $ = (id) => document.getElementById(id);
 const core = {
   events: new EventHub(),
-  sim: null, // letzter sim.state
+  sim: null, // latest sim.state
   status: null,
   currentTask: () => $("task").value.trim(),
   toast,
 };
-window.dreamCore = core; // praktisch zum Debuggen in der Browser-Konsole
+window.dreamCore = core; // handy for debugging in the browser console
 
 // ---------------- Toasts & Log ----------------
 
@@ -45,7 +45,7 @@ async function action(promise, okMessage) {
   }
 }
 
-// ---------------- Viewer: Orbit-Steuerung ----------------
+// ---------------- Viewer: orbit controls ----------------
 
 function setupViewer(camera) {
   const viewer = $("viewer");
@@ -108,7 +108,7 @@ function setupCameras(names) {
   }
 }
 
-// ---------------- Taskleiste ----------------
+// ---------------- Prompt bar ----------------
 
 function setupTaskbar(state) {
   $("model").value = state.default_model;
@@ -163,7 +163,7 @@ function updateControls(status) {
   }
 }
 
-// ---------------- RTT-Chart ----------------
+// ---------------- RTT chart ----------------
 
 const rtts = [];
 function drawRtt() {

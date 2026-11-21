@@ -1,13 +1,13 @@
-"""Der Sim-Worker: EIN Thread besitzt die MuJoCo-Welt, die Renderer und die Dream-1-Laeufe.
+"""The sim worker: ONE thread owns the MuJoCo world, the renderers and the Dream-1 runs.
 
-MuJoCo-Daten und OpenGL-Kontexte sind nicht thread-sicher. Deshalb fasst nur dieser Thread `env` an. Alle
-anderen (HTTP-Handler, Extensions) schicken Auftraege:
+MuJoCo data and OpenGL contexts are not thread-safe, so only this thread touches `env`. Everyone else
+(HTTP handlers, extensions) sends jobs:
 
-    sim.call(lambda env: ...)        -> Future   beliebiger Code auf dem Sim-Thread (zwischen Laeufen)
-    sim.run_task("put apple ...")    -> Future[RunResult]   ein Lauf (live mit Dream-1 oder offline)
-    sim.stop()                       bricht den aktuellen Lauf ab
+    sim.call(lambda env: ...)        -> Future   arbitrary code on the sim thread (between runs)
+    sim.run_task("put apple ...")    -> Future[RunResult]   one run (live with Dream-1 or offline)
+    sim.stop()                       stops the current run
 
-Zwischen den Laeufen haelt die Sim die Arme in ihrer letzten Pose und rendert weiter, damit das Dashboard lebt.
+Between runs the sim holds the arms in their last pose and keeps rendering, so the dashboard stays alive.
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ import numpy as np
 from dreamtool import runner, scene, sim
 from dreamtool.runner import Hooks, RunResult
 
-## Hauptansicht (frei drehbare Kamera) und die drei Roboter-Kameras.
+## Main view (free orbit camera) and the three robot cameras.
 MAIN_SIZE = (960, 540)
 MAIN_FPS = 25
 CAM_SIZE = (320, 180)
@@ -38,24 +38,24 @@ JPEG_QUALITY = 80
 CAMERAS = ("top", "left", "right")
 
 
-## Heller, warmer Boden fuer die Hauptansicht (dreamlabs.ai "clay"/"stage"-Toene), RGBA 0..1.
-STAGE_FLOOR = (0.89, 0.875, 0.85, 1.0)  # ergibt mit emission ~#ede9e1 im Hintergrund
+## Light, warm floor for the main view (dreamlabs.ai "clay"/"stage" tones), RGBA 0..1.
+STAGE_FLOOR = (0.89, 0.875, 0.85, 1.0)  # with emission this gives ~#ede9e1 in the background
 
 
 def _stage_floor(model, scene: mujoco.MjvScene) -> None:
-    """Faerbt die Bodenebene NUR in dieser Szene (= nur Hauptansicht) hell ein.
-    Modell und Roboter-Kameras (= was Dream-1 sieht) bleiben unveraendert."""
+    """Lightens the floor plane ONLY in this scene (= main view only).
+    The model and the robot cameras (= what Dream-1 sees) stay unchanged."""
     for i in range(scene.ngeom):
         geom = scene.geoms[i]
         if geom.objtype == mujoco.mjtObj.mjOBJ_GEOM and model.geom_type[geom.objid] == mujoco.mjtGeom.mjGEOM_PLANE:
             geom.rgba[:] = STAGE_FLOOR
             geom.matid = -1
-            geom.emission = 0.6  # leuchtet selbst, damit der Hintergrund nicht ins Dunkle abfaellt
+            geom.emission = 0.6  # self-lit so the background does not fade to dark
             geom.reflectance = 0.0
 
 
 class OrbitCamera:
-    """Freie Kamera der Hauptansicht; der Browser dreht/zoomt sie, der Sim-Thread rendert damit."""
+    """Free camera of the main view; the browser orbits/zooms it, the sim thread renders with it."""
 
     DEFAULT = {"lookat": [0.0, 0.0, 0.85], "distance": 1.45, "azimuth": 90.0, "elevation": -32.0}
 
@@ -94,12 +94,12 @@ class RunRequest:
     model: str = sim.BETA_MODEL
     seconds: float = 60.0
     offline: bool = False
-    targets: Callable | list | None = None  # offline: Liste von (left, right) oder Funktion env -> Liste
-    setup: Callable | None = None  # env -> None, vor dem Lauf auf dem Sim-Thread
-    teardown: Callable | None = None  # env -> None, nach dem Lauf (auch bei Fehlern)
+    targets: Callable | list | None = None  # offline: list of (left, right) or a function env -> list
+    setup: Callable | None = None  # env -> None, before the run, on the sim thread
+    teardown: Callable | None = None  # env -> None, after the run (also on errors)
     hooks: list = field(default_factory=list)
     stop_on_success: bool = True
-    source: str = "core"  # wer den Lauf gestartet hat (core oder Extension-ID)
+    source: str = "core"  # who started the run (core or an extension id)
     label: str = ""
     id: int = 0
 
@@ -111,7 +111,7 @@ def result_dict(result: RunResult) -> dict:
 
 
 def demo_motion(env) -> list:
-    """Offline-Testbewegung (ohne API): beide Arme winken kurz, dann zurueck nach Hause."""
+    """Offline test motion (no API): both arms wave briefly, then return home."""
     rows = [np.r_[0.0, 0.6 * np.sin(t / 15), 0.5, 0.0, 0.0, 0.0, 0.5 + 0.5 * np.cos(t / 10)] for t in range(120)]
     start = [(row, row) for row in rows]
     last = {"left": rows[-1], "right": rows[-1]}
@@ -119,7 +119,7 @@ def demo_motion(env) -> list:
 
 
 class _CoreHook(Hooks):
-    """Verbindet einen Lauf mit dem Dashboard: Frames, Events, Stop-Knopf."""
+    """Connects a run to the dashboard: frames, events, stop button."""
 
     def __init__(self, worker: "SimWorker", request: RunRequest):
         self.worker, self.request = worker, request
@@ -163,16 +163,16 @@ class SimWorker(threading.Thread):
         self._seq = 0
         self.env = None
 
-    # ---------- oeffentliche, thread-sichere API ----------
+    # ---------- public, thread-safe API ----------
 
     def call(self, fn: Callable) -> Future:
-        """fn(env) auf dem Sim-Thread ausfuehren (zwischen Laeufen). Ergebnis/Exception kommt ueber das Future."""
+        """Run fn(env) on the sim thread (between runs). Result/exception arrives through the Future."""
         future: Future = Future()
         self.jobs.put(("call", fn, future))
         return future
 
     def run_task(self, task: str, **options) -> Future:
-        """Einen Lauf einreihen. Optionen siehe RunRequest. Liefert Future[RunResult]."""
+        """Queue a run. Options: see RunRequest. Returns Future[RunResult]."""
         self._run_ids += 1
         request = RunRequest(task=task, id=self._run_ids, **options)
         future: Future = Future()
@@ -181,12 +181,12 @@ class SimWorker(threading.Thread):
         return future
 
     def stop(self) -> None:
-        """Aktuellen Lauf abbrechen (bei Dream-1: nach der laufenden Antwort)."""
+        """Stop the current run (with Dream-1: after the pending reply)."""
         if self.current is not None:
             self.stop_event.set()
 
     def cancel_queued(self, source: str | None = None) -> int:
-        """Wartende Laeufe (optional nur einer Quelle) verwerfen."""
+        """Drop queued runs (optionally only those of one source)."""
         kept, dropped = [], 0
         while True:
             try:
@@ -222,7 +222,7 @@ class SimWorker(threading.Thread):
         self.shutdown_event.set()
         self.stop_event.set()
 
-    # ---------- Sim-Thread ----------
+    # ---------- sim thread ----------
 
     def run(self):
         try:
@@ -326,10 +326,10 @@ class SimWorker(threading.Thread):
         future.set_result(result)
         self.publish(force=True)
 
-    # ---------- Rendering & Status ----------
+    # ---------- rendering & status ----------
 
     def publish(self, images: dict | None = None, force: bool = False) -> None:
-        """Rendert (gedrosselt) Hauptansicht + Kameras und sendet den Sim-Zustand. Nur auf dem Sim-Thread."""
+        """Renders (throttled) the main view + cameras and sends the sim state. Sim thread only."""
         now = time.monotonic()
         if force or now - self._last["main"] >= 1 / MAIN_FPS:
             self._last["main"] = now
@@ -366,7 +366,7 @@ class SimWorker(threading.Thread):
 
 
 class _SafeHook(Hooks):
-    """Faengt Fehler in Extension-Hooks ab, damit ein Bug in einer Extension keinen Lauf abbricht."""
+    """Catches errors in extension hooks so a bug in one extension does not abort a run."""
 
     def __init__(self, inner: Hooks, bus):
         self.inner, self.bus, self.failed = inner, bus, set()

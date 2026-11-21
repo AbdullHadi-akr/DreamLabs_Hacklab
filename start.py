@@ -1,4 +1,4 @@
-"""Startet das Dashboard von ueberall:  python dream-tool/start.py  (gleich wie  python -m dashboard)"""
+"""Starts the dashboard from anywhere:  python dream-tool/start.py  (same as  python -m dashboard)"""
 
 import sys
 from pathlib import Path

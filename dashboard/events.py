@@ -1,6 +1,6 @@
-"""Event-Bus: beliebige Threads (Sim, Extensions) senden Events, alle offenen Browser-Tabs bekommen sie per WebSocket.
+"""Event bus: any thread (sim, extensions) sends events; every open browser tab receives them over WebSocket.
 
-Event-Format (JSON): {"type": "run.ended", "data": {...}, "t": 1732190000.12}
+Event format (JSON): {"type": "run.ended", "data": {...}, "t": 1732190000.12}
 """
 
 from __future__ import annotations
@@ -29,13 +29,13 @@ class EventBus:
         self._loop: asyncio.AbstractEventLoop | None = None
         self._clients: set[asyncio.Queue] = set()
         self._lock = threading.Lock()
-        self.history = deque(maxlen=history)  # die letzten Events (ohne hochfrequente), fuer neu verbundene Tabs
+        self.history = deque(maxlen=history)  # recent events (not the high-frequency ones), replayed to newly connected tabs
 
     def bind(self, loop: asyncio.AbstractEventLoop) -> None:
         self._loop = loop
 
     def emit(self, type: str, data=None, *, keep: bool = True) -> None:
-        """Thread-sicher. `keep=False` fuer hochfrequente Events (z. B. sim.state), die nicht in die History sollen."""
+        """Thread-safe. `keep=False` for high-frequency events (e.g. sim.state) that should not go into the history."""
         message = json.dumps({"type": type, "data": data, "t": time.time()}, default=_jsonable)
         if keep:
             self.history.append(message)
@@ -48,7 +48,7 @@ class EventBus:
 
     @staticmethod
     def _offer(queue: asyncio.Queue, message: str) -> None:
-        if queue.full():  # langsamer Client: aeltestes verwerfen statt blockieren
+        if queue.full():  # slow client: drop the oldest message instead of blocking
             try:
                 queue.get_nowait()
             except asyncio.QueueEmpty:

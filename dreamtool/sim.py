@@ -1,8 +1,8 @@
-"""Zugriff auf den Dream YAM Simulator (examples/yam_mujoco aus dem dreamlabs-Repo).
+"""Access to the Dream YAM simulator (examples/yam_mujoco from the dreamlabs repo).
 
-Das Beispiel ist kein installiertes Python-Paket, sondern ein Ordner mit Skripten. Dieses Modul findet den Ordner,
-haengt ihn an sys.path und re-exportiert die Teile, die wir brauchen: YamEnv (Physik + Kameras) und die
-Request-Helfer aus dream_control (Beobachtung bauen, Frames fuettern, Action-Chunks pruefen).
+The example is not an installed Python package but a folder of scripts. This module finds the folder, adds it to
+sys.path and re-exports the parts we need: YamEnv (physics + cameras) and the request helpers from dream_control
+(build observations, feed frames, validate action chunks).
 """
 
 from __future__ import annotations
@@ -12,12 +12,12 @@ import sys
 import sysconfig
 from pathlib import Path
 
-## Hacklab/ (der Ordner, in dem dream-tool/ und dreamlabs/ nebeneinander liegen)
+## Hacklab/ (the folder where dream-tool/ and dreamlabs/ sit side by side)
 WORKSPACE = Path(__file__).resolve().parents[2]
 
 
 def find_sim_dir() -> Path:
-    """Ordner des yam_mujoco-Beispiels: $DREAM_SIM_DIR, sonst der Repo-Klon daneben, sonst die Kopie im Wheel."""
+    """Folder of the yam_mujoco example: $DREAM_SIM_DIR, else the repo clone next to us, else the copy in the wheel."""
     candidates = []
     if os.environ.get("DREAM_SIM_DIR"):
         candidates.append(Path(os.environ["DREAM_SIM_DIR"]))
@@ -27,8 +27,8 @@ def find_sim_dir() -> Path:
         if (path / "yam_env.py").is_file():
             return path
     raise FileNotFoundError(
-        "Dream YAM Sim nicht gefunden. Klone github.com/dreamlabs-co/dreamlabs neben dream-tool/ "
-        "oder setze DREAM_SIM_DIR auf .../dream_library/examples/yam_mujoco."
+        "Dream YAM Sim not found. Clone github.com/dreamlabs-co/dreamlabs next to dream-tool/ "
+        "or set DREAM_SIM_DIR to .../dream_library/examples/yam_mujoco."
     )
 
 

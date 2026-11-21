@@ -1,42 +1,43 @@
-# Extensions schreiben
+# Writing extensions
 
-Jede Funktion des Dashboards, die über „Task starten und zuschauen“ hinausgeht, ist eine **Extension**: ein Ordner in
-`dashboard/extensions/`. Das Dashboard findet sie beim Start automatisch, es muss nichts registriert werden.
-
-```
-dashboard/extensions/mein_tool/
-├── __init__.py   Backend (Python): Klasse, die von Extension erbt
-├── panel.js      Frontend (optional): export function mount(root, api)
-└── panel.css     optional, wird automatisch geladen
-```
-
-**Schnellstart:** `_template/` kopieren, den Ordner ohne `_` benennen, Dashboard neu starten. Der Tab erscheint links.
-
-## Architektur in einem Bild
+Every dashboard feature beyond "start a task and watch" is an **extension**: a folder in `dashboard/extensions/`.
+The dashboard discovers it automatically on startup; nothing needs to be registered.
 
 ```
-Browser ── HTTP /api/... ──────────► FastAPI (app.py) ── Extension.router() unter /api/ext/<id>/
+dashboard/extensions/my_tool/
+├── __init__.py   backend (Python): a class that inherits from Extension
+├── panel.js      frontend (optional): export function mount(root, api)
+└── panel.css     optional, loaded automatically
+```
+
+**Quick start:** copy `_template/`, name the folder without the leading `_`, restart the dashboard. The tab appears
+on the left.
+
+## Architecture at a glance
+
+```
+Browser ── HTTP /api/... ──────────► FastAPI (app.py) ── Extension.router() under /api/ext/<id>/
    ▲   ◄── MJPEG /stream/*.mjpg ───┐        │
    │                               │        ▼
-   └── WebSocket /ws (Events) ◄── EventBus ◄── SimWorker-Thread (simulation.py)
-                                              besitzt env + Renderer, führt Läufe aus,
-                                              ruft Extension.run_hooks() / decorate() auf
+   └── WebSocket /ws (events) ◄── EventBus ◄── SimWorker thread (simulation.py)
+                                              owns env + renderers, executes runs,
+                                              calls Extension.run_hooks() / decorate()
 ```
 
-**Wichtigste Regel:** Nur der Sim-Thread darf `env` anfassen (MuJoCo und OpenGL sind nicht thread-sicher).
-Aus einem HTTP-Handler oder eigenen Thread immer über `ctx.sim` gehen:
+**Most important rule:** only the sim thread may touch `env` (MuJoCo and OpenGL are not thread-safe).
+From an HTTP handler or your own thread, always go through `ctx.sim`:
 
-| Aufruf | Was passiert |
+| Call | What happens |
 | --- | --- |
-| `ctx.sim.call(lambda env: ...)` | Funktion läuft auf dem Sim-Thread (zwischen Läufen), gibt ein `Future` zurück |
-| `ctx.sim.run_task(task, ...)` | Lauf einreihen, gibt `Future[RunResult]` zurück (Optionen unten) |
-| `ctx.sim.stop()` / `ctx.sim.cancel_queued(ctx.id)` | aktuellen Lauf stoppen / eigene wartende Läufe verwerfen |
-| `ctx.sim.busy`, `ctx.sim.status()` | läuft gerade etwas? |
-| `ctx.sim.state_snapshot` | letzter Zustand: Zeit, Gelenke, Objekt-Positionen |
+| `ctx.sim.call(lambda env: ...)` | runs the function on the sim thread (between runs), returns a `Future` |
+| `ctx.sim.run_task(task, ...)` | queues a run, returns a `Future[RunResult]` (options below) |
+| `ctx.sim.stop()` / `ctx.sim.cancel_queued(ctx.id)` | stop the current run / drop your own queued runs |
+| `ctx.sim.busy`, `ctx.sim.status()` | is anything running? |
+| `ctx.sim.state_snapshot` | latest state: time, joints, object positions |
 
-`run_task`-Optionen: `model`, `seconds`, `offline` (ohne API), `targets` (offline: Liste oder `env -> Liste` von
-`(left, right)`), `setup` / `teardown` (`env -> None`, laufen auf dem Sim-Thread vor/nach dem Lauf),
-`hooks` (nur für diesen Lauf), `stop_on_success`, `label`, `source`.
+`run_task` options: `model`, `seconds`, `offline` (no API), `targets` (offline: a list or `env -> list` of
+`(left, right)`), `setup` / `teardown` (`env -> None`, run on the sim thread before/after the run),
+`hooks` (only for this run), `stop_on_success`, `label`, `source`.
 
 ## Backend: `Extension`
 
@@ -45,43 +46,42 @@ from fastapi import APIRouter
 from dashboard.extension import Extension, overlay_sphere
 from dreamtool.runner import Hooks
 
-class MeinTool(Extension):
-    title = "Mein Tool"
+class MyTool(Extension):
+    title = "My tool"
     icon = "🛡️"
-    slot = "left"          # "left" = Tab links, "right" = Karte rechts
+    slot = "left"          # "left" = tab in the left column, "right" = card in the right column
     order = 50
 
-    def setup(self): ...                       # einmal beim Start
+    def setup(self): ...                       # once on startup
 
-    def router(self):                          # HTTP-API unter /api/ext/mein_tool/
+    def router(self):                          # HTTP API under /api/ext/my_tool/
         r = APIRouter()
         @r.post("/start")
         def start(body: dict): ...
         return r
 
-    def run_hooks(self, run):                  # für JEDEN Lauf (auch die anderer Extensions)
-        return MeinHook(self)                  # oder None
+    def run_hooks(self, run):                  # for EVERY run (including other extensions' runs)
+        return MyHook(self)                    # or None
 
-    def decorate(self, env, scene):            # vor jedem Frame der 3D-Ansicht
+    def decorate(self, env, scene):            # before every frame of the 3D view
         overlay_sphere(scene, env.data.body("apple").xpos, radius=0.02)
 
-class MeinHook(Hooks):
+class MyHook(Hooks):
     def on_start(self, env, task, model): ...
-    def on_reply(self, env, reply, rtt_s): ...   # Action-Chunk: reply["q_l_chunk"], reply["q_r_chunk"] je [H, 7]
-    def on_step(self, env, step, images): ...    # alle 50 ms; images = top/left/right RGB
-    def on_wait(self, env): ...                  # während auf Dream-1 gewartet wird
-    def should_stop(self, env): return None      # String zurückgeben -> Lauf endet mit diesem Grund
+    def on_reply(self, env, reply, rtt_s): ...   # action chunk: reply["q_l_chunk"], reply["q_r_chunk"], each [H, 7]
+    def on_step(self, env, step, images): ...    # every 50 ms; images = top/left/right RGB
+    def on_wait(self, env): ...                  # while waiting for Dream-1
+    def should_stop(self, env): return None      # return a string -> the run ends with that reason
     def on_end(self, env, result): ...           # RunResult: success, stop_reason, steps, rtts_s ...
 ```
 
-Weitere Helfer im Kontext: `self.ctx.emit("event", data)` (ans Panel), `self.ctx.log("Text")` (ins Log),
-`self.ctx.data_dir` (Ergebnis-Ordner `out/extensions/<id>/`). Fehler in Hooks, `decorate` oder beim Laden werden
-abgefangen und geloggt, eine kaputte Extension legt das Dashboard nicht lahm.
+More helpers on the context: `self.ctx.emit("event", data)` (to the panel), `self.ctx.log("text")` (to the log),
+`self.ctx.data_dir` (results folder `out/extensions/<id>/`). Errors in hooks, in `decorate` or while loading are
+caught and logged; a broken extension does not take the dashboard down.
 
 ## Frontend: `panel.js`
 
-Plain ES-Module, kein Build-Schritt. Nach dem Speichern genügt ein Browser-Reload (Backend-Änderungen brauchen einen
-Neustart des Servers).
+Plain ES modules, no build step. After saving, a browser reload is enough (backend changes need a server restart).
 
 ```js
 export async function mount(root, api) {
@@ -90,25 +90,25 @@ export async function mount(root, api) {
   root.append(h("button", { class: "btn", onclick: () => api.post("/start", {}) }, "Start"), out);
 
   api.on("progress", (d) => (out.textContent = JSON.stringify(d)));   // ctx.emit("progress", ...)
-  api.onCore("run.ended", (d) => console.log(d.result));             // Core-Events
+  api.onCore("run.ended", (d) => console.log(d.result));             // core events
 }
 ```
 
 | `api.` | |
 | --- | --- |
-| `get(path)`, `post(path, body)`, `del(path)` | eigenes Backend unter `/api/ext/<id>` |
-| `on(event, fn)` | eigene Events (`ctx.emit`) |
+| `get(path)`, `post(path, body)`, `del(path)` | your own backend under `/api/ext/<id>` |
+| `on(event, fn)` | your own events (`ctx.emit`) |
 | `onCore(type, fn)` | `sim.state` (10 Hz), `run.queued`, `run.started`, `run.reply`, `run.ended`, `run.cancelled`, `log` |
-| `core.run(task, {offline, seconds, model})`, `core.stop()`, `core.reset()`, `core.home()` | Steuerung |
-| `core.sim()`, `core.task()` | letzter Sim-Zustand, Text im Task-Feld |
-| `ui.h(...)`, `ui.toast(text, "good" \| "error")` | UI-Helfer |
+| `core.run(task, {offline, seconds, model})`, `core.stop()`, `core.reset()`, `core.home()` | control |
+| `core.sim()`, `core.task()` | latest sim state, text in the prompt field |
+| `ui.h(...)`, `ui.toast(text, "good" \| "error")` | UI helpers |
 
-Fertige CSS-Klassen aus `static/style.css`: `btn`, `btn primary`, `btn danger`, `btn small`, `field`, `row`, `check`,
-`muted`, `table`, `bar`, `progress`, `good`, `bad`, `warn`.
+Ready-made CSS classes from `static/style.css`: `btn`, `btn primary`, `btn danger`, `btn small`, `btn-outline`,
+`field`, `row`, `check`, `muted`, `table`, `bar`, `progress`, `good`, `bad`, `warn`.
 
-## Beispiele im Repo
+## Examples in the repo
 
-- `scene_inspector/`: Live-Werte aus `sim.state`, `decorate()`-Overlay, `ctx.sim.call()` für Debug-Aktionen, Run-Hook.
-- `robustness/`: Hintergrund-Thread, der viele Läufe mit `setup`/`teardown` einreiht. Neue Störungen sind eine
-  Funktion mit `@perturbation(...)` in `perturbations.py`.
-- `_template/`: Minimalbeispiel zum Kopieren.
+- `scene_inspector/`: live values from `sim.state`, a `decorate()` overlay, `ctx.sim.call()` for debug actions, a run hook.
+- `robustness/`: a background thread that queues many runs with `setup`/`teardown`. A new perturbation is one
+  function decorated with `@perturbation(...)` in `perturbations.py`.
+- `_template/`: minimal example to copy.

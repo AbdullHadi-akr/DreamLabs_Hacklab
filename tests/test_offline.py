@@ -1,4 +1,4 @@
-"""Offline-Tests: kein API-Key, keine Netzwerk-Calls."""
+"""Offline tests: no API key, no network calls."""
 
 import numpy as np
 import pytest
@@ -31,7 +31,7 @@ def test_success_check_parses_tasks():
 def test_success_check_detects_object_in_bowl(env):
     check = scene.success_check("put apple into the bowl")
     assert not check(env)
-    # Apfel "teleportieren": freejoint qpos = (x, y, z, qw, qx, qy, qz)
+    # "teleport" the apple: freejoint qpos = (x, y, z, qw, qx, qy, qz)
     bowl = scene.position(env, "bowl")
     env.data.joint("apple_free").qpos[:3] = bowl + np.array([0, 0, 0.04])
     env.data.joint("apple_free").qvel[:] = 0

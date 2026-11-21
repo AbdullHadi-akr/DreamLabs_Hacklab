@@ -1,6 +1,6 @@
-// Gemeinsame Helfer fuer Core-UI und Extensions. Kein Build-Schritt: reine ES-Module.
+// Shared helpers for the core UI and extensions. No build step: plain ES modules.
 
-/** DOM-Helfer: h("div", {class: "x", onclick: fn}, "Text", h("span", {}, "...")) */
+/** DOM helper: h("div", {class: "x", onclick: fn}, "Text", h("span", {}, "...")) */
 export function h(tag, attrs = {}, ...children) {
   const el = document.createElement(tag);
   for (const [key, value] of Object.entries(attrs || {})) {
@@ -36,7 +36,7 @@ export async function request(method, url, body) {
   return data;
 }
 
-/** Event-Hub ueber den WebSocket /ws. on("run.ended", fn), on("*", fn) fuer alles. */
+/** Event hub over the WebSocket /ws. on("run.ended", fn), on("*", fn) for everything. */
 export class EventHub {
   constructor() {
     this.listeners = new Map();
@@ -75,27 +75,27 @@ export class EventHub {
   }
 }
 
-/** Die API, die jede Extension in mount(root, api) bekommt. */
+/** The API every extension receives in mount(root, api). */
 export function createExtensionApi(ext, core) {
   const base = `/api/ext/${ext.id}`;
   return {
     id: ext.id,
     ext,
-    // Backend der Extension (router() in __init__.py), Pfade relativ zu /api/ext/<id>
+    // the extension's backend (router() in __init__.py), paths relative to /api/ext/<id>
     get: (path = "") => request("GET", base + path),
     post: (path = "", body = {}) => request("POST", base + path, body),
     del: (path = "") => request("DELETE", base + path),
-    // Events: eigene (ctx.emit("progress") -> api.on("progress")) und Core-Events (api.onCore("run.ended"))
+    // events: your own (ctx.emit("progress") -> api.on("progress")) and core events (api.onCore("run.ended"))
     on: (event, fn) => core.events.on(`ext.${ext.id}.${event}`, fn),
     onCore: (type, fn) => core.events.on(type, fn),
-    // Steuerung der Simulation
+    // simulation control
     core: {
       run: (task, options = {}) => request("POST", "/api/run", { task, ...options }),
       stop: () => request("POST", "/api/stop"),
       reset: () => request("POST", "/api/reset"),
       home: () => request("POST", "/api/home"),
-      sim: () => core.sim, // letzter Sim-Zustand: time, arms, objects, status
-      task: () => core.currentTask(), // Text im Task-Feld
+      sim: () => core.sim, // latest sim state: time, arms, objects, status
+      task: () => core.currentTask(), // text in the prompt field
     },
     ui: { h, toast: core.toast },
     asset: (file) => `/ext/${ext.id}/${file}`,

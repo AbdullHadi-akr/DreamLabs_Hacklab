@@ -1,12 +1,12 @@
-"""Stoerungen fuer den Robustness-Test. Neue Stoerung = eine Funktion mit @perturbation dekorieren.
+"""Perturbations for the robustness test. New perturbation = one function decorated with @perturbation.
 
-Signatur:  fn(env, value, rng, target) -> restore | None
-  env     YamEnv (direkt nach env.reset())
-  value   Staerke in der angegebenen Einheit (z. B. cm oder Grad)
-  rng     numpy Generator (reproduzierbar pro Trial)
-  target  Ziel-Objekt aus dem Task (z. B. "apple") oder None
-  restore optional: Funktion env -> None, die Aenderungen am Modell (Kameras, Licht ...) rueckgaengig macht.
-          Objekt-Positionen muessen nicht zurueckgesetzt werden, das macht der naechste env.reset().
+Signature:  fn(env, value, rng, target) -> restore | None
+  env     YamEnv (right after env.reset())
+  value   strength in the given unit (e.g. cm or degrees)
+  rng     numpy Generator (reproducible per trial)
+  target  target object from the task (e.g. "apple") or None
+  restore optional: function env -> None that undoes changes to the model (cameras, lights ...).
+          Object positions need no restoring; the next env.reset() takes care of that.
 """
 
 from __future__ import annotations

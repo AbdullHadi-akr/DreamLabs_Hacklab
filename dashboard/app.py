@@ -1,4 +1,4 @@
-"""FastAPI-App: HTTP-API, Video-Streams (MJPEG), WebSocket-Events, Extension-Routen."""
+"""FastAPI app: HTTP API, video streams (MJPEG), WebSocket events, extension routes."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ from .events import EventBus
 from .extension import describe, load_extensions
 from .simulation import CAMERAS, MAIN_FPS, SimWorker, demo_motion
 
-## Windows liest MIME-Typen aus der Registry, dort steht fuer .js oft text/plain -> Browser verweigert ES-Module.
+## Windows reads MIME types from the registry, which often maps .js to text/plain -> browsers refuse ES modules.
 mimetypes.add_type("text/javascript", ".js")
 mimetypes.add_type("text/css", ".css")
 
@@ -70,13 +70,13 @@ def create_app() -> FastAPI:
 
     @app.middleware("http")
     async def no_cache(request, call_next):
-        """Beim Entwickeln: geaenderte JS/CSS-Dateien sind nach einem Reload sofort da."""
+        """While developing: edited JS/CSS files show up immediately after a reload."""
         response = await call_next(request)
         if request.url.path == "/" or request.url.path.startswith("/static/"):
             response.headers["Cache-Control"] = "no-cache"
         return response
 
-    # ---------- Seiten & Dateien ----------
+    # ---------- pages & files ----------
 
     @app.get("/")
     def index():
@@ -92,7 +92,7 @@ def create_app() -> FastAPI:
             raise HTTPException(404)
         return FileResponse(path, headers={"Cache-Control": "no-store"})
 
-    # ---------- Core-API ----------
+    # ---------- core API ----------
 
     @app.get("/api/state")
     def state():
@@ -175,7 +175,7 @@ def create_app() -> FastAPI:
         return StreamingResponse(frames(), media_type="multipart/x-mixed-replace; boundary=frame",
                                  headers={"Cache-Control": "no-store"})
 
-    # ---------- Events ----------
+    # ---------- events ----------
 
     @app.websocket("/ws")
     async def websocket(ws: WebSocket):

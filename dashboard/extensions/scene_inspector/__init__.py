@@ -1,4 +1,4 @@
-"""Szene: Objekt-Positionen live, Erfolgszonen als 3D-Overlay, Debug-Aktionen (Objekt platzieren)."""
+"""Scene: live object positions, success zones as a 3D overlay, debug actions (place an object)."""
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -14,7 +14,7 @@ class PlaceBody(BaseModel):
 
 
 class LiftTracker(Hooks):
-    """Merkt sich, wie hoch das Ziel-Objekt waehrend eines Laufs maximal angehoben wurde."""
+    """Remembers how high the target object was lifted at most during a run."""
 
     def __init__(self, ext, obj):
         self.ext, self.obj, self.start_z, self.max_lift = ext, obj, None, 0.0
@@ -38,7 +38,7 @@ class SceneInspector(Extension):
 
     def setup(self):
         self.show_zones = True
-        self.target = None  # (objekt, ablage) des aktuellen Tasks, fuer das Overlay
+        self.target = None  # (object, container) of the current task, for the overlay
 
     def router(self):
         r = APIRouter()
@@ -80,12 +80,12 @@ class SceneInspector(Extension):
         for name in scene.CONTAINERS:
             radius, _ = scene.CONTAINER_SIZE[name]
             active = self.target is not None and self.target[1] == name
-            # dreamlabs.ai-Palette: grass (#7de290) fuer das aktive Ziel, sky (#8bc7fc) sonst
+            # dreamlabs.ai palette: grass (#7de290) for the active target, sky (#8bc7fc) otherwise
             rgba = (0.49, 0.89, 0.56, 0.40) if active else (0.55, 0.78, 0.99, 0.22)
             overlay_disk(mjscene, scene.position(env, name) + [0, 0, 0.003], radius=radius, rgba=rgba)
         if self.target is not None:
             obj, container = self.target
             start, end = scene.position(env, obj), scene.position(env, container) + [0, 0, 0.03]
-            # creamsicle (#ffb06c) fuer Marker und Pfad
+            # creamsicle (#ffb06c) for marker and path
             overlay_sphere(mjscene, start + [0, 0, 0.06], radius=0.008, rgba=(1.0, 0.69, 0.42, 0.95))
             overlay_line(mjscene, start + [0, 0, 0.06], end, rgba=(1.0, 0.69, 0.42, 0.7))

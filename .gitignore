@@ -9,25 +9,25 @@ dist/
 .mypy_cache/
 .ipynb_checkpoints/
 
-# Umgebungen
+# Environments
 .venv/
 venv/
 env/
 
-# Secrets – niemals committen
+# Secrets – never commit
 .env
 .env.*
 credentials
 credentials.json
 *.key
 
-# Ausgaben (Videos, Reports, Frames)
+# Outputs (videos, reports, frames)
 out/
 *.mp4
 *.gif
 *.log
 
-# Upstream-Klon liegt neben diesem Repo, nicht darin
+# The upstream clone sits next to this repo, not inside it
 dreamlabs/
 
 # Editor / OS

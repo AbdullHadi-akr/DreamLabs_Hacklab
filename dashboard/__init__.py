@@ -1,1 +1,1 @@
-"""Lokales Web-Dashboard fuer Dream-1 im MuJoCo-Simulator. Start: python -m dashboard"""
+"""Local web dashboard for Dream-1 in the MuJoCo simulator. Start: python -m dashboard"""
