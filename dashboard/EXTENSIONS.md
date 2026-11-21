@@ -49,7 +49,7 @@ from dreamtool.runner import Hooks
 
 class MyTool(Extension):
     title = "My tool"
-    icon = "🛡️"
+    icon = ""
     slot = "left"          # "left" = tab in the left column, "right" = card in the right column
     order = 50
 

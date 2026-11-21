@@ -99,7 +99,7 @@ async function render() {
           title: "Every trial of the filtered runs, one row each" }, "All trials (CSV)"),
         h("a", { class: "btn small btn-outline", href: `${API}/download/all-trials.csv${query({ excel: "true" })}`, download: "",
           title: "Semicolons and decimal commas for German Excel" }, "Excel CSV"),
-        h("a", { class: "btn small btn-outline", href: "/" }, "← Dashboard"))),
+        h("a", { class: "btn small btn-outline", href: "/" }, "Dashboard"))),
     filters,
     mapCard,
     h("section", { class: "card rp-section" },

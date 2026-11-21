@@ -131,7 +131,7 @@ function render(s) {
       h("div", { class: "rp-head-actions" },
         downloadButtons(s.id),
         h("a", { class: "btn small btn-outline", href: "runs.html" }, "All runs"),
-        h("a", { class: "btn small btn-outline", href: "/" }, "← Dashboard"))),
+        h("a", { class: "btn small btn-outline", href: "/" }, "Dashboard"))),
     h("div", { class: `rb-verdict ${a.verdict.breaking_point != null || a.verdict.most_harmful ? "bad" : ""}` }, a.verdict.text),
     h("div", { class: "rp-grid" }, left, right),
     ...(heat ? [heat] : []),

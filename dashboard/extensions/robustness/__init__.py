@@ -221,7 +221,7 @@ def _describe(p):
 
 class RobustnessLab(Extension):
     title = "Robustness"
-    icon = "🧪"
+    icon = ""
     description = "Perturb the scene and see how and when Dream-1 fails"
     order = 20
 

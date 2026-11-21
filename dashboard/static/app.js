@@ -228,7 +228,7 @@ function setupEvents() {
   ev.on("run.reply", (d) => { rtts.push(d.rtt_s); if (rtts.length > 60) rtts.shift(); drawRtt(); });
   ev.on("run.ended", (d) => {
     const r = d.result;
-    const success = r.success === true ? "✔ success" : r.success === false ? "✘ no success" : "–";
+    const success = r.success === true ? "success" : r.success === false ? "no success" : "–";
     $("ri-state").textContent = r.stop_reason;
     $("ri-steps").textContent = r.steps;
     $("ri-requests").textContent = r.requests;
@@ -255,14 +255,14 @@ async function loadExtensions(extensions) {
 
   for (const ext of left) {
     tabs.append(h("button", { class: "tab", "data-id": ext.id, title: ext.description, onclick: () => activate(ext.id) },
-      h("span", {}, ext.icon), ext.title));
+      ext.title));
     const root = h("div", { class: "panel", "data-id": ext.id, hidden: true });
     panels.append(root);
     await mountPanel(ext, root);
   }
   for (const ext of right) {
     const root = h("div");
-    $("right-slot").append(h("section", { class: "card" }, h("h3", {}, `${ext.icon} ${ext.title}`), root));
+    $("right-slot").append(h("section", { class: "card" }, h("h3", {}, ext.title), root));
     await mountPanel(ext, root);
   }
   let saved = null;

@@ -286,7 +286,7 @@ export function outcomeGrid(summary, { onTrial } = {}) {
       const r = summary.rows.find((x) => x.trial === t && x.value === v);
       if (!r) { grid.append(h("div", { class: "rb-cell rb-cell-empty" })); continue; }
       const cell = h("button", { class: "rb-cell", style: { background: OUTCOME_COLORS[r.outcome] },
-        "aria-label": `trial ${t}, ${strength(v, p)}: ${labels[r.outcome]}` }, r.success ? "✓" : "");
+        "aria-label": `trial ${t}, ${strength(v, p)}: ${labels[r.outcome]}` }, r.success ? "ok" : "");
       tooltip(cell, () => h("div", {}, h("b", {}, `Trial ${t} · ${strength(v, p)}`), h("div", {}, labels[r.outcome]),
         h("div", {}, `progress ${pct(r.progress)}`), r.prompt !== summary.config.task ? h("div", {}, `“${r.prompt}”`) : null,
         onTrial ? h("div", { class: "muted" }, "click: jump to the video") : null));
