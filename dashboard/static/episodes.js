@@ -13,8 +13,13 @@ export function setupEpisodes(core, action, initial) {
   const show = (s) => {
     const mode = s && s.mode;
     const takeover = $("btn-takeover");
-    takeover.hidden = !(mode === "dream" || mode === "paused");
-    takeover.disabled = Boolean(s && s.take_over_requested);
+    // Always visible, so people know it exists; usable only while Dream-1 works or after a failed try.
+    const usable = mode === "dream" || mode === "paused";
+    takeover.hidden = false;
+    takeover.disabled = !usable || Boolean(s && s.take_over_requested);
+    takeover.title = usable
+      ? "Stop Dream-1 without resetting the scene, then finish the task with Control"
+      : "Works while Dream-1 is working, or after Dream-1 failed. Start a run with Run first.";
     takeover.textContent = s && s.take_over_requested ? "Stopping Dream-1" : "Take over";
     $("btn-ep-save").hidden = $("btn-ep-discard").hidden = !(mode === "takeover" || mode === "paused");
     const badge = $("badge-rec");
