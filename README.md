@@ -29,6 +29,7 @@ Hacklab/
     │   ├── sim.py        locates the simulator, re-exports YamEnv + request helpers
     │   ├── runner.py     Dream-1 ↔ sim control loop, with hooks for your tool
     │   ├── inference.py  inference strategies: how Dream-1's action chunks are executed (chunk/receding/ensemble/crossfade)
+    │   ├── xray.py       Model X-Ray: planned gripper paths, RISE heatmaps, language probe on a frozen moment
     │   ├── scene.py      object positions + simple success detection ("apple in bowl")
     │   └── recorder.py   MP4 recording of the 3 cameras (for the demo)
     ├── run.py            CLI: run a task, optionally record it
@@ -138,6 +139,28 @@ change the world on purpose and see how and when Dream-1 fails. The full report 
   (random mix).
 - **Dry run** (default) replays a scripted pick-and-place planned once on the unperturbed scene: no credits, and a
   reference for a policy that does not look (it breaks at ~2 cm and ignores all visual changes).
+
+### Model X-Ray (why Dream-1 does what it does)
+
+Tab **X-Ray**. The robustness test shows *when* the model fails; the X-Ray shows *why*. It freezes one moment (the
+camera windows Dream-1 sees, the joint state, the MuJoCo state) and asks Dream-1 about that same moment again, each time
+with one thing changed. The simulation does not move meanwhile; what is measured is how the planned motion changes.
+
+- **Live intent:** every reply of a Dream-1 run becomes gripper paths (forward kinematics of the 48 joint targets on a
+  scratch copy of the MuJoCo state), drawn into the 3D view: orange = planned path of the acting arm, red dot = where
+  the gripper closes, yellow = the object it heads for. Every moment of the run can be frozen afterwards.
+- **1 · Intent** (3 calls): the plan for the frozen moment, asked three times. The spread between identical questions
+  is the **noise floor** every other number is read against (Dream-1 is not necessarily deterministic).
+- **2 · Where it looks** (masks + 6 calls): **RISE**. Random smooth masks grey out parts of all three camera windows;
+  per pixel, importance = mean path change when it was hidden − when it was visible (cm). A permutation test gives each
+  camera's **chance level**; only cells above it are coloured. Plus **camera reliance**: the change when one camera is
+  blanked completely.
+- **3 · Does it follow the words?** (5 × repeats calls): same images, only the object word swapped (apple, banana,
+  orange, bottle, the made-up "blicket"). Table: word in the prompt vs. the object the plan goes for. Freeze a moment
+  where the arm already reaches out; at rest no plan heads anywhere within 2.4 s and the tool says so.
+
+Results live in `out/extensions/xray/<moment>/`. `DREAM_XRAY_FAKE=1` swaps Dream-1 for a scripted stand-in
+(`dreamtool/xray_fake.py`) to try the tool without credits; the panel then says so.
 
 ### Inference strategies (better behaviour without fine-tuning)
 

@@ -150,3 +150,25 @@ def test_robustness_strategy_comparison(client):
     assert "strategy" in csv_text.splitlines()[0] and "ensemble-16" in csv_text
     assert client.get("/api/state").json()["strategies"][0]["id"] == "chunk"
     assert client.post("/api/run", json={"task": "x y", "strategy": "nope"}).status_code in (400, 409)
+
+
+def test_xray_freeze_and_ask(client):
+    app = client.app_ref
+    wait_idle(app)
+    xr = next(e for e in app.state.extensions if e.id == "xray")
+    xr.fake = True  # scripted stand-in instead of Dream-1
+    assert client.post("/api/ext/xray/run", json={"snapshot": "nope", "kind": "intent"}).status_code == 404
+    r = client.post("/api/ext/xray/snapshot", json={"prompt": "put the banana on the plate"})
+    assert r.status_code == 200
+    snap_id = r.json()["id"]
+    assert client.post("/api/ext/xray/run", json={"snapshot": snap_id, "kind": "intent"}).status_code == 200
+    end = time.time() + 30
+    while client.get("/api/ext/xray/status").json()["job"]["state"] == "running" and time.time() < end:
+        time.sleep(0.1)
+    status = client.get("/api/ext/xray/status").json()
+    assert status["job"]["state"] == "done" and status["job"]["calls"] == 3
+    detail = client.get(f"/api/ext/xray/snapshots/{snap_id}").json()
+    assert detail["results"]["intent"]["intent"]["event"] == "close" and set(detail["frames"]) == {"top", "left", "right"}
+    assert client.post("/api/ext/xray/overlay", json={"enabled": True, "snapshot": snap_id}).status_code == 200
+    assert client.delete(f"/api/ext/xray/snapshots/{snap_id}").status_code == 200
+    assert client.get(f"/api/ext/xray/snapshots/{snap_id}").status_code == 404

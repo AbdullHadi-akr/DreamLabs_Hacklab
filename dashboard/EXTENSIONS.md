@@ -125,6 +125,8 @@ Ready-made CSS classes from `static/style.css`: `btn`, `btn primary`, `btn dange
 - `scene_inspector/`: live values from `sim.state`, a `decorate()` overlay, `ctx.sim.call()` for debug actions, a run hook.
 - `robustness/`: a background thread that queues many runs with run hooks and a `teardown`, plus a standalone report
   page (`report.html`). A new perturbation is one function decorated with `@perturbation(...)` in `perturbations.py`.
+- `xray/`: a run hook that keeps the camera window and turns every reply into a live overlay (`decorate()`), and
+  background jobs that ask Dream-1 about a frozen moment (`dreamtool/xray.py`).
 - `teleop/`: moves the arms between runs with `ctx.sim.call(fn, hold=True)` and inverse kinematics
   (`kinematics.py`), mouse/keyboard input in the main view, and image positions of 3D points from `decorate()`.
 - `_template/`: minimal example to copy.
