@@ -257,7 +257,7 @@ class Teleop(Extension):
         return goal
 
     def decorate(self, env, scene):
-        """Every main-view frame: TCP markers in 3D, and the TCPs' pose + image positions to the panel."""
+        """Send the TCP poses and projected label positions for the current main frame."""
         self.view = view_from_scene(scene, *MAIN_SIZE)
         if self.robot_forward is None:  # fixed camera: read once (camera looks along its -z)
             self.robot_forward = _horizontal(-env.data.cam(ROBOT_CAMERA).xmat.reshape(3, 3)[:, 2])
@@ -267,15 +267,8 @@ class Teleop(Extension):
         for side in SIDES:
             site = env.data.site(f"{side}_tcp")
             pos, mat = site.xpos.copy(), site.xmat.reshape(3, 3).copy()
-            fingers = mat[:, FINGER_AXIS] * FINGER_LINE_M
-            overlay_line(scene, pos - fingers, pos + fingers, width=3.0, rgba=COLORS[side])  # the fingers open along
-            overlay_sphere(scene, pos, radius=0.011, rgba=COLORS[side])
             goal = self.goals.get(side)
             active = idle and goal is not None and np.allclose(goal["target"], self.ctx.sim.hold[side])
-            if active and np.linalg.norm(goal["pos"] - pos) > 0.004:
-                rgba = GOAL_RGBA if goal["reached"] else UNREACHABLE_RGBA
-                overlay_sphere(scene, goal["pos"], radius=0.007, rgba=rgba)
-                overlay_line(scene, pos, goal["pos"], width=2.0, rgba=rgba)
             arms[side] = {
                 "pos": pos.round(4).tolist(),
                 **describe(mat),
@@ -287,3 +280,18 @@ class Teleop(Extension):
             }
         self.info = {"arms": arms, "busy": self.ctx.sim.busy, "orientation": self.orientation}
         self.ctx.emit("tcp", self.info, keep=False)
+
+    def decorate_teleop(self, env, scene):
+        """Draw gripper markers into the Teleop-only image at the scene's current pose."""
+        for side in SIDES:
+            site = env.data.site(f"{side}_tcp")
+            pos = site.xpos
+            fingers = site.xmat.reshape(3, 3)[:, FINGER_AXIS] * FINGER_LINE_M
+            overlay_line(scene, pos - fingers, pos + fingers, width=3.0, rgba=COLORS[side])
+            overlay_sphere(scene, pos, radius=0.011, rgba=COLORS[side])
+            arm = self.info["arms"][side]
+            goal = arm["goal"]
+            if goal is not None and np.linalg.norm(goal - pos) > 0.004:
+                rgba = GOAL_RGBA if arm["reached"] else UNREACHABLE_RGBA
+                overlay_sphere(scene, goal, radius=0.007, rgba=rgba)
+                overlay_line(scene, pos, goal, width=2.0, rgba=rgba)

@@ -158,6 +158,7 @@ class SimWorker(threading.Thread):
         self.stop_event = threading.Event()
         self.shutdown_event = threading.Event()
         self.frames: dict[str, tuple[int, bytes]] = {}
+        self.teleop_viewers = 0  # Updated by MJPEG subscriptions on the dashboard event loop.
         self.state_snapshot: dict = {}
         self.current: RunRequest | None = None
         self.run_stats: dict = {}
@@ -359,6 +360,15 @@ class SimWorker(threading.Thread):
                 except Exception as error:
                     self.bus.log(f"decorate of {ext.id}: {error}", "error", ext.id)
             self._store("main", self.main_renderer.render())
+            if self.teleop_viewers:
+                for ext in self.extensions:
+                    decorate = getattr(ext, "decorate_teleop", None)
+                    if decorate:
+                        try:
+                            decorate(self.env, self.main_renderer.scene)
+                        except Exception as error:
+                            self.bus.log(f"decorate_teleop of {ext.id}: {error}", "error", ext.id)
+                self._store("main-teleop", self.main_renderer.render())
         if force or now - self._last["cams"] >= 1 / CAM_FPS:
             self._last["cams"] = now
             images = images or self.env.images()

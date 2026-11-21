@@ -138,7 +138,11 @@ export async function mount(root, api) {
     else body.factors = Object.fromEntries(Object.entries(factorInputs)
       .filter(([, f]) => f.check.checked).map(([id, f]) => [id, Number(f.max.value)]));
     if (!dry.checked && !confirm(`Start ${trialCount()} Dream-1 runs? This uses credits.`)) return;
-    try { render(await api.post("/start", body)); } catch (e) { api.ui.toast(e.message, "error"); }
+    try {
+      const campaign = await api.post("/start", body);
+      render(campaign);
+      root.dispatchEvent(new CustomEvent("suite-campaign-started", {detail: campaign}));
+    } catch (e) { api.ui.toast(e.message, "error"); }
   }
 
   const reportUrl = (id, trial) => `${api.asset("report.html")}?id=${encodeURIComponent(id)}${trial ? `#trial-${trial}` : ""}`;

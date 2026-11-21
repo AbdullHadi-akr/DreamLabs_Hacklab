@@ -50,7 +50,12 @@ function setupViewer(camera) {
   const viewer = $("viewer");
   const img = $("main-view");
   img.src = "/stream/main.mjpg";
-  img.onerror = () => setTimeout(() => (img.src = `/stream/main.mjpg?r=${Date.now()}`), 1500);
+  img.onerror = () => {
+    const failed = img.src;
+    setTimeout(() => {
+      if (img.src === failed) img.src = `${failed.split("?")[0]}?r=${Date.now()}`;
+    }, 1500);
+  };
 
   let cam = { ...camera };
   let drag = null;

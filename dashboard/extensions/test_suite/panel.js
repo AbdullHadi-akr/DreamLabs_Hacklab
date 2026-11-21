@@ -1,4 +1,5 @@
 import { logPanel } from "/static/lib/log_panel.js";
+import { request } from "/static/lib/api.js";
 import { progressChart, runComparison, runDisplacement, runSelector, snapshotEntries } from "./run_analysis.js";
 
 export async function mount(root, api) {
@@ -60,7 +61,10 @@ export async function mount(root, api) {
     for (const element of [root, results, monitor]) element.hidden = !active;
     for (const id of ["dashboard-tools", "taskbar", "right-slot"]) find(id).hidden = active;
     document.querySelector(".layout").classList.toggle("test-suite-layout", active);
-    if (active && refreshReport) refresh().catch(showError);
+    if (active) {
+      refreshRobustness();
+      if (refreshReport) refresh().catch(showError);
+    }
   }
 
   const modes = {
@@ -79,6 +83,7 @@ export async function mount(root, api) {
   // Other extensions can add test modes (slot "suite"), e.g. the Robustness Lab: one tile per mode. Selecting such a
   // tile shows that extension's own panel instead of this form and its report instead of this report.
   const extensions = api.workspace?.extensions() || [];
+  const robustnessRoot = extensions.find((ext) => ext.id === "robustness")?.root;
   const extensionTiles = extensions.flatMap((ext) => (ext.suite_modes || []).map((m) => [
     `${ext.id}:${m.id}`, button([h("span", {"aria-hidden": "true"}, m.icon || ext.icon), h("strong", {}, m.title), h("small", {}, m.subtitle)], () => {
       mode.value = `${ext.id}:${m.id}`;
@@ -607,7 +612,37 @@ export async function mount(root, api) {
     }
   }
 
+  let robustnessCampaign = null;
+  let robustnessRevision = 0;
+  function updateRobustness(campaign) {
+    robustnessRevision++;
+    robustnessCampaign = campaign?.state === "running" ? campaign : null;
+    if (visible) renderLive();
+  }
+
+  async function refreshRobustness() {
+    if (!robustnessRoot) return;
+    const requested = ++robustnessRevision;
+    try {
+      const campaign = await request("GET", "/api/ext/robustness/status");
+      if (requested === robustnessRevision) updateRobustness(campaign);
+    } catch (error) {
+      console.error("Could not refresh the Robustness campaign status", error);
+    }
+  }
+
   function renderLive() {
+    if (!current && robustnessCampaign) {
+      const {mode, config, done, total, current: trial, started} = robustnessCampaign;
+      const name = ({adaptive: "Breaking Point", sweep: "Robustness Sweep", random: "Random Mix"})[mode] || "Robustness";
+      liveTask.textContent = trial?.index > done ? trial.prompt : config.task;
+      liveStatus.textContent = `${name} · ${done}/${total} trials completed${config.dry_run ? " · dry run" : ""}`;
+      elapsed.textContent = `Elapsed ${secondsText(Math.max(0, Date.now() / 1000 - started))}`;
+      liveProgress.hidden = false;
+      liveProgress.max = total;
+      liveProgress.value = done;
+      return;
+    }
     const event = activeId && (latest.get(activeId) || current?.live);
     liveTask.textContent = event?.task || current?.config.prompt || "";
     liveStatus.textContent = current ? (event ? `Run ${event.trial} of ${event.total} · ${status(event.status)}`
@@ -667,8 +702,22 @@ export async function mount(root, api) {
         }), button("Dismiss", () => notice.remove())));
     find("campaign-notices").append(notice);
   });
-  api.onCore("ws.open", () => { if (visible) refresh().catch(showError); });
-  window.setInterval(() => { if (visible && activeId) renderLive(); }, 250);
+  robustnessRoot?.addEventListener("suite-campaign-started", (event) => updateRobustness(event.detail));
+  api.onCore("ext.robustness.progress", updateRobustness);
+  api.onCore("ext.robustness.trial", (trial) => {
+    if (robustnessCampaign) {
+      updateRobustness({...robustnessCampaign, current: trial});
+    } else if (visible) {
+      refreshRobustness();
+    }
+  });
+  api.onCore("ws.open", () => {
+    if (visible) {
+      refreshRobustness();
+      refresh().catch(showError);
+    }
+  });
+  window.setInterval(() => { if (visible && (activeId || robustnessCampaign)) renderLive(); }, 250);
   suite.hidden = false;
   suite.addEventListener("click", () => switchWorkspace(true));
   dashboard.addEventListener("click", () => switchWorkspace(false));

@@ -54,7 +54,13 @@ Object.assign(reports.large.trials[1],{task_success:false,failure_category:"PICK
   last_verified_stage:"Gripper contact",api_request_count:4,snapshots:[{kind:"contact",simulation_time:9}],
   api_events:[{error:"run 2 request error"}],evaluation_evidence:{object:"banana",target:"plate",best_planar_distance_m:.17}});
 const reads=[];
-const api={ui:{h,toast(){}},on(){},onCore(){},async get(url){ reads.push(url);
+const coreEvents={};
+const robustnessRoot=new FakeElement("div");
+const robustness={state:"running", mode:"adaptive", done:2, total:12, started:Date.now()/1000,
+  config:{task:"banana on plate",dry_run:false}};
+globalThis.fetch=async()=>({ok:true,text:async()=>JSON.stringify(robustness)});
+const api={ui:{h,toast(){}},on(){},onCore(name,fn){coreEvents[name]=fn;},
+  workspace:{extensions:()=>[{id:"robustness",root:robustnessRoot}]},async get(url){ reads.push(url);
   if(url==="/history")return Object.values(reports).map((r)=>({id:r.id,state:r.state,created:1,config:r.config}));
   if(url.endsWith("/actions/2"))return [{reply:"run 2 action"}];
   return reports[url.split("/").at(-1)]; }};
@@ -62,6 +68,14 @@ const api={ui:{h,toast(){}},on(){},onCore(){},async get(url){ reads.push(url);
   await mount(document.getElementById("config"),api);
   document.getElementById("workspace-test-suite").events.click();
   await new Promise((resolve)=>setTimeout(resolve,0));
+  const monitor=document.getElementById("test-suite-monitor");
+  assert(monitor.textContent.includes("Breaking Point · 2/12 trials completed"),"right monitor reads a running Breaking Point campaign");
+  coreEvents["ext.robustness.progress"]({...robustness, done:3});
+  assert(monitor.textContent.includes("3/12 trials completed"),"right monitor follows progress events");
+  coreEvents["ext.robustness.progress"]({...robustness, state:"done"});
+  assert(monitor.textContent.includes("No campaign running"),"right monitor clears completed campaign");
+  robustnessRoot.events["suite-campaign-started"]({detail:{...robustness, done:0}});
+  assert(monitor.textContent.includes("0/12 trials completed"),"right monitor shows a new campaign immediately");
   const results=document.getElementById("test-suite-results");
   const strip=find(results,(node)=>node.attrs.role==="tablist");
   const tabs=descendants(strip,(node)=>node.attrs.role==="tab");
