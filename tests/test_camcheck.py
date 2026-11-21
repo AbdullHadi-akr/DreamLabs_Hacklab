@@ -134,3 +134,28 @@ def test_runner_hands_round_trips_and_wraps_the_policy(monkeypatch):
     assert len(wrapped) == 1 and seen, "the hook saw the request"
     red_blue = cc.decode(seen[0]["video.overhead"][0]).mean(axis=(0, 1))
     assert red_blue[2] > red_blue[0], "the round trip shows the frames after the proxy changed them (BGR)"
+
+
+def test_dark_slow_scene_is_not_called_frozen():
+    """Measured false alarm (75 % dimmed light): little change between frames on both sides is not a frozen camera."""
+    from dashboard.extensions.robustness.perturbations import light_dim
+
+    env = sim.YamEnv()
+    light_dim(env, 75, None, None)
+    truth = cc.Truth()
+    window = {c: deque(maxlen=sim.FRAMES) for c in cc.CAMERAS}
+    state = env.state()
+    for step in range(1, 61):
+        right = np.array(state["right"])
+        right[0] += 0.002 * step  # slow
+        env.step(state["left"], right)
+        images = env.images()
+        truth.add(step, images)
+        if step % sim.FRAME_EVERY_STEPS == 0:
+            for c in cc.CAMERAS:
+                window[c].append(cc.encode(np.asarray(Image.fromarray(images[c]).resize(cc.EXPECTED_SIZE))))
+    frames = {f"video.{sim.VIDEO_ROLES[c]}": list(window[c]) for c in cc.CAMERAS}
+    result = cc.check_trip(frames, truth.snapshot(), 60)
+    for cam in cc.CAMERAS:
+        assert not any("frozen" in i for i in result["cameras"][cam]["issues"]), (cam, result["cameras"][cam])
+    env.close()

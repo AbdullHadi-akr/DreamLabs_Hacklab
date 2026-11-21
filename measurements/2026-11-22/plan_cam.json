@@ -1,0 +1,76 @@
+[
+ {
+  "task": "put the apple into the bowl",
+  "mode": "sweep",
+  "perturbation": "camera_tilt",
+  "values": [
+   0,
+   4,
+   8
+  ],
+  "trials": 1,
+  "seconds": 25,
+  "dry_run": false,
+  "record": false,
+  "seed": 31
+ },
+ {
+  "task": "put the apple into the bowl",
+  "mode": "sweep",
+  "perturbation": "light_dim",
+  "values": [
+   0,
+   50,
+   75
+  ],
+  "trials": 1,
+  "seconds": 25,
+  "dry_run": false,
+  "record": false,
+  "seed": 32
+ },
+ {
+  "task": "put the apple into the bowl",
+  "mode": "sweep",
+  "perturbation": "image_noise",
+  "values": [
+   0,
+   10,
+   20
+  ],
+  "trials": 1,
+  "seconds": 25,
+  "dry_run": false,
+  "record": false,
+  "seed": 33
+ },
+ {
+  "task": "put the apple into the bowl",
+  "mode": "sweep",
+  "perturbation": "camera_shift",
+  "values": [
+   0,
+   4
+  ],
+  "trials": 1,
+  "seconds": 25,
+  "dry_run": false,
+  "record": false,
+  "seed": 34
+ },
+ {
+  "task": "put the apple into the bowl",
+  "mode": "compare",
+  "strategies": [
+   "chunk",
+   "receding-8",
+   "crossfade-8"
+  ],
+  "perturbation": "none",
+  "trials": 1,
+  "seconds": 25,
+  "dry_run": false,
+  "record": false,
+  "seed": 35
+ }
+]

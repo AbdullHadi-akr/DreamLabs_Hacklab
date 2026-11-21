@@ -29,6 +29,7 @@ Hacklab/
     │   ├── sim.py        locates the simulator, re-exports YamEnv + request helpers
     │   ├── runner.py     Dream-1 ↔ sim control loop, with hooks for your tool
     │   ├── inference.py  inference strategies: how Dream-1's action chunks are executed (chunk/receding/ensemble/crossfade)
+    │   ├── camcheck.py   camera check: sent frames vs. rendered truth, fault injection, does the model use them
     │   ├── xray.py       Model X-Ray: planned gripper paths, RISE heatmaps, language probe on a frozen moment
     │   ├── scene.py      object positions + simple success detection ("apple in bowl")
     │   └── recorder.py   MP4 recording of the 3 cameras (for the demo)
@@ -139,6 +140,28 @@ change the world on purpose and see how and when Dream-1 fails. The full report 
   (random mix).
 - **Dry run** (default) replays a scripted pick-and-place planned once on the unperturbed scene: no credits, and a
   reference for a policy that does not look (it breaks at ~2 cm and ignores all visual changes).
+
+### Camera check (do the images reach Dream-1 correctly?)
+
+Tab **Cameras**. Dream Labs' own tools show the frames to a person who types "yes" (`python -m dream.check`,
+`dream.DebugView`); the only automatic check there is the frame rate. Here every frame Dream-1 was **actually sent**
+(`DreamClient.on_round_trip`: the request as it left) is compared with the truth: the simulation renders every camera on
+its own at every step. Each sent frame is matched (normalised correlation, 80 × 44 pixels) against every camera, the last
+6 s of steps and every orientation. Per camera that gives:
+
+- the right camera on the right key (a swapped or duplicated key shows up as the wrong camera / the same picture twice),
+- upright and in natural colours (upside down, mirrored, red and blue swapped),
+- current: lag behind the robot (> 250 ms is reported; frames are taken every 200 ms), frozen frames, order, frame rate,
+- a real picture: blank or blown out, or one that matches no camera (cropped, zoomed, another source).
+
+**Self-test:** a clean Dream-1 run plus one per fault injected on purpose between cameras and model (swapped wrists,
+duplicate key, upside down, BGR, frozen, 0.6 s delay, black, zoomed). First real run: **8 of 8 caught, clean run clean**.
+**Does Dream-1 use them?** freezes the scene and asks Dream-1 with each camera blanked and with the wrists swapped
+(7 calls): which cameras the plan reacts to, against Dream-1's own noise.
+
+Only a person may record Dream Labs' input check (`python -m dream.input_check`, "never an agent"); this check gives that
+person the evidence. On a real robot the comparison with the truth is not available; the generic checks (key count,
+size, blank, duplicates, frozen) still are.
 
 ### Model X-Ray (why Dream-1 does what it does)
 

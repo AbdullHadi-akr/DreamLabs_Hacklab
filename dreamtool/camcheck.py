@@ -41,6 +41,8 @@ TRANSFORMS = {
 GOOD_MATCH = 0.95  # correlation of a correct frame with its truth is ~0.99
 LAG_LIMIT_MS = 250  # frames are taken every 200 ms: the newest may be up to 150 ms old, more is late
 TIE = 0.0015  # matches within this of the best are indistinguishable (a still scene)
+FROZEN_TRUTH_CHANGE = 1.0  # grey levels (0..255, 80x44) between two 200 ms truth frames: the camera's view moved
+FROZEN_SENT_CHANGE = 0.3  # ... and between two sent frames: nothing changed (JPEG noise only)
 
 
 def camera_of_key(key: str) -> str | None:
@@ -164,13 +166,14 @@ def check_trip(frames: dict, truth: list, latest_step: int, expected_count: int 
             if (w, h) != EXPECTED_SIZE:
                 info["issues"].append(f"frames are {w}x{h}, the model reads {EXPECTED_SIZE[0]}x{EXPECTED_SIZE[1]}")
             newest_hashes[cam] = good[-1]
-        diffs = [float(np.abs(a.astype(np.float32) - b).mean()) for a, b in zip(good[:-1], good[1:])
-                 if a.shape == b.shape]
-        info["repeats"] = sum(d < 0.5 for d in diffs)
+        # frozen? frame-to-frame change of the sent window against the truth's change over the same 200 ms steps,
+        # both in grey levels at the matching size (a dark or still scene changes little on both sides)
+        small = [_vector(im) for im in good]
+        info["sent_changes"] = [round(float(np.abs(a - b).mean()), 2) for a, b in zip(small[:-1], small[1:])]
         if truth and len(truth) >= 2:
-            span = min(len(truth), 4 * (len(window) - 1) + 1)
-            first, last = truth[-span][1][cam], truth[-1][1][cam]
-            info["truth_moved"] = bool(float(_normalise(first) @ _normalise(last)) < 0.998)
+            span = min(len(truth), sim.FRAME_EVERY_STEPS * (len(window) - 1) + 1)
+            t = [entry[1][cam] for entry in truth[-span:]][::sim.FRAME_EVERY_STEPS]
+            info["truth_changes"] = [round(float(np.abs(a - b).mean()), 2) for a, b in zip(t[:-1], t[1:])]
         for i, im in enumerate(images):
             if im is None:
                 info["frames"].append({"index": i, "readable": False})
@@ -221,16 +224,19 @@ def _judge_camera(cam: str, info: dict, truth: list) -> None:
             if newest["lag_ms"] > LAG_LIMIT_MS:  # the newest equally good step: a still scene is never "late"
                 issues.append(f"{newest['lag_ms']:.0f} ms behind the robot")
             # order and rate over the window (only where the scene moved enough to tell moments apart)
-            distinct = [r for r in matched if r["score"] >= GOOD_MATCH and r["step_range"][0] == r["step_range"][1]]
-            steps = [r["step"] for r in distinct]
-            if len(steps) >= 3:
-                if any(b < a for a, b in zip(steps[:-1], steps[1:])):
-                    issues.append("frames out of order")
-                gaps = np.diff(steps)
-                if len(gaps) and np.median(gaps) > 0:
-                    info["fps"] = round(20 / float(np.median(gaps)), 1)
-            # frozen: the sent frames are (nearly) identical while the camera's truth changed over the same time
-            if len(rows) >= 4 and info.get("repeats", 0) >= len(rows) - 2 and info.get("truth_moved"):
+            sure = lambda r: r["score"] >= GOOD_MATCH and r["step_range"][0] == r["step_range"][1]  # noqa: E731
+            steps = [r["step"] for r in matched if sure(r)]
+            if len(steps) >= 3 and any(b < a for a, b in zip(steps[:-1], steps[1:])):
+                issues.append("frames out of order")
+            # frame rate from directly neighbouring frames whose moment is certain (still phases are ambiguous)
+            gaps = [b["step"] - a["step"] for a, b in zip(matched[:-1], matched[1:])
+                    if b["index"] - a["index"] == 1 and sure(a) and sure(b)]
+            if len(gaps) >= 2 and np.median(gaps) > 0:
+                info["fps"] = round(20 / float(np.median(gaps)), 1)
+            sent, true = info.get("sent_changes", []), info.get("truth_changes", [])
+            moving = sum(c > FROZEN_TRUTH_CHANGE for c in true)
+            still = sum(c < FROZEN_SENT_CHANGE for c in sent)
+            if moving >= 3 and len(sent) >= 4 and still >= len(sent) - 1:
                 issues.append("frozen: the frames repeat while the robot moves")
     info["status"] = "fail" if issues else ("ok" if matched else "unchecked")
 
