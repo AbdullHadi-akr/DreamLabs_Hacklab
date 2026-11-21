@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import mimetypes
+import threading
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
@@ -67,6 +68,8 @@ def create_app() -> FastAPI:
 
     app = FastAPI(title="Dream-1 Dashboard", lifespan=lifespan)
     app.state.bus, app.state.sim, app.state.extensions = bus, worker, extensions
+    ## Set by the server on Ctrl+C (see __main__.py): ends the endless video streams, otherwise shutdown waits forever.
+    app.state.closing = closing = threading.Event()
 
     @app.middleware("http")
     async def no_cache(request, call_next):
@@ -164,7 +167,7 @@ def create_app() -> FastAPI:
 
         async def frames():
             last = -1
-            while True:
+            while not closing.is_set():
                 frame = worker.frames.get(name)
                 if frame and frame[0] != last:
                     last = frame[0]

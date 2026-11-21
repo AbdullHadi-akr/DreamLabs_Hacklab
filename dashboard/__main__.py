@@ -1,12 +1,21 @@
 """Starts the dashboard:  python -m dashboard  [--port 8000] [--no-browser]"""
 
 import argparse
+import contextlib
 import threading
 import webbrowser
 
 import uvicorn
 
 from .app import create_app
+
+
+class Server(uvicorn.Server):
+    """Ctrl+C first ends the video streams: they never finish on their own, and uvicorn waits for open connections."""
+
+    def handle_exit(self, sig, frame):
+        self.config.app.state.closing.set()
+        super().handle_exit(sig, frame)
 
 
 def main():
@@ -19,7 +28,10 @@ def main():
     print(f"Dream-1 Dashboard: {url}  (Ctrl+C to quit)")
     if not args.no_browser:
         threading.Timer(2.5, webbrowser.open, args=(url,)).start()
-    uvicorn.run(create_app(), host=args.host, port=args.port, log_level="warning")
+    config = uvicorn.Config(create_app(), host=args.host, port=args.port, log_level="warning",
+                            timeout_graceful_shutdown=5)
+    with contextlib.suppress(KeyboardInterrupt):  # uvicorn re-raises Ctrl+C after it has shut down
+        Server(config).run()
 
 
 if __name__ == "__main__":
