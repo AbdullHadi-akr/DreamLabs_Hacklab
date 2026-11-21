@@ -36,7 +36,7 @@ class CountSteps(Hooks):
 
 class TemplateExtension(Extension):
     title = "Template"
-    icon = "🧩"
+    icon = ""
     description = "Copy me to start a new extension."
 
     def setup(self):

@@ -51,7 +51,7 @@ from dreamtool.runner import Hooks
 
 class MyTool(Extension):
     title = "My tool"
-    icon = "🛡️"
+    icon = ""
     slot = "left"          # "left" = tab in the left column, "right" = card in the right column,
                            # "suite" = tiles in the Test Suite builder (set suite_modes; see robustness/)
     order = 50

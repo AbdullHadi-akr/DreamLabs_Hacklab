@@ -1,6 +1,9 @@
 // Core UI of the dashboard: viewer, prompt bar, status, log, and loading the extension panels.
 import { logPanel } from "./lib/log_panel.js";
 import { EventHub, createExtensionApi, h, request } from "./lib/api.js";
+import { episodesPanel, setupEpisodes } from "./episodes.js";
+import { creditsPanel, gateRun, setupCredits } from "./credits.js";
+import { playersPanel } from "./players.js";
 
 const $ = (id) => document.getElementById(id);
 const core = {
@@ -151,11 +154,16 @@ function setupTaskbar(state) {
   for (const task of state.tasks) $("task-list").append(h("option", { value: task }));
   $("task").value = state.tasks[0];
 
-  $("taskbar").addEventListener("submit", (e) => {
+  $("taskbar").addEventListener("submit", async (e) => {
     e.preventDefault();
     const task = core.currentTask();
     if (!task) return toast("Please enter a task.", "error");
-    action(request("POST", "/api/run", { task, model: $("model").value.trim(), seconds: Number($("seconds").value) }));
+    const body = { task, model: $("model").value.trim(), seconds: Number($("seconds").value) };
+    // credits: refuse over the monthly limit, ask for a second click above the confirm threshold
+    if (!core.me || core.me.role !== "guest") {
+      try { if (!(await gateRun(core, body))) return; } catch (error) { return toast(error.message, "error"); }
+    }
+    action(request("POST", "/api/run", body));
   });
   $("btn-stop").onclick = () => action(request("POST", "/api/stop"));
   $("btn-demo").onclick = () => action(request("POST", "/api/run", { task: core.currentTask() || "demo", offline: true }));
@@ -197,6 +205,7 @@ function updateControls(status) {
     $("ri-steps").textContent = r.steps ?? 0;
     $("ri-requests").textContent = r.requests ?? 0;
     $("ri-rtt").textContent = r.last_rtt_s ? `${r.last_rtt_s.toFixed(2)} s` : "–";
+    $("ri-cost").textContent = offline ? "none" : r.cost_usd != null ? `$${r.cost_usd.toFixed(4)}` : "unknown price";
   } else {
     $("run-heading").textContent = "Last run";
     setPill("pill-run", status.queued ? "warn" : "ok", status.queued ? `${status.queued} queued` : "Ready");
@@ -297,6 +306,7 @@ function setupEvents() {
     $("ri-state").textContent = r.stop_reason;
     $("ri-steps").textContent = r.steps;
     $("ri-requests").textContent = r.requests;
+    $("ri-cost").textContent = r.cost_usd != null ? `$${r.cost_usd.toFixed(4)}` : "–";
     $("ri-result").textContent = `${success}`;
     $("ri-result").className = r.success ? "good" : r.success === false ? "bad" : "";
     const level = r.stop_reason.startsWith("error") ? "error" : "info";
@@ -306,11 +316,21 @@ function setupEvents() {
 
 // ---------------- Extensions ----------------
 
+// Built-in panels next to the extension tabs (credits, recorded episodes, multiplayer).
+const CORE_PANELS = [
+  { id: "episodes", title: "Episodes", description: "Recorded episodes, what is ready for a fine-tune, success and cost per model" },
+  { id: "credits", title: "Credits", description: "Balance, spending, limits" },
+  { id: "players", title: "Players", description: "Public link, access code, who holds which arm" },
+];
+const GUEST_TABS = ["teleop", "scene_inspector", "players"]; // what a guest on another laptop sees
+
 async function loadExtensions(extensions) {
   const tabs = $("ext-tabs"), panels = $("ext-panels");
   // slot "suite" lives in the Test Suite builder; without a Test Suite it falls back to a normal tab
   const hasSuite = extensions.some((e) => e.slot === "workspace");
-  const left = extensions.filter((e) => e.slot !== "right" && e.slot !== "workspace" && !(hasSuite && e.slot === "suite"));
+  let left = [...extensions.filter((e) => e.slot !== "right" && e.slot !== "workspace" && !(hasSuite && e.slot === "suite")),
+    ...CORE_PANELS.map((p) => ({ ...p, core: true }))];
+  if (core.me && core.me.role === "guest") left = left.filter((e) => GUEST_TABS.includes(e.id));
   const right = extensions.filter((e) => e.slot === "right");
   if (left.length) panels.innerHTML = "";
 
@@ -319,13 +339,20 @@ async function loadExtensions(extensions) {
     for (const p of panels.children) p.hidden = p.dataset.id !== id;
     try { localStorage.setItem("dream.activeTab", id); } catch {}
   };
+  core.activate = (id) => {  // used by Take over (opens Control) and the credit display (opens Credits)
+    if ($("workspace-dashboard") && !$("workspace-dashboard").classList.contains("active")) $("workspace-dashboard").click();
+    activate(id);
+  };
 
   for (const ext of left) {
     tabs.append(h("button", { class: "tab", "data-id": ext.id, title: ext.description, onclick: () => activate(ext.id) },
       ext.title));
     const root = h("div", { class: "panel", "data-id": ext.id, hidden: true });
     panels.append(root);
-    await mountPanel(ext, root);
+    if (ext.id === "credits") creditsPanel(root, core, action, []);
+    else if (ext.id === "players") playersPanel(root, core, action);
+    else if (ext.id === "episodes") episodesPanel(root, core, action);
+    else await mountPanel(ext, root);
   }
   for (const ext of right) {
     const root = h("div");
@@ -360,11 +387,16 @@ async function main() {
   core.events.connect();
   const state = await request("GET", "/api/state");
   core.sim = state.sim;
+  core.me = state.me;
+  if (state.me && state.me.role === "guest") document.body.classList.add("guest");
   setPill("pill-key", state.has_api_key ? "ok" : "warn", state.has_api_key ? "API key" : "No API key");
   setupViewer(state.camera);
   setupCameras(state.cameras);
   setupViewportControls();
   setupTaskbar(state);
+  setupEpisodes(core, action, state.episode);
+  if (!state.me || state.me.role !== "guest") setupCredits(core);
+  else $("credit-left").hidden = true;
   updateControls(state.status);
   setChartRun(state.status.run);
   drawRtt();

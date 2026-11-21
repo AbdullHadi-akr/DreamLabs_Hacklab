@@ -187,8 +187,8 @@ export function renderReport(root, s, { standalone = true, historyControl = null
         standalone ? downloadButtons(s.id) : h("details", {class: "report-export"},
           h("summary", {}, "Export"), h("div", {class: "export-items"}, downloadButtons(s.id))),
         h("a", { class: "btn small btn-outline", href: `${BASE}runs.html`, target: standalone ? null : "_blank" }, "All runs"),
-        standalone ? h("a", { class: "btn small btn-outline", href: "/" }, "← Dashboard")
-          : h("a", { class: "btn small btn-outline", href: `${BASE}report.html?id=${encodeURIComponent(s.id)}`, target: "_blank" }, "Full page ↗"))),
+        standalone ? h("a", { class: "btn small btn-outline", href: "/" }, "Dashboard")
+          : h("a", { class: "btn small btn-outline", href: `${BASE}report.html?id=${encodeURIComponent(s.id)}`, target: "_blank" }, "Full page"))),
     summary,
     ...(!standalone ? [controls, trials] : []),
     h("div", { class: `rb-verdict ${a.verdict.breaking_point != null || a.verdict.most_harmful ? "bad" : ""}` }, a.verdict.text),

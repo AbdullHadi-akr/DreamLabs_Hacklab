@@ -31,7 +31,7 @@ export async function mount(root, api) {
   const trialsLabel = h("span", {}, "Trials per strength");
   const seconds = h("input", { type: "number", min: 5, max: 600, value: 45 });
   const dry = h("input", { type: "checkbox", checked: true });
-  const record = h("input", { type: "checkbox", checked: true });
+  const record = h("input", { type: "checkbox" }); // off by default: videos cost disk space and time
   const estimate = h("p", { class: "muted" });
 
   const factorInputs = {};
@@ -214,9 +214,9 @@ export async function mount(root, api) {
         class: "rb-trial", href: reportUrl(s.id, r.index), target: "_blank",
         title: `${describeParams(r, s)}\n${r.prompt}\nprogress ${pct(r.progress)} · ${r.stop_reason}`,
       }, h("span", { class: "num" }, `#${r.index}`), h("span", { class: "rb-trial-param" }, describeParams(r, s)),
-        outcomeChip(r.outcome, s.outcome_labels), r.video ? h("span", { class: "rb-cam", title: "video" }, "▶") : null))),
+        outcomeChip(r.outcome, s.outcome_labels), r.video ? h("span", { class: "rb-cam", title: "video" }, "video") : null))),
       h("div", { class: "row" },
-        h("a", { class: "btn small btn-outline", href: reportUrl(s.id), target: "_blank" }, "Open full report ↗")),
+        h("a", { class: "btn small btn-outline", href: reportUrl(s.id), target: "_blank" }, "Open full report")),
     ));
   }
 

@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Join Dream-1 Lab</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="join-page">
+  <main class="join">
+    <h1>Dream-1 Lab</h1>
+    <p class="muted">Type the access code the host gave you. Then you can take one robot arm and move it.</p>
+    <form id="join-form">
+      <label class="field"><span>Access code</span>
+        <input id="code" autocomplete="off" autocapitalize="characters" placeholder="ABCD-EFGH" required></label>
+      <label class="field"><span>Your name (others see it)</span>
+        <input id="name" autocomplete="nickname" maxlength="40" placeholder="for example Sam"></label>
+      <button type="submit" class="btn primary">Join</button>
+      <p class="bad" id="join-error" hidden></p>
+    </form>
+  </main>
+  <script type="module" src="/static/join.js"></script>
+</body>
+</html>

@@ -22,7 +22,7 @@ METRICS = ("min_reach_cm", "max_lift_cm", "target_moved_cm", "final_to_container
            "time_to_success_s")
 BASE_FIELDS = ("campaign", "started", "mode", "task", "policy", "perturbation", "strength", "trial_index", "trial",
                "prompt", "outcome", "outcome_label", "counted", "success", "progress")
-TAIL_FIELDS = ("stop_reason", "seconds", "steps", "mean_rtt_s", "redraws", "note", "applied", "video")
+TAIL_FIELDS = ("stop_reason", "seconds", "calls", "cost_usd", "steps", "mean_rtt_s", "redraws", "note", "applied", "video")
 SCORED = lambda r: r.get("outcome") not in ("invalid", "aborted", None)  # noqa: E731
 
 ## Columns of the robustness map: strength as a share of the perturbation's maximum.
@@ -52,8 +52,8 @@ def run_info(result: dict, folder: Path) -> dict:
     return {
         "id": result["id"], "mode": result["mode"], "state": result["state"], "started": result.get("started"),
         "task": result["config"]["task"], "policy": policy_key(result), "dry_run": result["config"]["dry_run"],
-        "label": result.get("perturbation", {}).get("label") or "Random mix",
-        "perturbation": result.get("perturbation", {}).get("id"),
+        "label": (result.get("perturbation") or {}).get("label") or "Random mix",
+        "perturbation": (result.get("perturbation") or {}).get("id"),
         "factors": [f["label"] for f in result.get("factors", [])],
         "done": result["done"], "total": result["total"], "scored": len(scored), "successes": k,
         "rate": k / len(scored) if scored else None,
@@ -78,7 +78,7 @@ def trial_records(result: dict) -> list[dict]:
             "campaign": result["id"],
             "started": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(started)) if started else "",
             "mode": result["mode"], "task": result["config"]["task"], "policy": policy_key(result),
-            "perturbation": result.get("perturbation", {}).get("id", ""),
+            "perturbation": (result.get("perturbation") or {}).get("id", ""),
             "strength": r.get("value", ""),
             "trial_index": r["index"], "trial": r["trial"], "prompt": r.get("prompt", ""),
             "outcome": r.get("outcome", ""), "outcome_label": OUTCOMES.get(r.get("outcome"), ""),
@@ -89,7 +89,8 @@ def trial_records(result: dict) -> list[dict]:
         metrics = r.get("metrics") or {}
         for name in METRICS:
             rec[name] = metrics.get(name)
-        rec.update(stop_reason=r.get("stop_reason", ""), seconds=r.get("seconds"), steps=r.get("steps"),
+        rec.update(stop_reason=r.get("stop_reason", ""), seconds=r.get("seconds"), calls=r.get("calls"),
+                   cost_usd=r.get("cost_usd"), steps=r.get("steps"),
                    mean_rtt_s=r.get("mean_rtt_s"), redraws=r.get("redraws"), note=r.get("note", ""),
                    applied=json.dumps(r.get("info") or {}, ensure_ascii=False), video=r.get("video") or "")
         out.append(rec)

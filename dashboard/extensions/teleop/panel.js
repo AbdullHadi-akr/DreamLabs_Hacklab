@@ -168,7 +168,7 @@ export async function mount(root, api) {
       label.style.left = `${x}px`;
       label.style.top = `${y}px`;
       label.textContent = `${SHORT[side]}  x ${arm.pos[0].toFixed(3)}  y ${arm.pos[1].toFixed(3)}  z ${arm.pos[2].toFixed(3)}`
-        + `  ↻ ${degrees(arm.rotation)}${arm.tilt >= 1 ? `  ∠ ${degrees(arm.tilt)}` : ""}`;
+        + `  turn ${degrees(arm.rotation)}${arm.tilt >= 1 ? `  tilt ${degrees(arm.tilt)}` : ""}`;
       label.classList.toggle("flip", x > box.rect.width - 230);
       label.classList.toggle("selected", side === state.selected);
       label.classList.toggle("unreachable", Boolean(arm.goal && !arm.reached));

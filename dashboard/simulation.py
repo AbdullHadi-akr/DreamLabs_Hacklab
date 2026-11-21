@@ -26,6 +26,8 @@ import mujoco
 import numpy as np
 
 from dreamtool import runner, scene, sim
+
+from . import brain, credits
 from dreamtool.runner import Hooks, RunResult
 
 ## Main view (free orbit camera) and the three robot cameras.
@@ -36,6 +38,7 @@ CAM_FPS = 10
 STATE_HZ = 10
 JPEG_QUALITY = 80
 CAMERAS = ("top", "left", "right")
+LOW_SIZE, LOW_QUALITY = (640, 360), 60  # the main view for guests on another laptop (less internet bandwidth)
 
 
 ## Light, warm floor for the main view (dreamlabs.ai "clay"/"stage" tones), RGBA 0..1.
@@ -132,11 +135,16 @@ class _CoreHook(Hooks):
         self.worker.run_stats["requests"] += 1
         self.worker.run_stats["last_rtt_s"] = rtt_s
         self.worker.run_stats["rtts_s"] = [*self.worker.run_stats["rtts_s"][-59:], rtt_s]
+        price = self.worker.run_stats.get("price")
+        if price is not None:
+            self.worker.run_stats["cost_usd"] = round(self.worker.run_stats["requests"] * price, 6)
         rows = len(reply.get("q_l_chunk", []))
         self.worker.bus.emit("run.reply", {"id": self.request.id, "rtt_s": rtt_s, "rows": rows})
 
     def on_step(self, env, step, images):
         self.worker.run_stats["steps"] = step
+        if self.worker.records_now():
+            self.worker.recorder.on_step(env, images)
         self.worker.publish(images or None)
 
     def on_wait(self, env):
@@ -145,13 +153,19 @@ class _CoreHook(Hooks):
     def should_stop(self, env):
         if self.worker.stop_event.is_set() or self.worker.shutdown_event.is_set():
             return "stopped"
+        stats = self.worker.run_stats
+        if stats.get("limit") is not None and stats.get("cost_usd") is not None:
+            if stats["month_before"] + stats["cost_usd"] >= stats["limit"]:
+                return "monthly credit limit reached"
         return None
 
 
 class SimWorker(threading.Thread):
-    def __init__(self, bus, extensions: list | None = None):
+    def __init__(self, bus, extensions: list | None = None, db=None, recorder=None):
         super().__init__(name="sim-worker", daemon=True)
         self.bus = bus
+        self.db = db  # LabDB: one row per run (dashboard/lab_db.py)
+        self.recorder = recorder  # Recorder: episodes for the teaching loop (dashboard/episodes.py)
         self.extensions = extensions or []
         self.camera = OrbitCamera()
         self.jobs: queue.Queue = queue.Queue()
@@ -168,6 +182,7 @@ class SimWorker(threading.Thread):
         self._last = {"main": 0.0, "cams": 0.0, "state": 0.0}
         self._seq = 0
         self.env = None
+        self.low_viewers = 0  # guests watching the main view (the app counts them); 0 = no low-quality frames
 
     # ---------- public, thread-safe API ----------
 
@@ -228,6 +243,12 @@ class SimWorker(threading.Thread):
         return {"ready": self.ready.is_set(), "error": self.error, "running": run is not None, "run": run,
                 "queued": queued}
 
+    def records_now(self) -> bool:
+        """Whether the recorder sees the steps: between runs, and during Dream-1 runs started from the task bar.
+        Test motion, Home and extension runs (robustness) never go into an episode."""
+        r = self.current
+        return self.recorder is not None and (r is None or (r.source == "core" and not r.offline))
+
     def shutdown(self) -> None:
         self.shutdown_event.set()
         self.stop_event.set()
@@ -242,6 +263,15 @@ class SimWorker(threading.Thread):
             self.main_renderer = mujoco.Renderer(self.env.model, height=MAIN_SIZE[1], width=MAIN_SIZE[0])
             self.main_cam = mujoco.MjvCamera()
             self.hold = self.env.state()
+            step = self.env.step
+
+            def recorded_step(left, right):
+                # the targets the arms are sent: the recorder stores them as the action of its last frame
+                if self.records_now():
+                    self.recorder.note_action(left, right)
+                return step(left, right)
+
+            self.env.step = recorded_step
             self.ready.set()
             self.bus.log("Simulation ready.")
         except Exception as error:
@@ -263,7 +293,11 @@ class SimWorker(threading.Thread):
                 continue
             tick = time.monotonic()
             self.env.step(self.hold["left"], self.hold["right"])
-            self.publish()
+            images = None
+            if self.recorder is not None and self.recorder.recording_idle:  # a person moves the arms: record
+                images = self.env.images() if self.recorder.frame_due() else None
+                self.recorder.on_step(self.env, images)
+            self.publish(images)
             time.sleep(max(0.0, 0.05 - (time.monotonic() - tick)))
 
         self.env.close()
@@ -294,6 +328,22 @@ class SimWorker(threading.Thread):
                 "offline": request.offline, "source": request.source, "label": request.label,
                 "prompt": request.prompt or request.task}
         self.bus.emit("run.started", info)
+        run_id = None
+        try:
+            if self.db is not None:
+                run_id = self.db.run_started(task=request.task, prompt=info["prompt"], model=info["model"],
+                                             source=request.source, label=request.label)
+            if self.recorder is not None:
+                self.recorder.run_started(info, run_id, env)
+        except Exception:
+            self.bus.log(f"Recording failed to start:\n{traceback.format_exc()}", "error")
+        if self.db is not None and not request.offline:
+            try:  # cost of this run, and the monthly limit that stops it (dashboard/credits.py)
+                self.run_stats.update(price=credits.price(info["model"]), cost_usd=0.0 if credits.price(
+                    info["model"]) is not None else None, month_before=credits.spent_month(self.db),
+                    limit=credits.settings(self.db)["monthly_limit_usd"])
+            except Exception:
+                self.bus.log(f"Credit check failed:\n{traceback.format_exc()}", "error")
         hooks = [_CoreHook(self, request)]
         for ext in self.extensions:
             try:
@@ -313,12 +363,15 @@ class SimWorker(threading.Thread):
                 targets = request.targets(env) if callable(request.targets) else request.targets
                 targets = targets if targets is not None else demo_motion(env)
                 check = scene.success_check(request.task)
-                started = time.monotonic()
+                if check is not None:
+                    check(env)  # stores the start state
+                started, sim_start = time.monotonic(), env.data.time
                 for h in hooks:
                     h.on_start(env, request.task, "offline")
                 result.stop_reason = runner.run_scripted(env, targets, hooks=hooks, realtime=request.realtime)
                 result.steps = self.run_stats["steps"]
                 result.seconds = time.monotonic() - started
+                result.sim_seconds = float(env.data.time - sim_start)
                 result.success = bool(check(env)) if check else None
                 for h in hooks:
                     h.on_end(env, result)
@@ -341,7 +394,23 @@ class SimWorker(threading.Thread):
             self.hold = env.state()
             self.current = None
             self.stop_event.clear()
-        self.bus.emit("run.ended", {**info, "result": result_dict(result)})
+        episode = self.recorder.episode if self.recorder is not None else None
+        if episode and episode["take_over_requested"] and result.stop_reason == "stopped":
+            result.stop_reason = "take over"
+        data = result_dict(result)
+        price = None if request.offline else credits.price(info["model"])
+        data["cost_usd"] = None if price is None else round(result.requests * price, 6)
+        try:
+            if self.db is not None and run_id is not None:
+                self.db.run_ended(run_id, data)
+            if self.db is not None and not request.offline:  # the second brain's raw files (dashboard/brain.py)
+                brain.run_ended(info, data, run_id)
+                brain.daily_summary(self.db, credits.summary(self.db))
+            if self.recorder is not None:
+                self.recorder.run_ended(data, env)
+        except Exception:
+            self.bus.log(f"Recording failed at the end of the run:\n{traceback.format_exc()}", "error")
+        self.bus.emit("run.ended", {**info, "result": data})
         future.set_result(result)
         self.publish(force=True)
 
@@ -360,7 +429,10 @@ class SimWorker(threading.Thread):
                     ext.decorate(self.env, self.main_renderer.scene)
                 except Exception as error:
                     self.bus.log(f"decorate of {ext.id}: {error}", "error", ext.id)
-            self._store("main", self.main_renderer.render())
+            frame = self.main_renderer.render()
+            self._store("main", frame)
+            if self.low_viewers > 0:
+                self._store("main-low", cv2.resize(frame, LOW_SIZE, interpolation=cv2.INTER_AREA), LOW_QUALITY)
             if self.teleop_viewers:
                 for ext in self.extensions:
                     decorate = getattr(ext, "decorate_teleop", None)
@@ -375,6 +447,9 @@ class SimWorker(threading.Thread):
             images = images or self.env.images()
             for name in CAMERAS:
                 self._store(name, cv2.resize(images[name], CAM_SIZE, interpolation=cv2.INTER_AREA))
+                # The same picture at the camera's own size, for when a viewer makes this camera the large view.
+                # No extra rendering: only one more JPEG encoding of a picture that is already drawn.
+                self._store(f"{name}-large", images[name])
         if force or now - self._last["state"] >= 1 / STATE_HZ:
             self._last["state"] = now
             state = self.env.state()
@@ -386,8 +461,8 @@ class SimWorker(threading.Thread):
             }
             self.bus.emit("sim.state", self.state_snapshot, keep=False)
 
-    def _store(self, name: str, rgb: np.ndarray) -> None:
-        ok, jpeg = cv2.imencode(".jpg", cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR), [cv2.IMWRITE_JPEG_QUALITY, JPEG_QUALITY])
+    def _store(self, name: str, rgb: np.ndarray, quality: int = JPEG_QUALITY) -> None:
+        ok, jpeg = cv2.imencode(".jpg", cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR), [cv2.IMWRITE_JPEG_QUALITY, quality])
         if ok:
             self._seq += 1
             self.frames[name] = (self._seq, jpeg.tobytes())

@@ -52,7 +52,7 @@ class Extension:
 
     id: str = ""  # unique, URL-safe; default: folder name
     title: str = ""
-    icon: str = "🧩"
+    icon: str = ""
     description: str = ""
     slot: str = "left"  # "left" = tab in the left column, "right" = card in the right column,
     #                     "suite" = tiles in the Test Suite's builder (falls back to "left" without the Test Suite)

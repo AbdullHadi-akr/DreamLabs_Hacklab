@@ -40,3 +40,6 @@ desktop.ini
 
 # MuJoCo writes its warnings here
 MUJOCO_LOG.TXT
+
+# Obsidian keeps each person's window layout here
+brain/.obsidian/

@@ -86,7 +86,7 @@ python start.py                      # or: python -m dashboard   → opens http:
   gripper; a colored line shows the direction the fingers open in. Costs no credits.
 - **Offline demo**, **Home**, **Reset** and the **dry run** of the robustness tests cost no credits.
   The **run** button and sweeps without dry run call Dream-1.
-- The server only listens locally (127.0.0.1). Ctrl+C stops it.
+- The server only listens locally (127.0.0.1); other laptops reach it only through the public link (see Multiplayer). Ctrl+C stops it.
 
 ### Validation Test Suite
 
@@ -121,8 +121,10 @@ change the world on purpose and see how and when Dream-1 fails. The full report 
   German "Leg den Apfel in die Schüssel"). The exact wording still goes to Dream-1 unchanged.
 - **Fair trials only:** each setup is checked (on the table, in reach, no overlaps, not already solved) and re-drawn
   if needed; a trial that ends with the target on the floor stops early to save credits.
-- **Report page** with chart, tables and an MP4 of every trial (overhead + wrist cameras = what Dream-1 saw).
-  Results live in `out/extensions/robustness/<campaign>/`.
+- **Report page** with chart, tables, Dream-1 calls and cost per trial, and an MP4 of every trial when
+  "Record video" is on (off by default: videos cost disk space and time). **Report (one file)** downloads the whole
+  report as one HTML file that opens without the dashboard; **Report with videos** puts the videos inside it too.
+  Results live in `out/extensions/robustness/<campaign>/`. The time limit counts simulated seconds.
 - **All runs, heatmap & downloads** (`/ext/robustness/runs.html`, linked in the robustness panel): every stored run, a
   **robustness map** (heatmap: perturbation × strength, colored by success rate or progress score, filtered by task
   and policy so dry runs and Dream-1 are never pooled) and downloads per run (CSV, Excel CSV, JSON, ZIP with videos)
@@ -133,6 +135,80 @@ change the world on purpose and see how and when Dream-1 fails. The full report 
 
 Deliberately left out: latency (the sim pauses physics while waiting for Dream-1, so delays change nothing) and
 joint-encoder noise (real encoders are precise; the noise would also leak into the hold commands).
+
+### Teaching loop: Take over and episodes
+
+Every Dream-1 run started with **Run** is recorded as an episode (LeRobot v2.1, the format Dream Labs checks before a
+fine-tune: 3 camera videos at 640 x 360, 10 frames per second, arm values right arm first).
+
+1. Run a task. If Dream-1 fails, or while it works, press **Take over**: Dream-1 stops, the scene stays as it is.
+2. Finish the task with **Control**. Recording continues.
+3. **Save episode**: the success check marks it. **Discard** deletes it.
+4. Tab **Episodes**: what is ready for a fine-tune, success and cost per model, where a person took over.
+   **Export** copies all unused successful episodes of one task into `out/exports/<name>/` and runs Dream Labs' own
+   dataset check. Nothing is uploaded.
+
+Records live in `out/lab.db` (SQLite: one file, no server; not in git) and `out/episodes/`.
+
+**Success check:** the task types it understands are listed in Episodes, for example "put the banana on the plate",
+"lift the apple", "push the orange left", "put the apple next to the bowl", "stack the orange on the apple",
+"take the apple out of the bowl", "stand the bottle upright", "put all fruit in the bowl", and two of them joined by
+"then". A new task type is one entry in `RULES` in `dreamtool/scene.py`.
+
+### Credits
+
+The top bar shows the balance left; tab **Credits** shows today, this month, the last run, a chart of the last 30
+days, the price per call and the limits (model and time limit stay in the prompt bar). The Dream Labs API does not report the balance, so the
+dashboard counts calls x price from a starting balance typed in by a person (default $150).
+
+- Before a run: an estimate. Above "Ask before a run that costs more than" (default $0.10) Run needs a second click.
+- Monthly limit (default $100): a run that could pass it is refused, and a running run (also a robustness campaign)
+  stops when the limit is reached.
+- The time limit counts simulated seconds: waiting for Dream-1 and a slow laptop do not use it up.
+
+### Multiplayer: a second person controls one arm
+
+One laptop, the host, runs everything; the other person only needs a web browser.
+
+Setup on the host laptop (once):
+
+```bash
+mkdir -p ~/Hacklab/bin && cd ~/Hacklab/bin
+curl -fsSL -o cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
+chmod +x cloudflared
+```
+
+Each session:
+
+1. Start the dashboard on the host laptop.
+2. Tab **Players** → **Open a public link**. After a few seconds a link like
+   `https://<words>.trycloudflare.com` appears, with the **access code** (new at every start of the dashboard).
+3. Send both to the other person. They open the link, type the code and a name, take an arm in **Players**, and move
+   it in **Control**.
+
+What a guest can do: watch (the main view smaller, 12 pictures per second, to save bandwidth), and move the one arm
+they took. Run, Stop, Reset, robustness, episodes and credits stay with the host. The host can move every arm no
+guest holds, and can free an arm. A quick link needs no Cloudflare account; it changes every time it opens.
+
+### Second brain
+
+`brain/` is the team's shared memory, after Andrej Karpathy's "LLM wiki" idea: the dashboard writes every Dream-1
+run, robustness campaign and export into `brain/raw/` by itself (plus a daily summary from the lab database); the
+script `brain/build_wiki.py` then makes the wiki pages in `brain/wiki/` (per task, per model, robustness, exports,
+notes, decisions); people read the wiki, for example in Obsidian. Run it by hand with `python brain/build_wiki.py`.
+An AI agent (rules in `brain/AGENTS.md`) is planned for later. See [brain/README.md](brain/README.md).
+
+### Architecture diagrams
+
+[docs/architecture/Dream-1-Lab-architecture.docx](docs/architecture/Dream-1-Lab-architecture.docx) (Word) holds the
+deployment diagram, the C4 diagrams (levels 1 to 3), the layers and the teaching loop, with a table for each. The
+pictures are also in [docs/architecture/png/](docs/architecture/png/). After a change to the system, update
+`docs/architecture/diagrams.py` and `make_docx.py` and run:
+
+```bash
+python docs/architecture/diagrams.py docs/architecture/png
+python docs/architecture/make_docx.py docs/architecture/png docs/architecture/Dream-1-Lab-architecture.docx
+```
 
 **Building a new feature:** copy `dashboard/extensions/_template` → see
 [dashboard/EXTENSIONS.md](dashboard/EXTENSIONS.md).

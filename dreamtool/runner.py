@@ -57,7 +57,8 @@ class RunResult:
     steps: int = 0
     requests: int = 0
     rtts_s: list[float] = field(default_factory=list)
-    seconds: float = 0.0
+    seconds: float = 0.0  # wall-clock seconds, waiting for Dream-1 included
+    sim_seconds: float = 0.0  # simulated seconds: what the time limit counts
 
     @property
     def mean_rtt_s(self) -> float | None:
@@ -121,6 +122,7 @@ def run_task(
         if managed:
             options["timeout_ms"] = min(15000, max(1, int(1000 * (deadline - time.monotonic()))))
         return sim.open_policy(options, key)
+    sim_start = None
 
     try:
         if managed:
@@ -156,6 +158,10 @@ def run_task(
             sim.feed(policy, env, windows, prompt, model, steps, every=0, station=poses)
             if not managed:
                 deadline = time.monotonic() + seconds
+            # Outside the Test Suite the time limit counts SIMULATED seconds: waiting for Dream-1's replies (physics
+            # paused) and a slow laptop do not use it up, so a run gets the same robot time on every computer.
+            # The Test Suite (managed) keeps its wall-clock task deadline.
+            sim_start = None if managed else env.data.time
             restarts = 0
 
             def stop_reason():
@@ -163,8 +169,10 @@ def run_task(
                     reason = next((reason for h in hooks if (reason := h.should_stop(env))), None)
                     if reason:
                         return reason
-                if time.monotonic() >= deadline:
-                    return "task_deadline" if managed else "timeout"
+                    if time.monotonic() >= deadline:
+                        return "task_deadline"
+                elif env.data.time - sim_start >= seconds:
+                    return "timeout"
                 if view is not None and not view.is_running():
                     return "viewer closed"
                 if check and check(env):
@@ -269,6 +277,7 @@ def run_task(
                 pass
         if not managed:
             result.seconds = time.monotonic() - started_at
+        result.sim_seconds = 0.0 if sim_start is None else float(env.data.time - sim_start)
         for h in hooks:
             h.on_end(env, result)
         if own_env:

@@ -32,7 +32,7 @@ class LiftTracker(Hooks):
 
 class SceneInspector(Extension):
     title = "Scene"
-    icon = "🍎"
+    icon = ""
     description = "Object positions, success zones, debug actions"
     order = 10
 

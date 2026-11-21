@@ -437,5 +437,7 @@ export function downloadButtons(id) {
     link(`${base}/trials.csv`, "CSV", "One row per trial (comma-separated, UTF-8)"),
     link(`${base}/trials.csv?excel=true`, "Excel CSV", "Semicolons and decimal commas for German Excel"),
     link(`${base}/result.json`, "JSON", "Everything: config, analysis, all trials"),
+    link(`${base}/report.html`, "Report (one file)", "The whole report as one HTML file, without videos"),
+    link(`${base}/report.html?videos=true`, "Report with videos", "One HTML file with every recorded trial video inside (large)"),
     link(`${base}/bundle.zip`, "ZIP + videos", "result.json, trials.csv and every trial video"));
 }
