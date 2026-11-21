@@ -20,8 +20,26 @@ CONTAINER_SIZE = {"bowl": (0.075, 0.12), "plate": (0.065, 0.10)}
 ## Free joint of each movable object (the bottle's joint is not named after its body).
 FREE_JOINTS = {"apple": "apple_free", "banana": "banana_free", "orange": "orange_free", "water_bottle": "bottle_free"}
 
-## Words in the task text -> body names.
-ALIASES = {"bottle": "water_bottle", "water": "water_bottle", "dish": "plate"}
+## Words in the task text -> body names (English and German, singular and plural).
+OBJECT_WORDS = {
+    "apple": "apple", "apples": "apple", "apfel": "apple", "äpfel": "apple",
+    "banana": "banana", "bananas": "banana", "banane": "banana", "bananen": "banana",
+    "orange": "orange", "oranges": "orange", "orangen": "orange", "mandarine": "orange",
+    "bottle": "water_bottle", "bottles": "water_bottle", "water": "water_bottle", "flasche": "water_bottle",
+    "wasserflasche": "water_bottle",
+}
+CONTAINER_WORDS = {
+    "bowl": "bowl", "bowls": "bowl", "schüssel": "bowl", "schuessel": "bowl", "schale": "bowl",
+    "plate": "plate", "plates": "plate", "dish": "plate", "teller": "plate",
+}
+ALIASES = {**OBJECT_WORDS, **CONTAINER_WORDS}  # kept for older callers
+
+## A container counts as the goal only right after one of these (with at most a few words in between) ...
+_PLACE = {"into", "in", "onto", "on", "inside", "to", "->", "→", "auf", "rein", "hinein"}
+## ... and not when the words in between say "next to / in front of / out of" etc.
+_NOT_PLACE = {"front", "next", "behind", "beside", "near", "left", "right", "side", "away", "from", "out", "off",
+              "under", "below", "beneath", "around", "between", "neben", "vor", "hinter", "unter", "aus", "von",
+              "of"}
 
 
 def position(env, name: str) -> np.ndarray:
@@ -48,20 +66,53 @@ def is_lifted(env, obj: str, start_z: float, threshold: float = 0.05) -> bool:
     return bool(position(env, obj)[2] - start_z > threshold)
 
 
-def _name(word: str) -> str:
-    word = word.lower()
-    return ALIASES.get(word, word)
+def _tokens(task: str) -> list[str]:
+    text = task.lower()
+    text = re.sub(r"\b(on )?top of\b", "on", text)  # "on top of the plate" = on the plate
+    text = re.sub(r"\binside of\b", "inside", text)
+    return re.findall(r"->|→|[a-zäöüß]+", text)
+
+
+def _goal(tokens: list[str]) -> tuple[str, int] | None:
+    """The goal container and the index of its placement word: the last container that follows a placement word."""
+    for i in range(len(tokens) - 1, -1, -1):
+        if tokens[i] not in CONTAINER_WORDS:
+            continue
+        for j in range(i - 1, max(-1, i - 5), -1):  # up to 3 words in between ("the big blue plate")
+            word = tokens[j]
+            if word in _NOT_PLACE:
+                break
+            if word in _PLACE:
+                if j > 0 and tokens[j - 1] in _NOT_PLACE:  # "next to the bowl", "close to"
+                    break
+                return CONTAINER_WORDS[tokens[i]], j
+    return None
 
 
 def parse_task(task: str) -> tuple[str, str] | None:
-    """(object, container) from tasks of the form "put <object> into/in/on the <container>", else None."""
-    match = re.search(r"put (?:the |an? )?(\w+) (?:into|in|onto|on) (?:the |a )?(\w+)", task.lower())
-    if not match:
+    """(object, container) from a natural task, else None.
+
+    Understands e.g. "put apple into the bowl", "Pick up the banana and put it on the green plate",
+    "place the water bottle in the bowl", "move the apple from the plate to the bowl", "apple -> bowl",
+    "Leg den Apfel in die Schüssel". The goal is the container after the last placement word (into, in, on, to,
+    auf ...); the object is the first object named before it. Color/size words are ignored, and an object word used
+    as an adjective ("the orange bowl") is not taken as the object.
+    """
+    tokens = _tokens(task)
+    goal = _goal(tokens)
+    if goal is None:
         return None
-    obj, container = _name(match[1]), _name(match[2])
-    if obj not in OBJECTS or container not in CONTAINERS:
-        return None
-    return obj, container
+    container, place_at = goal
+    for k, word in enumerate(tokens[:place_at]):
+        if word not in OBJECT_WORDS:
+            continue
+        following = tokens[k + 1] if k + 1 < len(tokens) else ""
+        if following in CONTAINER_WORDS:  # "the orange bowl": a color, not the orange
+            continue
+        if word == "water" and following not in ("bottle", "bottles", ""):
+            continue  # "water" alone only counts in "water bottle"
+        return OBJECT_WORDS[word], container
+    return None
 
 
 def success_check(task: str):

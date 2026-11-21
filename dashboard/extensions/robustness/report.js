@@ -2,8 +2,9 @@
 
 import { h, request } from "/static/lib/api.js";
 import {
-  chartLegend, describeParams, downloadButtons, factorScatter, factorTable, interactionHeatmap, outcomeBar, outcomeChip,
-  outcomeGrid, outcomeLegend, pct, rampLegend, strength, sweepChart, sweepTable,
+  adaptiveChart, adaptiveLegend, adaptiveStatus, chartLegend, describeParams, downloadButtons, factorScatter,
+  factorTable, interactionHeatmap, outcomeBar, outcomeChip, outcomeGrid, outcomeLegend, pct, rampLegend, searchTable,
+  strength, sweepChart, sweepTable,
 } from "./charts.js";
 
 const root = document.getElementById("report");
@@ -58,7 +59,7 @@ function trialCard(r, s) {
 }
 
 function render(s) {
-  document.title = `Robustness · ${s.mode === "sweep" ? s.perturbation.label : "Random mix"}`;
+  document.title = `Robustness · ${s.perturbation ? s.perturbation.label : "Random mix"}`;
   const a = s.analysis;
   const trials = h("div", { class: "rp-trials" });
   const fillTrials = () => trials.replaceChildren(...s.rows.filter((r) => !onlyFailures || !r.success).map((r) => trialCard(r, s)));
@@ -66,19 +67,32 @@ function render(s) {
   const filter = h("input", { type: "checkbox", checked: onlyFailures });
   filter.onchange = () => { onlyFailures = filter.checked; fillTrials(); };
 
-  const left = s.mode === "sweep"
-    ? h("section", { class: "card" }, h("h2", {}, `Success vs. ${s.perturbation.label.toLowerCase()}`),
-      sweepChart(s, { width: 620, height: 280 }), chartLegend(),
-      h("p", { class: "rp-note" }, s.perturbation.description))
-    : h("section", { class: "card" }, h("h2", {}, "Strength vs. progress, per factor"),
-      h("div", { class: "rp-scatter" }, s.factors.map((f) => h("div", {}, h("h3", {}, f.label), factorScatter(s, f)))),
-      h("p", { class: "rp-note" }, "Each dot is one trial (progress 0 = never reached, .25 reached, .5 lifted, .75 carried to the container, 1 = success)."));
-  const right = h("section", { class: "card" },
-    h("h2", {}, s.mode === "sweep" ? "Per strength" : "Per factor"),
-    s.mode === "sweep" ? sweepTable(s, { detailed: true }) : factorTable(s, { detailed: true }),
-    h("h2", { style: { marginTop: "18px" } }, "All outcomes"),
-    outcomeBar(s.mode === "sweep" ? sumOutcomes(a.per_value) : a.overall.outcomes, s.outcome_labels),
-    outcomeLegend(s.rows, s.outcome_labels));
+  let left, right;
+  if (s.mode === "adaptive") {
+    left = h("section", { class: "card" }, h("h2", {}, `Where ${s.perturbation.label.toLowerCase()} breaks the model`),
+      adaptiveChart(s, { width: 620, height: 330 }), adaptiveLegend(s), adaptiveStatus(s),
+      h("p", { class: "rp-note" }, "Bayesian search (psi method): the curve is the estimated probability that the stage " +
+        `“${a.measure.label}” holds; dots are trials (top: held, bottom: did not). Each next strength was the one ` +
+        "expected to tell the most about the breaking point θ, the strength where the probability is half the baseline."),
+      h("p", { class: "rp-note" }, s.perturbation.description));
+    right = h("section", { class: "card" }, h("h2", {}, "Search path"), searchTable(s),
+      h("h2", { style: { marginTop: "18px" } }, "All outcomes"),
+      outcomeBar(countOutcomes(s.rows), s.outcome_labels), outcomeLegend(s.rows, s.outcome_labels));
+  } else {
+    left = s.mode === "sweep"
+      ? h("section", { class: "card" }, h("h2", {}, `Success vs. ${s.perturbation.label.toLowerCase()}`),
+        sweepChart(s, { width: 620, height: 280 }), chartLegend(),
+        h("p", { class: "rp-note" }, s.perturbation.description))
+      : h("section", { class: "card" }, h("h2", {}, "Strength vs. progress, per factor"),
+        h("div", { class: "rp-scatter" }, s.factors.map((f) => h("div", {}, h("h3", {}, f.label), factorScatter(s, f)))),
+        h("p", { class: "rp-note" }, "Each dot is one trial (progress 0 = never reached, .25 reached, .5 lifted, .75 carried to the container, 1 = success)."));
+    right = h("section", { class: "card" },
+      h("h2", {}, s.mode === "sweep" ? "Per strength" : "Per factor"),
+      s.mode === "sweep" ? sweepTable(s, { detailed: true }) : factorTable(s, { detailed: true }),
+      h("h2", { style: { marginTop: "18px" } }, "All outcomes"),
+      outcomeBar(s.mode === "sweep" ? sumOutcomes(a.per_value) : a.overall.outcomes, s.outcome_labels),
+      outcomeLegend(s.rows, s.outcome_labels));
+  }
 
   const jump = (r) => {
     const card = document.getElementById(`trial-${r.index}`);
@@ -120,13 +134,13 @@ function render(s) {
   root.replaceChildren(
     h("header", { class: "rp-head" },
       h("div", {},
-        h("h1", {}, s.mode === "sweep" ? `${s.perturbation.label}` : "Random perturbation mix"),
+        h("h1", {}, s.mode === "adaptive" ? `Breaking point: ${s.perturbation.label}` : s.mode === "sweep" ? s.perturbation.label : "Random perturbation mix"),
         h("div", { class: "rp-meta" },
           h("span", {}, "Task ", h("b", {}, `“${s.config.task}”`)),
           h("span", {}, "Policy ", h("b", {}, s.policy)),
           h("span", {}, h("b", {}, `${s.done}/${s.total}`), " trials · ", s.state),
           h("span", {}, started.toLocaleString()),
-          s.mode === "sweep" ? h("span", {}, "Strengths ", h("b", {}, s.values.map((v) => strength(v, s.perturbation)).join(", "))) : null,
+          s.mode === "adaptive" ? h("span", {}, "Measure ", h("b", {}, s.analysis.measure.label), " · searched ", h("b", {}, `${strength(s.perturbation.neutral, s.perturbation)}–${strength(s.perturbation.max, s.perturbation)}`)) : s.mode === "sweep" ? h("span", {}, "Strengths ", h("b", {}, s.values.map((v) => strength(v, s.perturbation)).join(", "))) : null,
         )),
       h("div", { class: "rp-head-actions" },
         downloadButtons(s.id),
@@ -144,6 +158,12 @@ function render(s) {
     scrolled = true;
     document.querySelector(location.hash)?.scrollIntoView();
   }
+}
+
+function countOutcomes(rows) {
+  const total = {};
+  for (const r of rows) if (r.outcome) total[r.outcome] = (total[r.outcome] || 0) + 1;
+  return total;
 }
 
 function sumOutcomes(perValue) {
