@@ -1,8 +1,39 @@
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
+*.egg-info/
+build/
+dist/
 .pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.ipynb_checkpoints/
+
+# Umgebungen
 .venv/
+venv/
+env/
+
+# Secrets – niemals committen
+.env
+.env.*
+credentials
+credentials.json
+*.key
+
+# Ausgaben (Videos, Reports, Frames)
 out/
 *.mp4
-.env
-credentials
+*.gif
+*.log
+
+# Upstream-Klon liegt neben diesem Repo, nicht darin
+dreamlabs/
+
+# Editor / OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
