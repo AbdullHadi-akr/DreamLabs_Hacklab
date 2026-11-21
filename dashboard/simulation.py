@@ -420,3 +420,8 @@ class _SafeHook(Hooks):
     def on_wait(self, *a): self._call("on_wait", *a)  # noqa: E704
     def should_stop(self, *a): return self._call("should_stop", *a)  # noqa: E704
     def on_end(self, *a): self._call("on_end", *a)  # noqa: E704
+    def on_round_trip(self, *a): self._call("on_round_trip", *a)  # noqa: E704
+
+    def wrap_policy(self, policy):
+        wrapped = self._call("wrap_policy", policy)
+        return policy if wrapped is None else wrapped

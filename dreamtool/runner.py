@@ -48,6 +48,15 @@ class Hooks:
     def on_end(self, env, result: "RunResult") -> None:
         """After the run."""
 
+    def wrap_policy(self, policy):
+        """The client the run talks to, or a proxy around it (e.g. one that changes frames before they are sent)."""
+        return policy
+
+    def on_round_trip(self, trip) -> None:
+        """After every get_action(), on the request thread (keep it short, never touch env): exactly what Dream-1 was
+        sent and what came back (dream.debug_view.RoundTrip: `frames` key -> base64 JPEGs oldest first, `observation`,
+        `action`, `error`)."""
+
 
 @dataclass
 class RunResult:
@@ -131,7 +140,13 @@ def run_task(
         options = sim.policy_config(model, gateway, poses)
         if managed:
             options["timeout_ms"] = min(15000, max(1, int(1000 * (deadline - time.monotonic()))))
-        return sim.open_policy(options, key)
+        client = sim.open_policy(options, key)
+        if hasattr(client, "on_round_trip"):
+            for h in hooks:
+                client.on_round_trip(h.on_round_trip)
+        for h in hooks:
+            client = h.wrap_policy(client)
+        return client
 
     try:
         if managed:

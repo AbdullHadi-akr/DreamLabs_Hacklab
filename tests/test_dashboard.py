@@ -172,3 +172,19 @@ def test_xray_freeze_and_ask(client):
     assert client.post("/api/ext/xray/overlay", json={"enabled": True, "snapshot": snap_id}).status_code == 200
     assert client.delete(f"/api/ext/xray/snapshots/{snap_id}").status_code == 200
     assert client.get(f"/api/ext/xray/snapshots/{snap_id}").status_code == 404
+
+
+def test_camera_check_routes(client):
+    app = client.app_ref
+    wait_idle(app)
+    status = client.get("/api/ext/camera_check/status").json()
+    assert set(status["faults"]) >= {"swap_wrists", "bgr", "delay", "black"}
+    assert client.post("/api/ext/camera_check/selftest", json={"faults": ["nope"]}).status_code == 400
+    cam = next(e for e in app.state.extensions if e.id == "camera_check")
+    cam.fake = True
+    assert client.post("/api/ext/camera_check/model-use", json={"prompt": "put the banana on the plate"}).status_code == 200
+    end = time.time() + 30
+    while client.get("/api/ext/camera_check/status").json()["model_use"]["state"] == "running" and time.time() < end:
+        time.sleep(0.1)
+    mu = client.get("/api/ext/camera_check/status").json()["model_use"]
+    assert mu["state"] == "done" and mu["rows"]["blank:top"]["reacts"] and not mu["rows"]["blank:left"]["reacts"]

@@ -1,0 +1,30 @@
+/* Camera check panel (prefix cc-). */
+.cc-note { margin: 0 0 8px; font-size: 12px; }
+.cc-cards { display: flex; flex-direction: column; gap: 6px; }
+.cc-card { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; font-size: 12px; border-left-width: 4px; }
+.cc-card.ok { border-left-color: var(--good, #2fbf5f); }
+.cc-card.warn { border-left-color: var(--creamsicle-deep); }
+.cc-card.fail { border-left-color: var(--error); }
+.cc-card-head { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 2px; }
+.cc-issues { margin: 4px 0 0; padding-left: 16px; }
+.cc-now { margin-top: 4px; }
+.cc-strip-head { align-items: center; justify-content: space-between; margin-top: 10px; }
+.cc-strip-head h4 { margin: 0; }
+.cc-strip { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; margin: 6px 0 10px; }
+.cc-frame { margin: 0; }
+.cc-frame img { width: 100%; display: block; border-radius: 4px; }
+.cc-frame.bad img { outline: 2px solid var(--error); }
+.cc-frame figcaption { font-size: 10px; color: var(--ink-3); }
+.cc-missing { aspect-ratio: 320 / 176; background: var(--grey-2); display: grid; place-items: center; font-size: 10px; }
+.cc-sec input { width: 64px; }
+.cc-verdict { margin: 8px 0; padding: 8px 10px; border-radius: 8px; background: var(--grey-1); border: 1px solid var(--line); font-size: 13px; }
+.cc-verdict.good { background: var(--grass-wash); border-color: var(--grass-light); }
+.cc-table td, .cc-table th { font-size: 12px; vertical-align: top; }
+.cc-small { font-size: 11px; color: var(--ink-2); }
+.cc-bars { display: flex; flex-direction: column; gap: 4px; }
+.cc-bar { display: grid; grid-template-columns: 112px minmax(0, 1fr) 56px; gap: 6px; align-items: center; font-size: 12px; }
+.cc-bar .num { text-align: right; font-family: var(--font-mono); }
+.cc-track { position: relative; height: 10px; background: var(--grey-2); border-radius: 999px; }
+.cc-track i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--ink-3); border-radius: 999px; }
+.cc-track i.on { background: var(--creamsicle-deep); }
+.cc-track u { position: absolute; top: -3px; bottom: -3px; border-left: 2px dotted var(--ink); }

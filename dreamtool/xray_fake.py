@@ -32,7 +32,8 @@ class FakeDream:
 
     def get_action(self):
         top = next((v for k, v in self.frames.items() if "overhead" in k or k.endswith(".top")), None)
-        patch = 0.5 if top is None else float(xray.decode_frame(top)[50:130, 110:210].mean()) / 255
+        # how much structure the fruit patch shows (a blanked or masked patch has less): independent of the scene's colours
+        patch = 0.5 if top is None else min(1.0, float(xray.decode_frame(top)[50:130, 110:210].std()) / 40)
         prompt = str(self.obs.get("prompt", "")).lower()
         turn = next((t for word, t in TURN.items() if word in prompt), -0.35)  # unknown word: the banana
         t = np.linspace(0, 1, 48)[:, None]
