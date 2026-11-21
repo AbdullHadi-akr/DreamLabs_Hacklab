@@ -7,7 +7,8 @@ const files = ["dashboard/static/lib/api.js", "dashboard/static/lib/log_panel.js
 const sources = await Promise.all(files.map((file) => readFile(new URL("../" + file, import.meta.url), "utf8")));
 const css = await readFile(new URL("../dashboard/extensions/test_suite/panel.css", import.meta.url), "utf8");
 await verifyRunAnalysis(sources, css, Script);
-console.log("Run selector, lazy snapshots, comparison, history and large campaign checks passed");
+verifyResponseChart(await readFile(new URL("../dashboard/static/app.js", import.meta.url), "utf8"), Script);
+console.log("Run reports, notifications, print recovery and response chart checks passed");
 
 async function verifyRunAnalysis(sources, css, Script) {
   const fixture = `
@@ -16,6 +17,7 @@ class FakeElement {
     this.classList={toggle(){}}; }
   setAttribute(key,value) { this.attrs[key]=String(value); if(key==="id")this.id=value; if(key==="value")this.value=String(value); if(key==="open")this.open=true; }
   addEventListener(name,fn) { this.events[name]=fn; }
+  dispatchEvent(event) { return this.events[event.type]?.(event); }
   removeEventListener(name,fn) { if(this.events[name]===fn)delete this.events[name]; }
   append(...nodes) { for(const node of nodes) {node.parentElement=this; this.children.push(node);} }
   replaceChildren(...nodes) { this.children=[]; this.append(...nodes); }
@@ -25,13 +27,19 @@ class FakeElement {
   setCustomValidity() {}
   focus() {}
   scrollIntoView() {}
+  remove() { this.parentElement.children=this.parentElement.children.filter((child)=>child!==this); }
 }
 const nodes=new Map();
 globalThis.Node=FakeElement;
-globalThis.document={getElementById(id){if(!nodes.has(id))nodes.set(id,new FakeElement(id));return nodes.get(id);},
+globalThis.document={addEventListener(){},getElementById(id){if(!nodes.has(id))nodes.set(id,new FakeElement(id));return nodes.get(id);},
   createElement(tag){return new FakeElement(tag);}, createTextNode(text){return {textContent:text};},
   querySelector(){return new FakeElement("layout");}};
-globalThis.window={setInterval(){}};
+globalThis.Event=class {constructor(type){this.type=type;}};
+globalThis.CustomEvent=class extends Event {constructor(type, options){super(type);this.detail=options.detail;}};
+globalThis.window=new FakeElement("window");
+window.setInterval=()=>{};
+let printed=0;
+window.print=()=>{printed++;};
 function assert(condition, message) { if(!condition) throw Error(message); }
 function descendants(node, predicate) {
   if(!(node instanceof FakeElement))return [];
@@ -47,6 +55,7 @@ const reports={
   large:report("large",Array.from({length:100},(_,i)=>run(i+1))),
   historic:report("historic",[run(1,{snapshot_available:true})])
 };
+reports.historic.stats.unevaluated=1;
 Object.assign(reports.large.trials[0],{task_success:true,task_duration_seconds:5.4,evaluation_evidence:{object:"apple",target:"bowl",best_planar_distance_m:.01},
   snapshots:[{kind:"final",simulation_time:4}]});
 Object.assign(reports.large.trials[1],{task_success:false,failure_category:"PICKUP_FAILED",failure_reason:"Exact run 2 evaluation",
@@ -55,12 +64,15 @@ Object.assign(reports.large.trials[1],{task_success:false,failure_category:"PICK
   api_events:[{error:"run 2 request error"}],evaluation_evidence:{object:"banana",target:"plate",best_planar_distance_m:.17}});
 const reads=[];
 const coreEvents={};
+const suiteEvents={};
 const robustnessRoot=new FakeElement("div");
-const robustness={state:"running", mode:"adaptive", done:2, total:12, started:Date.now()/1000,
+const robustness={id:"robust-campaign",rows:[],state:"running", mode:"adaptive", done:2, total:12, started:Date.now()/1000,
   config:{task:"banana on plate",dry_run:false}};
-globalThis.fetch=async()=>({ok:true,text:async()=>JSON.stringify(robustness)});
-const api={ui:{h,toast(){}},on(){},onCore(name,fn){coreEvents[name]=fn;},
-  workspace:{extensions:()=>[{id:"robustness",root:robustnessRoot}]},async get(url){ reads.push(url);
+globalThis.fetch=async(url,options)=>{assert(options.method==="GET","print recovery must not mutate campaigns");
+  return {ok:true,text:async()=>JSON.stringify(robustness)};};
+const api={ui:{h,toast(){}},on(name,fn){(suiteEvents[name]||=[]).push(fn);},onCore(name,fn){coreEvents[name]=fn;},
+  workspace:{extensions:()=>[{id:"robustness",root:robustnessRoot,suite_modes:[{id:"random",title:"Perturbation Mix",subtitle:"Scripted"}]}]},
+  async get(url){ reads.push(url);
   if(url==="/history")return Object.values(reports).map((r)=>({id:r.id,state:r.state,created:1,config:r.config}));
   if(url.endsWith("/actions/2"))return [{reply:"run 2 action"}];
   return reports[url.split("/").at(-1)]; }};
@@ -69,14 +81,22 @@ const api={ui:{h,toast(){}},on(){},onCore(name,fn){coreEvents[name]=fn;},
   document.getElementById("workspace-test-suite").events.click();
   await new Promise((resolve)=>setTimeout(resolve,0));
   const monitor=document.getElementById("test-suite-monitor");
-  assert(monitor.textContent.includes("Breaking Point · 2/12 trials completed"),"right monitor reads a running Breaking Point campaign");
+  assert(monitor.textContent.includes("Breaking Point · Trial 3 of 12"),"right monitor reads a running Breaking Point campaign");
   coreEvents["ext.robustness.progress"]({...robustness, done:3});
-  assert(monitor.textContent.includes("3/12 trials completed"),"right monitor follows progress events");
-  coreEvents["ext.robustness.progress"]({...robustness, state:"done"});
+  assert(monitor.textContent.includes("Trial 4 of 12"),"right monitor follows progress events");
+  coreEvents["ext.robustness.progress"]({...robustness, id:"old-campaign", state:"done"});
   assert(monitor.textContent.includes("No campaign running"),"right monitor clears completed campaign");
   robustnessRoot.events["suite-campaign-started"]({detail:{...robustness, done:0}});
-  assert(monitor.textContent.includes("0/12 trials completed"),"right monitor shows a new campaign immediately");
+  assert(monitor.textContent.includes("Trial 1 of 12"),"right monitor shows a new campaign immediately");
   const results=document.getElementById("test-suite-results");
+  const buildTab=document.getElementById("suite-build-tab");
+  const reportTab=document.getElementById("suite-report-tab");
+  const preview=document.getElementById("simulation-preview");
+  assert(results.hidden && preview.open,"Build keeps results out of the monitoring layout");
+  reportTab.events.click();
+  assert(!results.hidden && !preview.open,"Report opens above a collapsed simulation preview");
+  const monitorActions=find(monitor,(node)=>node.className==="suite-actions monitor-actions");
+  assert(!monitorActions.hidden && monitorActions.children[1].hidden,"Report keeps the active robustness Stop control available");
   const strip=find(results,(node)=>node.attrs.role==="tablist");
   const tabs=descendants(strip,(node)=>node.attrs.role==="tab");
   const panel=find(results,(node)=>node.attrs.role==="tabpanel");
@@ -93,6 +113,11 @@ const api={ui:{h,toast(){}},on(){},onCore(name,fn){coreEvents[name]=fn;},
   const actions=find(panel,(node)=>node.tag==="details" && node.firstChild.textContent==="Dream-1 action replies");
   actions.open=true; await actions.events.toggle();
   assert(actions.textContent.includes("run 2 action") && reads.includes("/reports/large/actions/2"),"run 2 action endpoint");
+  const runButton=find(results,(node)=>node.attrs["aria-label"]==="Inspect run 2");
+  assert(runButton.attrs["aria-pressed"]==="true","run table follows selected run");
+  buildTab.events.click();
+  reportTab.events.click();
+  assert(tabs[1].attrs["aria-selected"]==="true" && panel.textContent.includes("prompt-2"),"Build and Report preserve selection");
   tabs[0].events.click();
   assert(panel.textContent.includes("prompt-1") && !panel.textContent.includes("Exact run 2"),"switching back restores run 1");
   assert(reads.filter((url)=>url==="/reports/large").length===1,"run changes are local");
@@ -110,10 +135,59 @@ const api={ui:{h,toast(){}},on(){},onCore(name,fn){coreEvents[name]=fn;},
   const legacy=find(historic,(node)=>node.tag==="details"&&node.firstChild.textContent.startsWith("Snapshot timeline"));
   legacy.open=true;legacy.events.toggle();
   assert(find(legacy,(node)=>node.tag==="img").attrs.src.endsWith("/reports/historic/snapshot/1"),"legacy snapshot URL");
+
+  for(const listener of suiteEvents.ended) listener({id:"historic",name:"campaign-historic",state:"done",total:1,stats:reports.historic.stats},{t:Date.now()/1000});
+  const notice=document.getElementById("campaign-notices").children[0];
+  assert(notice.textContent.includes("campaign-historic"),"completion banner names the completed campaign");
+  buildTab.events.click();
+  const mix=find(document.getElementById("config"),(node)=>node.attrs["aria-label"]==="Perturbation Mix: Scripted");
+  mix.events.click();
+  Object.assign(robustness,{mode:"random",done:2,total:4});
+  robustnessRoot.events["suite-campaign-started"]({detail:robustness});
+  reportTab.events.click();
+  const reportKind=find(results,(node)=>node.attrs["aria-label"]==="Report type");
+  reportKind.value="robustness"; reportKind.events.change();
+  assert(find(results,(node)=>node.id==="robustness-wide-report").hidden===false,"external report type shown");
+  await find(notice,(node)=>node.tag==="button" && node.textContent==="View report").events.click();
+  assert(find(results,(node)=>node.id==="robustness-wide-report").hidden===true &&
+    results.textContent.includes("1 of 1 runs recorded") && results.textContent.includes("1 unevaluated"),"old toast opens the exact regular report");
+  assert(monitor.textContent.includes("Random Mix · Trial 3 of 4"),"old toast leaves the mix running");
+  assert(find(results,(node)=>node.attrs.href?.endsWith("/reports/historic/export/csv")),"Export menu uses the selected campaign");
+  find(results,(node)=>node.tag==="button" && node.textContent==="Print / PDF").events.click();
+  assert(printed===1,"Print / PDF invokes browser preview");
+  const before=reads.filter((url)=>url==="/reports/historic").length;
+  Object.assign(robustness,{mode:"random",done:3,total:4});
+  window.events.afterprint();
+  window.events.focus();
+  await new Promise((resolve)=>setTimeout(resolve,0));
+  assert(reads.filter((url)=>url==="/reports/historic").length===before+1,"preview close re-reads the same report once");
+  assert(monitor.textContent.includes("Random Mix · Trial 4 of 4"),"preview close re-reads authoritative mix progress");
+  coreEvents["ext.robustness.progress"]({...robustness,state:"done",done:4});
+  assert(monitor.textContent.includes("No campaign running"),"recovered monitor handles completion");
 })()
 `;
   const strip = css.match(/\.suite-run-strip\s*\{([^}]*)\}/)?.[1] || "";
   if (!/overflow-x:\s*auto/.test(strip) || !/flex-wrap:\s*nowrap/.test(strip)) throw Error("Run strip must scroll without wrapping");
   const source = sources.map((text) => text.replace(/^import.*\n/gm, "").replace(/^export /gm, "")).join("\n");
   await new Script(source + "\n" + fixture).runInNewContext({setTimeout});
+}
+
+function verifyResponseChart(source, Script) {
+  const chart = source.slice(source.indexOf("let chartRun ="), source.indexOf("// ---------------- Events"));
+  new Script(chart + `
+    setChartRun({id:1,model:"mocked Dream-1",rtts_s:[.2,.4]});
+    if (scope.textContent!=="Run #1 · API RTT" || !text.at(-1).includes("avg 0.30 s")) throw Error("API samples missing");
+    setChartRun({id:2,model:"offline",rtts_s:[]});
+    if (scope.textContent!=="Run #2 · Offline" || text.at(-1)!=="Offline run · no API requests") throw Error("offline chart retained API samples");
+  `).runInNewContext(chartContext());
+}
+
+function chartContext() {
+  const text = [];
+  const scope = {};
+  const context = new Proxy({fillText: (value) => text.push(value), createLinearGradient: () => ({addColorStop(){}})}, {
+    get: (target, key) => target[key] || (() => {}),
+  });
+  return { text, scope, window:{}, document:{documentElement:{}}, getComputedStyle:()=>({getPropertyValue:()=>""}),
+    $:(id)=>id==="rtt-scope"?scope:{clientWidth:300,clientHeight:90,getContext:()=>context} };
 }

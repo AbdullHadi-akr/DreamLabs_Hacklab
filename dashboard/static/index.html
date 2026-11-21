@@ -26,8 +26,17 @@
       <span class="pill" id="pill-key"><i></i><span>API key</span></span>
       <span class="pill" id="pill-run"><i></i><span>Ready</span></span>
     </div>
+    <div class="viewport-actions" role="group" aria-label="Viewport controls">
+      <button class="btn btn-outline btn-sm" id="btn-fullscreen" type="button" title="Use the dashboard in fullscreen">Fullscreen</button>
+      <button class="btn btn-outline btn-sm" id="btn-orientation" type="button" title="Switch dashboard orientation">Rotate</button>
+    </div>
   </header>
+  <div class="campaign-notices" id="campaign-notices" aria-live="polite" aria-relevant="additions"></div>
 
+  <nav class="suite-view-nav tabs" id="suite-view-nav" aria-label="Test Suite views" hidden>
+    <button class="tab active" type="button" id="suite-build-tab" aria-pressed="true" aria-controls="test-suite-config">Build</button>
+    <button class="tab" type="button" id="suite-report-tab" aria-pressed="false" aria-controls="test-suite-results">Report</button>
+  </nav>
   <main class="layout">
     <aside class="col col-left">
       <section class="card tools" id="dashboard-tools">
@@ -41,70 +50,83 @@
     </aside>
 
     <section class="col col-center">
-      <div class="section-head">
-        <h2 class="pixel">Simulation</h2>
-        <span class="status-line">
-          <i class="dot live" id="status-dot"></i>
-          <strong id="status-text">Ready</strong>
-          <span class="muted" id="status-sub">Your prompt runs next</span>
-        </span>
-      </div>
-
-      <div class="frame" id="viewer-frame">
-        <div class="viewer" id="viewer">
-          <img id="main-view" alt="Simulation" draggable="false">
-          <div class="viewer-badges">
-            <span class="chip-dark" id="badge-run" hidden><i class="dot live"></i><span>Live</span></span>
-            <span class="chip-dark mono" id="badge-time">t = 0.0 s</span>
-          </div>
-          <div class="viewer-hint">Drag: orbit · Right/Shift: pan · Wheel: zoom · Double-click: reset</div>
-          <div class="caption">
-            <span class="caption-label" id="caption-label">Ready</span>
-            <p id="caption-task">Waiting for the next prompt…</p>
-          </div>
-        </div>
-      </div>
-
-      <form class="prompt" id="taskbar">
-        <div class="prompt-main">
-          <input id="task" list="task-list" placeholder="Prompt Dream-1, e.g. put apple into the bowl" autocomplete="off">
-          <datalist id="task-list"></datalist>
-          <button type="submit" class="send" id="btn-run" title="Run with Dream-1" aria-label="Run with Dream-1">
-            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </button>
-        </div>
+      <form class="prompt card" id="taskbar">
+        <label for="task">Task prompt</label>
+        <input id="task" list="task-list" placeholder="e.g. Put the apple in the bowl" autocomplete="off">
+        <datalist id="task-list"></datalist>
         <div class="prompt-tools">
-          <label class="mini">Model <input id="model"></label>
-          <label class="mini">Duration <input id="seconds" type="number" min="5" max="3600" step="5" value="60"> s</label>
-          <span class="spacer"></span>
-          <button type="button" class="btn btn-outline btn-sm danger" id="btn-stop">■ Stop</button>
-          <button type="button" class="btn btn-outline btn-sm" id="btn-demo" title="Test motion without the API (no credits)">Offline demo</button>
-          <button type="button" class="btn btn-outline btn-sm" id="btn-home" title="Move the arms to their home pose">Home</button>
-          <button type="button" class="btn btn-outline btn-sm" id="btn-reset" title="Reset objects and arms">Reset</button>
+          <label class="mini model-field">Model <input id="model"></label>
+          <label class="mini">Duration (s) <input id="seconds" type="number" min="5" max="3600" step="5" value="60"></label>
+        </div>
+        <div class="prompt-actions">
+          <div class="prompt-buttons" role="group" aria-label="Run actions">
+            <button type="submit" class="btn primary" id="btn-run">Run with Dream-1</button>
+            <button type="button" class="btn btn-outline" id="btn-demo" title="Test motion without the API (no credits)">Offline demo</button>
+            <button type="button" class="btn danger" id="btn-stop">Stop</button>
+          </div>
+          <div class="prompt-buttons scene-actions" role="group" aria-label="Scene controls">
+            <button type="button" class="btn btn-outline btn-sm" id="btn-home" title="Move the arms to their home pose">Home</button>
+            <button type="button" class="btn btn-outline btn-sm" id="btn-reset" title="Reset objects and arms">Reset</button>
+          </div>
         </div>
       </form>
-
-      <div class="section-head"><h2 class="pixel">Robot cameras</h2><span class="muted">What Dream-1 sees</span></div>
-      <div class="cams" id="cams"></div>
       <section class="card" id="test-suite-results" hidden></section>
+      <details class="simulation-preview" id="simulation-preview" open>
+        <summary id="preview-summary" hidden>Simulation and cameras</summary>
+        <div class="preview-body">
+
+          <div class="section-head">
+            <h2 class="pixel">Simulation</h2>
+            <span class="status-line">
+              <i class="dot live" id="status-dot"></i>
+              <strong id="status-text">Ready</strong>
+              <span class="muted" id="status-sub">Your prompt runs next</span>
+            </span>
+          </div>
+
+          <div class="frame" id="viewer-frame">
+            <div class="viewer" id="viewer">
+              <img id="main-view" alt="Simulation" draggable="false">
+              <div class="viewer-badges">
+                <span class="chip-dark" id="badge-run" hidden><i class="dot live"></i><span>Live</span></span>
+                <span class="chip-dark mono" id="badge-time">t = 0.0 s</span>
+              </div>
+              <div class="viewer-hint">Drag: orbit · Right/Shift: pan · Wheel: zoom · Double-click: reset</div>
+              <div class="caption">
+                <span class="caption-label" id="caption-label">Ready</span>
+                <p id="caption-task">Waiting for the next prompt…</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="section-head"><h2 class="pixel">Robot cameras</h2><span class="muted">What Dream-1 sees</span></div>
+          <div class="cams" id="cams"></div>
+        </div>
+      </details>
     </section>
 
     <aside class="col col-right">
       <section class="card" id="test-suite-monitor" hidden></section>
       <section class="card">
-        <div class="section-head"><h2 class="pixel">Current run</h2></div>
+        <div class="section-head"><h2 class="pixel" id="run-heading">Last run</h2></div>
         <dl class="kv" id="run-info">
-          <dt>State</dt><dd id="ri-state">–</dd>
-          <dt>Task</dt><dd id="ri-task">–</dd>
+          <dt>Outcome</dt><dd id="ri-result">–</dd>
+          <dt>Duration</dt><dd id="ri-duration">–</dd>
           <dt>Source</dt><dd id="ri-source">–</dd>
-          <dt>Steps</dt><dd id="ri-steps">–</dd>
-          <dt>Requests</dt><dd id="ri-requests">–</dd>
-          <dt>Last RTT</dt><dd id="ri-rtt">–</dd>
-          <dt>Result</dt><dd id="ri-result">–</dd>
+          <dt>Task</dt><dd id="ri-task">–</dd>
         </dl>
+        <details class="run-technical">
+          <summary>Execution details</summary>
+          <dl class="kv">
+            <dt>State</dt><dd id="ri-state">–</dd>
+            <dt>Steps</dt><dd id="ri-steps">–</dd>
+            <dt>Requests</dt><dd id="ri-requests">–</dd>
+            <dt>Last RTT</dt><dd id="ri-rtt">–</dd>
+          </dl>
+        </details>
       </section>
       <section class="card">
-        <div class="section-head"><h2 class="pixel">Response time</h2><span class="muted">RTT per request</span></div>
+        <div class="section-head"><h2 class="pixel">Response time</h2><span class="muted" id="rtt-scope">Current run</span></div>
         <canvas id="rtt-chart" height="90"></canvas>
       </section>
       <div id="right-slot"></div>
@@ -114,8 +136,11 @@
     </aside>
   </main>
 
+  <dialog id="camera-dialog" aria-labelledby="camera-title">
+    <div class="section-head"><h2 id="camera-title">Robot camera</h2><form method="dialog"><button class="btn btn-outline btn-sm">Close</button></form></div>
+    <img id="camera-large" alt="">
+  </dialog>
   <div class="toasts" id="toasts"></div>
-  <div class="campaign-notices" id="campaign-notices" aria-live="polite" aria-relevant="additions"></div>
   <script type="module" src="/static/app.js"></script>
 </body>
 </html>

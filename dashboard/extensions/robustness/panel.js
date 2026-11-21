@@ -75,6 +75,7 @@ export async function mount(root, api) {
       title: "Bayesian search for the breaking point" }, "Breaking point"),
   };
   function setMode(next) {
+    const changed = mode !== next;
     mode = next;
     for (const [m, btn] of Object.entries(modeButtons)) btn.className = `btn small ${mode === m ? "" : "btn-outline"}`;
     sweepBox.hidden = mode === "random";
@@ -82,8 +83,8 @@ export async function mount(root, api) {
     adaptiveBox.hidden = mode !== "adaptive";
     randomBox.hidden = mode !== "random";
     trialsLabel.textContent = { sweep: "Trials per strength", random: "Trials in total", adaptive: "Budget (max. trials)" }[mode];
-    if (mode !== "sweep" && Number(trials.value) < 10) trials.value = 12;
-    if (mode === "sweep" && Number(trials.value) > 10) trials.value = 3;
+    if (changed && mode !== "sweep" && Number(trials.value) < 10) trials.value = 12;
+    if (changed && mode === "sweep" && Number(trials.value) > 10) trials.value = 3;
     // categorical perturbations (prompt variants) have no order to search along
     for (const option of kind.querySelectorAll("option")) option.disabled = mode === "adaptive" && byId[option.value].discrete;
     if (mode === "adaptive" && byId[kind.value].discrete) { kind.value = "target_shift"; updateKind(); }
@@ -108,26 +109,27 @@ export async function mount(root, api) {
   }
   function updateEstimate() {
     const n = trialCount();
-    const upTo = mode === "adaptive" ? "up to " : "";
-    estimate.textContent = (dry.checked
-      ? `${upTo}${n} trials with the scripted replay (no API, no credits, ~6 s each).`
-      : `${upTo}${n} Dream-1 runs of up to ${seconds.value} s → up to ~${Math.ceil((n * (Number(seconds.value) + 10)) / 60)} min. Uses credits!`)
-      + (mode === "adaptive" ? " Usually stops earlier." : "");
-    estimate.className = dry.checked ? "muted" : "warn";
+    const count = `${mode === "adaptive" ? "Up to " : ""}${n} ${n === 1 ? "trial" : "trials"}`;
+    estimate.textContent = dry.checked
+      ? `${count} · Dry run · Scripted replay. Wall time varies with setup, rendering${record.checked ? ", and video encoding" : ""}.`
+      : `${count} · Live API · Up to ${seconds.value} s of task time per trial.`;
+    estimate.className = "muted";
   }
   kind.onchange = updateKind;
-  for (const el of [values, trials, seconds, dry]) el.addEventListener("input", updateEstimate);
+  for (const el of [values, trials, seconds, dry, record]) el.addEventListener("input", updateEstimate);
 
   // ---------- run control ----------
-  const startBtn = h("button", { class: "btn primary", onclick: start }, "Start");
+  const startBtn = h("button", { class: "btn primary", onclick: start }, "Start campaign");
   const stopBtn = h("button", { class: "btn danger", onclick: () => api.post("/stop"), disabled: true }, "Stop");
   const progressBar = h("div", { style: { width: "0%" } });
-  const progressText = h("span", { class: "muted" });
+  const progressText = h("span", { class: "muted", role: "status" });
   const currentText = h("div", { class: "rb-current muted" });
   const results = h("div", { class: "rb-results" });
-  const history = h("select", { class: "rb-history" });
+  const history = h("select", { class: "rb-history", "aria-label": "Robustness campaign history" });
+  const errorLine = h("p", {role: "alert", hidden: true});
 
   async function start() {
+    errorLine.hidden = true;
     const body = {
       task: task.value.trim(), mode, trials: Number(trials.value), seconds: Number(seconds.value),
       dry_run: dry.checked, record: record.checked,
@@ -138,11 +140,17 @@ export async function mount(root, api) {
     else body.factors = Object.fromEntries(Object.entries(factorInputs)
       .filter(([, f]) => f.check.checked).map(([id, f]) => [id, Number(f.max.value)]));
     if (!dry.checked && !confirm(`Start ${trialCount()} Dream-1 runs? This uses credits.`)) return;
+    startBtn.disabled = true;
     try {
       const campaign = await api.post("/start", body);
+      pinned = null;
       render(campaign);
       root.dispatchEvent(new CustomEvent("suite-campaign-started", {detail: campaign}));
-    } catch (e) { api.ui.toast(e.message, "error"); }
+    } catch (e) {
+      errorLine.textContent = e.message;
+      errorLine.hidden = false;
+      startBtn.disabled = false;
+    }
   }
 
   const reportUrl = (id, trial) => `${api.asset("report.html")}?id=${encodeURIComponent(id)}${trial ? `#trial-${trial}` : ""}`;
@@ -151,24 +159,34 @@ export async function mount(root, api) {
   const embedded = root.classList.contains("suite-extension");
   const wideReport = () => document.getElementById("robustness-wide-report");
   let shown = null;
+  let pinned = null;
+  const historyRow = h("div", { class: "rb-history-row" }, history,
+    h("a", { class: "btn small btn-outline", href: api.asset("runs.html"), target: "_blank" }, "All runs"));
+
+  function renderSelected(s) {
+    shown = s;
+    history.value = s.id;
+    const wide = embedded ? wideReport() : null;
+    if (wide) renderReport(wide, s, {standalone: false, historyControl: historyRow});
+  }
 
   function render(s) {
     if (!s) {
       const wide = wideReport();
       if (embedded && wide && !wide.childElementCount) {
         wide.append(h("div", { class: "rb-wide-empty" }, h("h2", { class: "pixel" }, "Robustness report"),
-          h("p", { class: "muted" }, "Start a robustness test on the left, or open a past one from its history.")));
+          historyRow, h("p", { class: "muted" }, "Build a robustness campaign or select a saved campaign.")));
       }
       return;
     }
-    shown = s;
     const wide = embedded ? wideReport() : null;
-    if (wide) renderReport(wide, s, { standalone: false });
+    if (!pinned || pinned === s.id) renderSelected(s);
     const running = s.state === "running";
     startBtn.disabled = running;
     stopBtn.disabled = !running;
+    stopBtn.hidden = !running;
     progressBar.style.width = `${s.total ? (100 * s.done) / s.total : 0}%`;
-    progressText.textContent = `${s.done}/${s.total} trials · ${s.state}${s.config.dry_run ? " · dry run" : ""}`;
+    progressText.textContent = running ? `Trial ${Math.min(s.total, s.done + 1)} of ${s.total}` : `${s.done} of ${s.total} trials recorded`;
     currentText.textContent = running && s.current ? `Now: ${s.current.label}` +
       (s.current.prompt !== s.config.task ? ` · prompt "${s.current.prompt}"` : "") : "";
 
@@ -207,12 +225,22 @@ export async function mount(root, api) {
       const list = await api.get("/history");
       history.replaceChildren(h("option", { value: "" }, list.length ? "Past campaigns…" : "No past campaigns"),
         ...list.map((c) => h("option", { value: c.id }, `${c.id.slice(4, 8)} ${c.id.slice(9, 13)} · ${c.label} · ${c.done}/${c.total}${c.dry_run ? " · dry" : ""}`)));
+      if (shown && list.some((item) => item.id === shown.id)) history.value = shown.id;
     } catch { /* ignore */ }
   }
-  history.onchange = async () => {
-    if (!history.value) return;
-    try { render(await api.get(`/results/${history.value}`)); } catch (e) { api.ui.toast(e.message, "error"); }
-  };
+  async function openSaved(id) {
+    pinned = id;
+    try {
+      const report = await api.get(`/results/${id}`);
+      if (pinned === id) {
+        if (embedded) renderSelected(report);
+        else render(report);
+      }
+    } catch (e) { api.ui.toast(e.message, "error"); }
+  }
+  history.onchange = () => { if (history.value) openSaved(history.value); };
+  root.addEventListener("suite-show-report", () => shown ? renderSelected(shown) : render(null));
+  root.addEventListener("suite-open-report", (event) => openSaved(event.detail));
 
   const modeRow = h("div", { class: "row rb-modes", hidden: embedded }, modeButtons.sweep, modeButtons.random, modeButtons.adaptive);
   const modeTitle = h("h3", { class: "rb-suite-title", hidden: !embedded });
@@ -221,7 +249,7 @@ export async function mount(root, api) {
   root.addEventListener("suite-mode", (event) => {
     setMode(event.detail);
     modeTitle.textContent = MODE_TITLES[event.detail] || "";
-    if (shown) render(shown); else render(null);
+    if (shown) renderSelected(shown); else render(null);
   });
 
   root.append(
@@ -231,16 +259,13 @@ export async function mount(root, api) {
     h("div", { class: "row" },
       h("label", { class: "field" }, trialsLabel, trials),
       h("label", { class: "field" }, h("span", {}, "Seconds per trial"), seconds)),
-    h("label", { class: "check", title: "Replays a pick-and-place planned once on the unperturbed scene. No API." },
-      dry, "Dry run (scripted replay, no credits)"),
     h("label", { class: "check" }, record, "Record video of every trial"),
-    estimate,
-    h("div", { class: "row" }, startBtn, stopBtn),
+    h("div", {class: "campaign-actions"},
+      h("label", {class: "check", title: "Replays a pick-and-place planned once on the unperturbed scene. No API."},
+        dry, "Dry run (scripted replay, no credits)"),
+      estimate, errorLine, h("div", {class: "row"}, startBtn, stopBtn)),
     h("div", { class: "progress" }, h("div", { class: "bar" }, progressBar), progressText, currentText),
-    results,
-    h("h4", {}, "History"),
-    h("div", { class: "rb-history-row" }, history,
-      h("a", { class: "btn small btn-outline", href: api.asset("runs.html"), target: "_blank" }, "All runs, heatmap & downloads ↗")),
+    results, embedded ? null : historyRow,
   );
 
   updateKind();
@@ -248,4 +273,11 @@ export async function mount(root, api) {
   loadHistory();
   api.on("progress", (s) => { render(s); if (s.state !== "running") loadHistory(); });
   api.on("trial", (t) => { currentText.textContent = `Now: ${t.label}`; });
+  window.addEventListener("dashboard:print-return", async () => {
+    try {
+      const campaign = await api.get("/status");
+      if (campaign && (campaign.state === "running" || !shown || shown.id === campaign.id)) render(campaign);
+      loadHistory();
+    } catch (error) { api.ui.toast(error.message, "error"); }
+  });
 }

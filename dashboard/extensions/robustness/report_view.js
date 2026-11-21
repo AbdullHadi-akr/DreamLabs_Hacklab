@@ -42,12 +42,14 @@ function trialCard(r, s, prefix) {
       ),
       h("div", { class: "muted" }, `${r.stop_reason} · ${r.seconds}s · ${r.steps} steps` +
         (r.mean_rtt_s ? ` · RTT ${r.mean_rtt_s}s` : "") + (r.redraws ? ` · setup re-drawn ${r.redraws}×` : "")),
-      info.length ? h("div", { class: "muted" }, info.join(" · ")) : null,
-      r.note ? h("div", { class: "warn" }, r.note) : null,
+      (r.timing || info.length || r.note) && h("details", {}, h("summary", {}, "Trial diagnostics"),
+        r.timing && h("div", { class: "muted" }, `Trial wall time ${r.timing.trial_wall_s}s · Setup ${r.timing.setup_wall_s}s · Replay loop ${r.timing.replay_loop_wall_s}s · Simulated ${r.timing.simulated_s}s · Recording processing ${r.timing.recording_wall_s}s (partly within replay loop)`),
+        info.length ? h("div", { class: "muted" }, info.join(" · ")) : null,
+        r.note ? h("div", { class: "warn" }, r.note) : null),
     ));
 }
 
-export function renderReport(root, s, { standalone = true } = {}) {
+export function renderReport(root, s, { standalone = true, historyControl = null } = {}) {
   const st = stateOf(root);
   const prefix = standalone ? "trial-" : "rbx-trial-";
   if (!standalone) {
@@ -59,7 +61,39 @@ export function renderReport(root, s, { standalone = true } = {}) {
   if (standalone) document.title = `Robustness · ${s.perturbation ? s.perturbation.label : "Random mix"}`;
   const a = s.analysis;
   const trials = h("div", { class: "rp-trials" });
-  const fillTrials = () => trials.replaceChildren(...s.rows.filter((r) => !st.onlyFailures || !r.success).map((r) => trialCard(r, s, prefix)));
+  let selectTrial;
+  const fillTrials = () => {
+    const rows = s.rows.filter((row) => !st.onlyFailures || !row.success);
+    if (standalone) {
+      trials.replaceChildren(...rows.map((row) => trialCard(row, s, prefix)));
+      return;
+    }
+    if (!rows.length) {
+      trials.replaceChildren(h("p", {class: "muted"}, "No trials to display."));
+      return;
+    }
+    st.selection ??= new Map();
+    const chosen = rows.find((row) => row.index === st.selection.get(s.id)) || rows[0];
+    const inspector = h("div", {}, trialCard(chosen, s, prefix));
+    const controls = new Map();
+    selectTrial = (index) => {
+      const row = rows.find((item) => item.index === index);
+      if (!row) return;
+      st.selection.set(s.id, index);
+      controls.forEach((control, key) => control.setAttribute("aria-pressed", String(key === index)));
+      inspector.replaceChildren(trialCard(row, s, prefix));
+    };
+    const table = h("table", {},
+      h("thead", {}, h("tr", {}, ["Trial", "Perturbations", "Outcome", "Duration"].map((title) => h("th", {scope: "col"}, title)))),
+      h("tbody", {}, rows.map((row) => {
+        const control = h("button", {class: "btn btn-outline btn-sm", type: "button", "aria-pressed": String(row === chosen),
+          "aria-label": `Inspect trial ${row.index}`, onclick: () => selectTrial(row.index)}, String(row.index));
+        controls.set(row.index, control);
+        return h("tr", {}, h("td", {}, control), h("td", {}, describeParams(row, s)),
+          h("td", {}, outcomeChip(row.outcome, s.outcome_labels)), h("td", {}, row.seconds == null ? "—" : `${row.seconds} s`));
+      })));
+    trials.replaceChildren(h("div", {class: "suite-table suite-report-trials"}, table), inspector);
+  };
   fillTrials();
   const filter = h("input", { type: "checkbox", checked: st.onlyFailures });
   filter.onchange = () => { st.onlyFailures = filter.checked; fillTrials(); };
@@ -93,9 +127,10 @@ export function renderReport(root, s, { standalone = true } = {}) {
 
   const jump = (r) => {
     if (st.onlyFailures && r.success) { st.onlyFailures = false; filter.checked = false; fillTrials(); }
+    if (!standalone) selectTrial?.(r.index);
     const card = root.querySelector(`#${prefix}${r.index}`);
     if (!card) return;
-    card.scrollIntoView({ behavior: "smooth", block: "center" });
+    card.scrollIntoView({ block: "nearest" });
     if (standalone) history.replaceState(null, "", `#${prefix}${r.index}`);
   };
   let heat = null;
@@ -127,30 +162,39 @@ export function renderReport(root, s, { standalone = true } = {}) {
       box, rampLegend("Success rate"));
   }
 
+  const controls = h("div", { class: "rp-filter" }, h("h2", {}, "Trials"),
+    h("label", { class: "check", style: { margin: 0 } }, filter, "Only failures"));
+  const counts = countOutcomes(s.rows);
+  const summary = h("div", {class: "rp-campaign-summary"},
+    h("p", {}, `${counts.success || 0} successful · ${s.rows.filter((r) => !r.success && r.outcome !== "invalid" && r.outcome !== "aborted").length} unsuccessful · ${(counts.invalid || 0) + (counts.aborted || 0)} unevaluated trials`),
+    s.config.dry_run && h("p", {class: "muted"}, "Dream-1 outcome: Unevaluated. Only scripted replay was executed."),
+    !s.rows.some((row) => row.outcome !== "invalid" && row.outcome !== "aborted") &&
+      h("p", {class: "muted"}, "Success rate unavailable because no recorded trial received a verdict."));
   const started = new Date(s.started * 1000);
   root.replaceChildren(
     h("header", { class: `rp-head${standalone ? "" : " rp-head-embedded"}` },
       h("div", {},
         h("h1", {}, s.mode === "adaptive" ? `Breaking point: ${s.perturbation.label}` : s.mode === "sweep" ? s.perturbation.label : "Random perturbation mix"),
         h("div", { class: "rp-meta" },
+          h("span", {}, h("b", {}, `${s.done} of ${s.total}`), " trials recorded · ", ({done: "Completed", running: "Running", error: "Failed", stopped: "Stopped"})[s.state] || s.state),
           h("span", {}, "Task ", h("b", {}, `“${s.config.task}”`)),
           h("span", {}, "Policy ", h("b", {}, s.policy)),
-          h("span", {}, h("b", {}, `${s.done}/${s.total}`), " trials · ", s.state),
           h("span", {}, started.toLocaleString()),
           s.mode === "adaptive" ? h("span", {}, "Measure ", h("b", {}, s.analysis.measure.label), " · searched ", h("b", {}, `${strength(s.perturbation.neutral, s.perturbation)}–${strength(s.perturbation.max, s.perturbation)}`)) : s.mode === "sweep" ? h("span", {}, "Strengths ", h("b", {}, s.values.map((v) => strength(v, s.perturbation)).join(", "))) : null,
         )),
       h("div", { class: "rp-head-actions" },
-        downloadButtons(s.id),
+        historyControl,
+        standalone ? downloadButtons(s.id) : h("details", {class: "report-export"},
+          h("summary", {}, "Export"), h("div", {class: "export-items"}, downloadButtons(s.id))),
         h("a", { class: "btn small btn-outline", href: `${BASE}runs.html`, target: standalone ? null : "_blank" }, "All runs"),
         standalone ? h("a", { class: "btn small btn-outline", href: "/" }, "← Dashboard")
           : h("a", { class: "btn small btn-outline", href: `${BASE}report.html?id=${encodeURIComponent(s.id)}`, target: "_blank" }, "Full page ↗"))),
+    summary,
+    ...(!standalone ? [controls, trials] : []),
     h("div", { class: `rb-verdict ${a.verdict.breaking_point != null || a.verdict.most_harmful ? "bad" : ""}` }, a.verdict.text),
-    h("div", { class: "rp-grid" }, left, right),
-    ...(heat ? [heat] : []),
-    h("div", { class: "rp-filter" }, h("h2", {}, "Trials"),
-      h("label", { class: "check", style: { margin: 0 } }, filter, "Only failures"),
-      h("span", { class: "muted" }, "Video: overhead camera + both wrist cameras — exactly what the policy saw.")),
-    trials,
+    ...(s.rows.length ? [h("details", {open: standalone}, h("summary", {}, "Campaign diagnostics"),
+      h("div", { class: "rp-grid" }, left, right), heat)] : []),
+    ...(standalone ? [controls, trials] : []),
   );
   if (standalone && location.hash && !st.scrolled) {
     st.scrolled = true;

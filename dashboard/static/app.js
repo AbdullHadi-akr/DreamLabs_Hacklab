@@ -105,11 +105,43 @@ function setupViewer(camera) {
 
 function setupCameras(names) {
   const labels = { top: "Overhead", left: "Left wrist", right: "Right wrist" };
+  const dialog = $("camera-dialog");
+  const enlarged = $("camera-large");
+  dialog.addEventListener("close", () => enlarged.removeAttribute("src"));
   for (const name of names) {
-    const img = h("img", { src: `/stream/${name}.mjpg`, alt: name });
+    const label = labels[name] || name;
+    const img = h("img", { src: `/stream/${name}.mjpg`, alt: "" });
     img.onerror = () => setTimeout(() => (img.src = `/stream/${name}.mjpg?r=${Date.now()}`), 1500);
-    $("cams").append(h("div", { class: "cam" }, h("div", { class: "cam-inner" }, img, h("span", {}, labels[name] || name))));
+    $("cams").append(h("button", { type: "button", class: "cam", "aria-label": `Enlarge ${label} camera`,
+      onclick: () => {
+        $("camera-title").textContent = label;
+        enlarged.alt = `${label} camera feed`;
+        enlarged.src = img.src;
+        dialog.showModal();
+      } }, h("span", { class: "cam-inner" }, img, h("span", { class: "cam-label" }, label))));
   }
+}
+
+function setupViewportControls() {
+  const fullscreen = $("btn-fullscreen");
+  const orientation = $("btn-orientation");
+  const updateFullscreen = () => {
+    fullscreen.textContent = document.fullscreenElement ? "Exit fullscreen" : "Fullscreen";
+    fullscreen.setAttribute("aria-pressed", String(Boolean(document.fullscreenElement)));
+  };
+  fullscreen.onclick = async () => {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else await document.documentElement.requestFullscreen();
+    } catch (error) { log(`Fullscreen unavailable: ${error.message}`, "warn", "viewport"); }
+  };
+  orientation.onclick = () => {
+    const portrait = document.body.classList.toggle("orientation-portrait");
+    orientation.textContent = portrait ? "Landscape" : "Rotate";
+    orientation.setAttribute("aria-pressed", String(portrait));
+  };
+  document.addEventListener("fullscreenchange", updateFullscreen);
+  updateFullscreen();
 }
 
 // ---------------- Prompt bar ----------------
@@ -134,6 +166,11 @@ function setupTaskbar(state) {
   }
 }
 
+function runSource(run) {
+  const source = run.model === "offline" ? "Offline" : run.source === "robustness" ? "Robustness" : "Dream-1";
+  return run.label ? `${source} · ${run.label}` : source;
+}
+
 function updateControls(status) {
   const busy = status.running || status.queued > 0;
   for (const id of ["btn-run", "btn-demo", "btn-home"]) $(id).disabled = busy;
@@ -150,13 +187,18 @@ function updateControls(status) {
     $("status-sub").textContent = r.label || r.source;
     $("caption-label").textContent = offline ? "Offline · no API" : `Dream-1 · ${r.model}`;
     $("caption-task").textContent = `“${r.task}”`;
-    $("ri-state").textContent = "running";
+    $("run-heading").textContent = "Current run";
+    $("ri-result").textContent = "In progress";
+    $("ri-result").className = "";
+    $("ri-duration").textContent = r.started ? `${Math.max(0, Date.now() / 1000 - r.started).toFixed(1)} s` : "–";
+    $("ri-state").textContent = "Running";
     $("ri-task").textContent = r.task;
-    $("ri-source").textContent = r.source + (r.label ? ` · ${r.label}` : "");
+    $("ri-source").textContent = runSource(r);
     $("ri-steps").textContent = r.steps ?? 0;
     $("ri-requests").textContent = r.requests ?? 0;
     $("ri-rtt").textContent = r.last_rtt_s ? `${r.last_rtt_s.toFixed(2)} s` : "–";
   } else {
+    $("run-heading").textContent = "Last run";
     setPill("pill-run", status.queued ? "warn" : "ok", status.queued ? `${status.queued} queued` : "Ready");
     $("badge-run").hidden = true;
     $("status-text").textContent = status.queued ? `${status.queued} queued` : "Ready";
@@ -168,7 +210,15 @@ function updateControls(status) {
 
 // ---------------- RTT chart ----------------
 
-const rtts = [];
+let chartRun = null;
+function setChartRun(run) {
+  if (chartRun?.id === run?.id && chartRun?.rtts_s === run?.rtts_s) return;
+  if (chartRun?.id === run?.id && run?.rtts_s &&
+      run.rtts_s.length === chartRun.rtts_s?.length && run.rtts_s.every((v, i) => v === chartRun.rtts_s[i])) return;
+  chartRun = run;
+  drawRtt();
+}
+
 function drawRtt() {
   const canvas = $("rtt-chart");
   const dpr = window.devicePixelRatio || 1;
@@ -181,7 +231,13 @@ function drawRtt() {
   const color = (name) => css.getPropertyValue(name).trim();
   ctx.font = `12px ${color("--font-sans")}`;
   ctx.fillStyle = color("--ink-3");
-  if (!rtts.length) { ctx.fillText("No requests yet", 4, hgt / 2); return; }
+  const rtts = chartRun?.rtts_s || [];
+  const offline = chartRun?.offline || chartRun?.model === "offline";
+  $("rtt-scope").textContent = chartRun ? `Run #${chartRun.id} · ${offline ? "Offline" : "API RTT"}` : "Current run";
+  if (!rtts.length) {
+    ctx.fillText(offline ? "Offline run · no API requests" : chartRun ? "No requests yet" : "No active run", 4, hgt / 2);
+    return;
+  }
   const max = Math.max(1.5, ...rtts) * 1.15;
   const step = w / Math.max(1, rtts.length - 1);
   const y = (v) => hgt - (v / max) * (hgt - 4);
@@ -218,6 +274,7 @@ function setupEvents() {
     $("badge-time").textContent = `t = ${s.time.toFixed(1)} s`;
     setPill("pill-sim", s.status.error ? "bad" : "ok", s.status.error ? "Sim error" : "Simulation");
     updateControls(s.status);
+    setChartRun(s.status.run);
   });
   ev.on("log", (d) => log(d.message, d.level, d.source));
   ev.on("run.queued", (d) => log(`Queued: ${d.label || d.task}`, "info", d.source));
@@ -225,17 +282,22 @@ function setupEvents() {
     log(`Started: ${d.task} (${d.model})${d.label ? " · " + d.label : ""}`, "info", d.source);
     $("ri-result").textContent = "–";
     $("ri-result").className = "";
-    if (!d.offline) { rtts.length = 0; drawRtt(); }
+    if (chartRun?.id !== d.id) setChartRun({...d, rtts_s: []});
   });
   ev.on("run.cancelled", (d) => log(`Cancelled: ${d.label || d.task}`, "warn", d.source));
-  ev.on("run.reply", (d) => { rtts.push(d.rtt_s); if (rtts.length > 60) rtts.shift(); drawRtt(); });
   ev.on("run.ended", (d) => {
+    if (chartRun?.id === d.id) setChartRun(null);
     const r = d.result;
-    const success = r.success === true ? "✔ success" : r.success === false ? "✘ no success" : "–";
+    const success = r.success === true ? "Success" : r.success === false ? "Unsuccessful" : "Unevaluated";
+    $("run-heading").textContent = "Last run";
+    $("ri-task").textContent = d.task;
+    $("ri-source").textContent = runSource(d);
+    $("ri-duration").textContent = `${r.seconds.toFixed(1)} s`;
+    $("ri-rtt").textContent = r.requests ? $("ri-rtt").textContent : "–";
     $("ri-state").textContent = r.stop_reason;
     $("ri-steps").textContent = r.steps;
     $("ri-requests").textContent = r.requests;
-    $("ri-result").textContent = `${success} · ${r.seconds.toFixed(1)} s`;
+    $("ri-result").textContent = `${success}`;
     $("ri-result").className = r.success ? "good" : r.success === false ? "bad" : "";
     const level = r.stop_reason.startsWith("error") ? "error" : "info";
     log(`Ended: ${r.stop_reason} · ${success} · ${r.steps} steps · ${r.requests} requests`, level, d.source);
@@ -260,14 +322,14 @@ async function loadExtensions(extensions) {
 
   for (const ext of left) {
     tabs.append(h("button", { class: "tab", "data-id": ext.id, title: ext.description, onclick: () => activate(ext.id) },
-      h("span", {}, ext.icon), ext.title));
+      ext.title));
     const root = h("div", { class: "panel", "data-id": ext.id, hidden: true });
     panels.append(root);
     await mountPanel(ext, root);
   }
   for (const ext of right) {
     const root = h("div");
-    $("right-slot").append(h("section", { class: "card" }, h("h3", {}, `${ext.icon} ${ext.title}`), root));
+    $("right-slot").append(h("section", { class: "card" }, h("h3", {}, ext.title), root));
     await mountPanel(ext, root);
   }
   let saved = null;
@@ -301,8 +363,10 @@ async function main() {
   setPill("pill-key", state.has_api_key ? "ok" : "warn", state.has_api_key ? "API key" : "No API key");
   setupViewer(state.camera);
   setupCameras(state.cameras);
+  setupViewportControls();
   setupTaskbar(state);
   updateControls(state.status);
+  setChartRun(state.status.run);
   drawRtt();
   window.addEventListener("resize", drawRtt);
   await loadExtensions(state.extensions);
@@ -318,6 +382,22 @@ async function main() {
     await mountPanel(suite, $("test-suite-config"));
   }
 }
+
+window.addEventListener("dashboard:print-return", async () => {
+  core.events.connect();
+  for (const image of document.querySelectorAll("#main-view, #cams img")) {
+    if (image.src) image.src = `${image.src.split("?")[0]}?r=${Date.now()}`;
+  }
+  try {
+    const state = await request("GET", "/api/state");
+    core.sim = state.sim;
+    core.status = state.status;
+    updateControls(state.status);
+    setChartRun(state.status.run);
+  } catch (error) {
+    log(error.message, "warn", "print");
+  }
+});
 
 main().catch((error) => {
   console.error(error);

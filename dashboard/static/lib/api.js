@@ -42,6 +42,7 @@ export class EventHub {
     this.listeners = new Map();
     this.connected = false;
     this.ws = null;
+    this.latestEventTime = 0;
   }
 
   on(type, fn) {
@@ -59,14 +60,28 @@ export class EventHub {
   }
 
   connect() {
+    const previous = this.ws;
+    const replayCutoff = this.latestEventTime;
     const ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws`);
     this.ws = ws;
-    ws.onopen = () => { this.connected = true; this.dispatch({ type: "ws.open" }); };
-    ws.onmessage = (event) => this.dispatch(JSON.parse(event.data));
+    if (previous && previous.readyState < WebSocket.CLOSING) previous.close();
+    ws.onopen = () => {
+      if (this.ws !== ws) return;
+      this.connected = true;
+      this.dispatch({ type: "ws.open" });
+    };
+    ws.onmessage = (event) => {
+      if (this.ws !== ws) return;
+      const message = JSON.parse(event.data);
+      if (message.t <= replayCutoff) return;
+      this.latestEventTime = Math.max(this.latestEventTime, message.t || 0);
+      this.dispatch(message);
+    };
     ws.onclose = () => {
+      if (this.ws !== ws) return;
       if (this.connected) this.dispatch({ type: "ws.close" });
       this.connected = false;
-      setTimeout(() => this.connect(), 1500);
+      setTimeout(() => { if (this.ws === ws) this.connect(); }, 1500);
     };
   }
 

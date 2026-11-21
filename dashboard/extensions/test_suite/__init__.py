@@ -294,7 +294,7 @@ class TestSuite(Extension):
                     self.active = None
                     self.live = None
             self.ctx.emit("ended", {"id": report["id"], "state": report["state"], "total": report["total"],
-                                    "stats": summarize(report)["stats"]})
+                                    "stats": summarize(report)["stats"], "name": config.prompt})
 
     def shutdown(self):
         self.cancelled.set()

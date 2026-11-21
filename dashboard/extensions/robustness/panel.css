@@ -117,3 +117,6 @@ button.rb-cell:hover, button.rb-cell:focus-visible { outline: 2px solid var(--in
 .rb-tip-list div { display: flex; align-items: center; gap: 6px; }
 .rb-tip-list i { width: 9px; height: 9px; border-radius: 3px; flex: none; }
 .rb-downloads { display: flex; gap: 6px; flex-wrap: wrap; }
+
+.rp-head-actions .rb-history-row { flex-direction: row; flex-wrap: wrap; align-items: center; }
+.rp-head-actions .rb-history { width: auto !important; min-width: 0; }

@@ -131,6 +131,7 @@ class _CoreHook(Hooks):
     def on_reply(self, env, reply, rtt_s):
         self.worker.run_stats["requests"] += 1
         self.worker.run_stats["last_rtt_s"] = rtt_s
+        self.worker.run_stats["rtts_s"] = [*self.worker.run_stats["rtts_s"][-59:], rtt_s]
         rows = len(reply.get("q_l_chunk", []))
         self.worker.bus.emit("run.reply", {"id": self.request.id, "rtt_s": rtt_s, "rows": rows})
 
@@ -288,7 +289,7 @@ class SimWorker(threading.Thread):
         env = self.env
         self.stop_event.clear()
         self.current = request
-        self.run_stats = {"steps": 0, "requests": 0, "last_rtt_s": None, "started": time.time()}
+        self.run_stats = {"steps": 0, "requests": 0, "last_rtt_s": None, "rtts_s": [], "started": time.time()}
         info = {"id": request.id, "task": request.task, "model": "offline" if request.offline else request.model,
                 "offline": request.offline, "source": request.source, "label": request.label,
                 "prompt": request.prompt or request.task}

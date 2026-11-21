@@ -15,6 +15,7 @@ knocked off the table). Optionally records the three robot cameras as MP4.
 from __future__ import annotations
 
 from pathlib import Path
+from time import perf_counter
 
 import cv2
 import mujoco
@@ -85,6 +86,8 @@ class TrialMonitor(Hooks):
         self.success_at = None
         self.t0 = 0.0
         self.frames = 0
+        self.recording_seconds = 0.0
+        self.simulation_seconds = 0.0
         self.warnings0 = 0
         self.metrics: dict = {}
 
@@ -94,10 +97,13 @@ class TrialMonitor(Hooks):
         self.warnings0 = _unstable_count(env)
         self.start = {name: scene.position(env, name) for name in scene.OBJECTS}
         if self.video_path is not None:
+            started = perf_counter()
             try:
                 self.recorder = TrialRecorder(self.video_path)
             except Exception:
                 self.recorder = None
+            finally:
+                self.recording_seconds += perf_counter() - started
 
     def on_step(self, env, step, images):
         if not self.started:
@@ -123,21 +129,28 @@ class TrialMonitor(Hooks):
         if self.success_at is None and scene.is_in(env, self.obj, self.container):
             self.success_at = float(env.data.time) - self.t0
         if self.recorder is not None:
+            started = perf_counter()
             try:
                 self.recorder.add(images)
             except Exception:
                 self.recorder = None
+            finally:
+                self.recording_seconds += perf_counter() - started
 
     def should_stop(self, env):
         # A fallen target cannot be recovered: end the trial instead of paying for the rest of it.
         return "target fell off the table" if self.off_table else None
 
     def on_end(self, env, result):
+        self.simulation_seconds = max(0., float(env.data.time) - self.t0)
         if self.recorder is not None:
+            started = perf_counter()
             try:
                 self.frames = self.recorder.close()
             except Exception:
                 self.frames = 0
+            finally:
+                self.recording_seconds += perf_counter() - started
         success = result.success if result.success is not None else scene.is_in(env, self.obj, self.container)
         p, c = scene.position(env, self.obj), scene.position(env, self.container)
         radius, _ = scene.CONTAINER_SIZE[self.container]
