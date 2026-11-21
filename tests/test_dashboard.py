@@ -1,5 +1,6 @@
 """Dashboard tests without the API: server, streams, offline run, extensions (scene, robustness dry run)."""
 
+import threading
 import time
 import warnings
 
@@ -10,6 +11,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 from dashboard.app import create_app  # noqa: E402
 from dreamtool import scene  # noqa: E402
+from dreamtool.runner import RunResult  # noqa: E402
 
 
 def wait_idle(app, timeout=60):
@@ -71,6 +73,44 @@ def test_offline_run_and_busy_lock(client):
     wait_idle(app)
     ended = [m for m in app.state.bus.history if '"run.ended"' in m]
     assert ended and '"stop_reason": "stopped"' in ended[-1]
+
+
+def test_api_response_samples_do_not_carry_into_offline_run(client, monkeypatch):
+    from dashboard import simulation
+
+    release = threading.Event()
+    observed = threading.Event()
+
+    def mocked_runner(task, *, env, hooks, model, **_options):
+        for latency in (.2, .4):
+            for hook in hooks:
+                hook.on_reply(env, {"q_l_chunk": []}, latency)
+        observed.set()
+        release.wait(5)
+        return RunResult(task=task, model=model)
+
+    monkeypatch.setattr(simulation.runner, "run_task", mocked_runner)
+    worker = client.app_ref.state.sim
+    live = worker.run_task("mocked timed task")
+    try:
+        assert observed.wait(5)
+        assert client.get("/api/state").json()["status"]["run"]["rtts_s"] == [.2, .4]
+    finally:
+        release.set()
+        live.result(timeout=5)
+
+    client.post("/api/run", json={"task": "offline demo", "offline": True}).raise_for_status()
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        run = client.get("/api/state").json()["status"]["run"]
+        if run and run["model"] == "offline":
+            assert run["requests"] == 0 and run["rtts_s"] == [] and run["last_rtt_s"] is None
+            break
+        time.sleep(.05)
+    else:
+        pytest.fail("Offline run did not enter the execution monitor")
+    client.post("/api/stop")
+    wait_idle(client.app_ref)
 
 
 def test_stop_cancels_queued_run(client):

@@ -69,6 +69,7 @@ class Campaign:
         self.state = "running"
         self.current: dict | None = None
         self.started = time.time()
+        self.finished = None
         name = body.perturbation if body.mode != "random" else "random"
         self.id = f"{time.strftime('%Y%m%d-%H%M%S')}-{name}"
         self.dir = ext.ctx.data_dir / self.id
@@ -100,7 +101,7 @@ class Campaign:
             "id": self.id, "state": self.state, "mode": b.mode, "config": b.model_dump(),
             "target": {"object": self.target.obj, "container": self.target.container},
             "done": len(self.rows), "total": self.total, "current": self.current,
-            "started": self.started, "elapsed_s": round(time.time() - self.started, 1),
+            "started": self.started, "elapsed_s": round((self.finished or time.time()) - self.started, 1),
             "rows": self.rows, "outcome_labels": OUTCOMES,
             "policy": "scripted blind replay (dry run)" if b.dry_run else b.model,
         }
@@ -204,12 +205,14 @@ class Campaign:
             ctx.log(f"Robustness campaign error: {type(error).__name__}: {error}", "error")
         finally:
             self.current = None
+            self.finished = time.time()
             self.save()
             verdict = self.summary()["analysis"]["verdict"]["text"]
             ctx.log(f"Robustness {self.state}: {len(self.rows)}/{self.total} trials. {verdict}")
             ctx.emit("progress", self.summary())
 
     def _trial(self, index, entry):
+        trial_started = time.monotonic()
         ctx, body = self.ext.ctx, self.body
         seed = [body.seed, entry["trial"]]
         items = self._items(entry, np.random.default_rng([*seed, 7919]))
@@ -231,6 +234,7 @@ class Campaign:
 
         # Set the scene up first (on the sim thread) and only start the run if it is a fair trial:
         # an invalid setup must neither cost credits nor count as a model failure.
+        setup_started = time.monotonic()
         try:
             effects, row["redraws"] = ctx.sim.call(
                 lambda env: prepare(env, env_items, self.target, seed)).result(timeout=30)
@@ -240,6 +244,7 @@ class Campaign:
             ctx.log(f"Trial {number}: no valid setup found ({error}), skipped.", "warn")
             self.rows.append(row)
             return
+        setup_seconds = time.monotonic() - setup_started
 
         def teardown(env):
             for effect in reversed(effects):
@@ -264,6 +269,11 @@ class Campaign:
             info={p.id: e.info for (p, _), e in zip(env_items, effects) if e.info},
             video=video.name if video is not None and video.is_file() and monitor.frames else None,
         )
+        if body.dry_run:
+            row["timing"] = dict(setup_wall_s=round(setup_seconds, 3), replay_loop_wall_s=round(result.seconds, 3),
+                                 simulated_s=round(monitor.simulation_seconds, 3),
+                                 recording_wall_s=round(monitor.recording_seconds, 3),
+                                 trial_wall_s=round(time.monotonic() - trial_started, 3))
         m = dict(monitor.metrics) or {"outcome": "aborted", "progress": None, "success": False}
         row.update(outcome=m.pop("outcome"), progress=m.pop("progress"), success=m.pop("success"), metrics=m)
         if "note" in m:

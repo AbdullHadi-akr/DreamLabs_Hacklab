@@ -1,4 +1,5 @@
 import { logPanel } from "/static/lib/log_panel.js";
+import { request } from "/static/lib/api.js";
 import { progressChart, runComparison, runDisplacement, runSelector, snapshotEntries } from "./run_analysis.js";
 
 export async function mount(root, api) {
@@ -22,7 +23,7 @@ export async function mount(root, api) {
   const status = (key) => titles[key] || key;
   const secondsText = (value) => value == null ? "—" : `${value.toFixed(1)} s`;
   const percent = (value) => value == null ? "Unavailable" : `${(100 * value).toFixed(1)}%`;
-  const outcome = (run) => run.task_success == null ? "Not evaluated" : run.task_success ? "Success" : "Unsuccessful";
+  const outcome = (run) => run.task_success == null ? "Unevaluated" : run.task_success ? "Success" : "Unsuccessful";
   const safetyOutcome = (value) => ({pass: "Pass", fail: "Violation", not_evaluated: "Not Evaluated"})[value] || "Not Evaluated";
   const scenarios = {reach: "Object offset", visibility: "Reduced visibility", combined: "Combined disturbance", baseline: "Baseline"};
   const signed = (value, unit) => `${value > 0 ? "+" : ""}${value}${unit}`;
@@ -44,12 +45,63 @@ export async function mount(root, api) {
     ].filter(Boolean).join(" · ") || "Unavailable";
   }};
   let activeId, selected, displayed, revision = 0, visible = false;
+  let view = "build";
+  let reportType = "";
+  const reportRuns = new Map();
+  const buildTab = find("suite-build-tab");
+  const reportTab = find("suite-report-tab");
+  const preview = find("simulation-preview");
   const latest = new Map();
   const logStates = new Map();
   const compareStates = new Map();
   const runStripScroll = new Map();
+  const printMedia = window.matchMedia?.("print");
+  let printPending = false;
+  function resumeAfterPrint() {
+    if (!printPending) return;
+    printPending = false;
+    window.dispatchEvent(new Event("dashboard:print-return"));
+  }
+  function printReport() {
+    printPending = true;
+    try { window.print(); }
+    catch (error) { printPending = false; showError(error); }
+  }
+  window.addEventListener("afterprint", resumeAfterPrint);
+  printMedia?.addEventListener("change", (event) => { if (!event.matches) resumeAfterPrint(); });
+  window.addEventListener("focus", () => { if (!printMedia?.matches) resumeAfterPrint(); });
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden && !printMedia?.matches) resumeAfterPrint();
+  });
+  window.addEventListener("dashboard:print-return", () => {
+    refreshRobustness();
+    if (visible) refresh().catch(showError);
+  });
   const notified = new Set();
   const loadedAt = Date.now() / 1000;
+
+  function showReportType() {
+    reportKind.value = reportType;
+    regularReport.hidden = !!reportType;
+    for (const [id, element] of Object.entries(extensionReports)) element.hidden = id !== reportType;
+    extensions.find((ext) => ext.id === reportType)?.root.dispatchEvent(new Event("suite-show-report"));
+  }
+
+  function setView(next) {
+    view = next;
+    const report = visible && view === "report";
+    for (const [tab, active] of [[buildTab, !report], [reportTab, report]]) {
+      tab.classList.toggle("active", active);
+      tab.setAttribute("aria-pressed", String(active));
+    }
+    root.hidden = !visible || report;
+    results.hidden = !report;
+    find("preview-summary").hidden = !report;
+    preview.open = !report;
+    document.querySelector(".layout").classList.toggle("suite-report-view", report);
+    if (report) showReportType();
+    renderLive();
+  }
 
   function switchWorkspace(active, refreshReport = true) {
     visible = active;
@@ -57,30 +109,35 @@ export async function mount(root, api) {
       button.setAttribute("aria-pressed", String(value));
       button.classList.toggle("active", value);
     }
-    for (const element of [root, results, monitor]) element.hidden = !active;
+    monitor.hidden = !active;
+    find("suite-view-nav").hidden = !active;
     for (const id of ["dashboard-tools", "taskbar", "right-slot"]) find(id).hidden = active;
     document.querySelector(".layout").classList.toggle("test-suite-layout", active);
-    if (active && refreshReport) refresh().catch(showError);
+    setView(view);
+    if (active) {
+      refreshRobustness();
+      if (refreshReport) refresh().catch(showError);
+    }
   }
 
   const modes = {
-    quick: ["Quick Test", "Single task", "▶"], repeated: ["Repeated Runs", "Reliability", "↻"],
-    sweep: ["Parameter Sweep", "Scene combinations", "▦"], safety: ["Safety Stress Test", "Challenging scenes", "◇"],
-    ab: ["A/B Comparison", "Matched prompts", "⇄"], reproduction: ["Failure Reproduction", "Replay a saved run", "↶"],
+    quick: ["Quick Test", "Single task"], repeated: ["Repeated Runs", "Reliability"],
+    sweep: ["Parameter Sweep", "Scene combinations"], safety: ["Safety Stress Test", "Challenging scenes"],
+    ab: ["A/B Comparison", "Matched prompts"], reproduction: ["Failure Reproduction", "Replay a saved run"],
   };
   const mode = { value: "quick" };
-  const modeButtons = Object.entries(modes).map(([key, [name, description, icon]]) => [
-    key, button([h("span", {"aria-hidden": "true"}, icon), h("strong", {}, name), h("small", {}, description)], () => {
+  const modeButtons = Object.entries(modes).map(([key, [name, description]]) => [
+    key, button([h("strong", {}, name), h("small", {}, description)], () => {
       mode.value = key;
       updatePlan();
       if (key === "reproduction") loadFailures().catch(showError);
     }, {class: "suite-mode", "aria-pressed": "false"}),
   ]);
-  // Other extensions can add test modes (slot "suite"), e.g. the Robustness Lab: one tile per mode. Selecting such a
-  // tile shows that extension's own panel instead of this form and its report instead of this report.
+  // Other extensions can add builder modes. Report selection is independent.
   const extensions = api.workspace?.extensions() || [];
+  const robustnessRoot = extensions.find((ext) => ext.id === "robustness")?.root;
   const extensionTiles = extensions.flatMap((ext) => (ext.suite_modes || []).map((m) => [
-    `${ext.id}:${m.id}`, button([h("span", {"aria-hidden": "true"}, m.icon || ext.icon), h("strong", {}, m.title), h("small", {}, m.subtitle)], () => {
+    `${ext.id}:${m.id}`, button([h("strong", {}, m.title), h("small", {}, m.subtitle)], () => {
       mode.value = `${ext.id}:${m.id}`;
       updatePlan();
     }, {class: "suite-mode", "aria-pressed": "false", "aria-label": `${m.title}: ${m.subtitle}`}),
@@ -90,6 +147,7 @@ export async function mount(root, api) {
     [ext.id, h("div", { id: `${ext.id}-wide-report`, class: "suite-extension-report", hidden: true })]));
   const extensionOf = (key) => extensions.find((ext) => key.startsWith(`${ext.id}:`));
   const modeGrid = h("div", {class: "suite-modes", role: "group", "aria-label": "Select test mode"},
+    h("div", {class: "suite-mode-group"}, "Standard tests"),
     modeButtons.filter(([key]) => !key.includes(":")).map(([, node]) => node),
     extensions.flatMap((ext) => [h("div", { class: "suite-mode-group" }, ext.title),
       ...extensionTiles.filter(([key]) => key.startsWith(`${ext.id}:`)).map(([, node]) => node)]));
@@ -132,27 +190,46 @@ export async function mount(root, api) {
   const advanced = h("details", {}, h("summary", {}, "Advanced settings"), h("div", { class: "suite-form" },
     label("Maximum task duration (s)", duration), label("Maximum API requests per run", requests), label("Random seed", seed),
     label("Custom placement goal (optional)", goal), label("Object to move", object), label("Dream-1 model ID", model),
-    sweepInputs, checkbox("Record camera video", record), checkbox("Dry run (setup and telemetry only)", dry)));
+    sweepInputs, checkbox("Record camera video", record)));
   const plan = h("p", { class: "muted", role: "status" });
   const errorMessage = h("p", { role: "alert", hidden: true });
-  const submit = h("button", { type: "submit", class: "btn btn-outline" }, "Start campaign");
-  const stop = button("Stop", () => control("stop"), { disabled: true, title: "Stop the current run and end the campaign" });
-  const cancel = button("Cancel pending", () => control("cancel"), { disabled: true, title: "Finish the current run and cancel pending runs" });
+  const submit = h("button", { type: "submit", class: "btn primary" }, "Start campaign");
+  const stop = button("Stop", () => control("stop"), { hidden: true, disabled: true, title: "Stop the current run and end the campaign" });
+  const cancel = button("Cancel pending", () => control("cancel"), { hidden: true, disabled: true, title: "Finish the current run and cancel pending runs" });
+  const dryField = checkbox("Dry run", dry);
   const form = h("form", { class: "suite-form" }, taskField, candidateField, repeatField, variation, stressField, failedField,
-    advanced, plan, h("div", { class: "suite-actions" }, submit, stop, cancel), errorMessage);
+    advanced, h("div", {class: "campaign-actions"}, dryField, plan, errorMessage,
+      h("div", { class: "suite-actions" }, submit, stop, cancel)));
   root.append(h("h2", { class: "pixel" }, "Test builder"), modeGrid, form, ...extensions.map((ext) => ext.root));
 
   const history = h("select", { "aria-label": "Campaign history" });
   results.tabIndex = -1;
   const content = h("div");
-  const reportHead = h("div", { class: "section-head" }, h("h2", { class: "pixel" }, "Test report"), history);
-  results.append(reportHead, content, ...Object.values(extensionReports));
+  const exportItems = h("div", {class: "export-items"});
+  const exports = h("details", {class: "report-export", hidden: true}, h("summary", {}, "Export"), exportItems);
+  const reportKind = h("select", {"aria-label": "Report type"}, h("option", {value: ""}, "Standard tests"),
+    extensions.map((ext) => h("option", {value: ext.id}, ext.title)));
+  const reportHead = h("div", { class: "section-head report-heading" }, h("h2", {}, "Test reports"), reportKind);
+  const campaignTitle = h("h3", {}, "Campaign");
+  const regularReport = h("div", {},
+    h("div", {class: "section-head report-heading"}, campaignTitle, h("div", {class: "report-tools"}, history, exports)),
+    content);
+  results.append(reportHead, regularReport, ...Object.values(extensionReports));
+  reportKind.addEventListener("change", () => { reportType = reportKind.value; showReportType(); });
   const liveTask = h("p");
   const liveStatus = h("p", { role: "status" });
   const elapsed = h("p", { class: "muted" });
   const liveProgress = h("progress", { max: 1, value: 0, "aria-label": "Campaign progress" });
+  const monitorStop = button("Stop", async () => {
+    if (current) return control("stop");
+    if (!robustnessCampaign) return;
+    try { await request("POST", "/api/ext/robustness/stop"); }
+    catch (error) { showError(error); }
+  });
+  const monitorCancel = button("Cancel pending", () => control("cancel"));
+  const monitorActions = h("div", {class: "suite-actions monitor-actions", hidden: true}, monitorStop, monitorCancel);
   monitor.append(h("div", { class: "section-head" }, h("h2", { class: "pixel" }, "Test execution")),
-    liveTask, liveStatus, elapsed, liveProgress);
+    liveTask, liveStatus, elapsed, liveProgress, monitorActions);
   let current;
 
   function showError(error) {
@@ -178,10 +255,8 @@ export async function mount(root, api) {
     const external = extensionOf(mode.value);
     for (const [key, node] of modeButtons) node.setAttribute("aria-pressed", String(key === mode.value));
     form.hidden = Boolean(external);
-    reportHead.hidden = content.hidden = Boolean(external);
     for (const ext of extensions) {
       ext.root.hidden = ext !== external;
-      extensionReports[ext.id].hidden = ext !== external;
     }
     if (external) {
       external.root.dispatchEvent(new CustomEvent("suite-mode", { detail: mode.value.slice(external.id.length + 1) }));
@@ -194,7 +269,6 @@ export async function mount(root, api) {
     const repeatsEnabled = sweep || paired || mode.value === "repeated";
     positionValue.textContent = `${position.value} cm`;
     cameraValue.textContent = `${camera.value}°`;
-    for (const [key, node] of modeButtons) node.setAttribute("aria-pressed", String(key === mode.value));
     repeatField.firstChild.textContent = paired ? "Paired scenarios" : sweep ? "Repetitions per combination" : "Repetitions";
     [repeatField.hidden, repeats.disabled] = [!repeatsEnabled, !repeatsEnabled];
     [candidateField.hidden, candidate.disabled] = [!paired, !paired];
@@ -203,6 +277,8 @@ export async function mount(root, api) {
     [advanced.hidden, variation.hidden, stressField.hidden] = [replay, !repeatsEnabled, !safety];
     variation.disabled = !repeatsEnabled;
     for (const input of [duration, requests, seed, model, goal, object, record, dry]) input.disabled = replay;
+    dryField.hidden = replay;
+    const execution = dry.checked ? "Dry run · Setup and telemetry" : "Live API";
     object.parentElement.hidden = mode.value === "quick";
     seed.parentElement.hidden = !repeatsEnabled;
     sweepInputs.hidden = !sweep;
@@ -213,8 +289,8 @@ export async function mount(root, api) {
         const scenarios = stressChoices.filter(([, , input]) => input.checked).length;
         if (safety && scenarios === 0) stressChoices[0][2].setCustomValidity("Select a stress scenario.");
         plan.textContent = replay ? "One replay with the saved scene configuration."
-          : safety ? `${scenarios * 2} stress runs, two directions per scenario${baseline.checked ? ", plus one baseline run" : ""}.`
-          : "One run from the current scene.";
+          : safety ? `${scenarios * 2 + Number(baseline.checked)} trials · ${execution}. Two directions per scenario${baseline.checked ? ", plus a baseline" : ""}.`
+          : `1 trial · ${execution}`;
         return;
       }
       const count = Number(repeats.value);
@@ -222,9 +298,9 @@ export async function mount(root, api) {
         (values(tilts)?.length || (Number(camera.value) ? 2 : 1)) * (values(lights)?.length || 1) : 1;
       const total = n * count * (paired ? 2 : 1);
       if (total > 100) repeats.setCustomValidity("Reduce the campaign to 100 executions or fewer.");
-      plan.textContent = sweep ? `${n} scene combinations × ${count} repetitions = ${total} executions (max 100).`
-        : paired ? `${count} pairs × 2 prompts = ${total} executions (max 100).`
-        : `${total} task executions. Each run samples one scene from the selected ranges.`;
+      plan.textContent = sweep ? `${total} trials · ${execution}. ${n} scene combinations × ${count} repetitions (max 100).`
+        : paired ? `${total} trials · ${execution}. ${count} pairs × 2 prompts (max 100).`
+        : `${total} trials · ${execution}`;
     } catch (error) {
       repeats.setCustomValidity(error.message);
       plan.textContent = error.message;
@@ -266,6 +342,7 @@ export async function mount(root, api) {
       input.value = list?.join(", ") || "";
     }
     updatePlan();
+    setView("build");
   }
 
   form.addEventListener("submit", async (event) => {
@@ -294,6 +371,7 @@ export async function mount(root, api) {
         selected = (await api.post("/start", config)).id;
       }
       displayed = null;
+      reportType = "";
       await refresh();
     } catch (error) { submit.disabled = Boolean(activeId); showError(error); }
   });
@@ -444,12 +522,20 @@ export async function mount(root, api) {
       }, { disabled: Boolean(activeId) || report.config.reset === false }));
   }
 
+  const campaignState = (state) => ({done: "Completed", running: "Running", stopped: "Stopped",
+    cancelled: "Cancelled", error: "Failed"})[state] || state;
+
   function render(report) {
     const base = `${path}/reports/${report.id}`;
     const stats = report.stats;
     const runs = report.trials;
+    const runButtons = new Map();
     const selector = runs.length > 0 && runSelector(h, runs, displayed, describe, (run) => {
       displayed = run.number;
+      reportRuns.set(report.id, run.number);
+      for (const [number, control] of runButtons) {
+        control.setAttribute("aria-pressed", String(number === displayed));
+      }
       return inspect(report, run);
     });
     if (!compareStates.has(report.id)) compareStates.set(report.id, {});
@@ -462,11 +548,11 @@ export async function mount(root, api) {
       inspector.focus({ preventScroll: true });
       inspector.scrollIntoView({ block: "nearest" });
     }
-    const summary = h("section", {}, h("h3", {}, "Campaign summary"), h("p", {}, report.config.prompt),
-      h("p", {}, `${report.state} · ${stats.trials} of ${report.total} runs recorded`),
+    const summary = h("section", {class: "campaign-summary", "aria-label": "Campaign summary"},
+      h("p", {}, `${campaignState(report.state)} · ${stats.trials} of ${report.total} runs recorded`),
       h("p", {}, `${stats.successes} successful · ${stats.failures} unsuccessful · ${stats.unevaluated} unevaluated`),
       h("p", {}, stats.evaluated ? `Evaluated success rate ${percent(stats.success_rate)} · Coverage ${percent(stats.coverage)}`
-        : `Success rate unavailable. ${stats.unevaluated} runs have no automatic verdict.`),
+        : report.config.dry_run ? "Success rate unavailable because this dry run checks setup and telemetry." : "Success rate unavailable because no run received a task verdict."),
       Object.entries(report.reasons).sort((a, b) => b[1] - a[1]).map(([reason, count]) => {
         const first = report.trials.find((run) => run.failure_reason === reason);
         return h("p", { class: "suite-reason" }, h("span", {}, `${count} × ${reason}`),
@@ -484,12 +570,16 @@ export async function mount(root, api) {
         h("p", {}, `${status(key)} durations: ${times.map(secondsText).join(", ")}`)),
       h("p", {}, `${stats.requests} API requests · Mean response latency ${secondsText(stats.mean_rtt)}`),
       h("p", { class: "muted" }, "Task time includes observation warm-up and API waits. Queuing, reset, final evaluation and recording cleanup are excluded. The API count includes SDK inference calls that failed."));
-    const table = h("div", { class: "suite-table" }, h("table", {},
+    const table = h("div", { class: "suite-table suite-report-trials" }, h("table", {},
       h("thead", {}, h("tr", {}, ["Run", "Execution", "Outcome", "Duration", "Reason"].map((name) => h("th", { scope: "col" }, name)))),
-      h("tbody", {}, report.trials.map((run) => h("tr", {},
-        h("td", {}, button(String(run.number), () => openRun(run), { "aria-label": `Inspect run ${run.number}` })),
-        h("td", {}, status(run.execution_status)), h("td", {}, outcome(run)),
-        h("td", {}, secondsText(run.task_duration_seconds)), h("td", {}, run.failure_reason || "—"))))));
+      h("tbody", {}, report.trials.map((run) => {
+        const control = button(String(run.number), () => openRun(run), { "aria-label": `Inspect run ${run.number}`,
+          "aria-pressed": String(run.number === displayed) });
+        runButtons.set(run.number, control);
+        return h("tr", {}, h("td", {}, control), h("td", {}, status(run.execution_status)),
+          h("td", {}, outcome(run)), h("td", {}, secondsText(run.task_duration_seconds)),
+          h("td", {}, run.failure_reason || "—"));
+      }))));
     const latency = report.trials.flatMap((run) => run.rtts_s || []);
     const chartItems = [
       bars("Task duration per run", report.trials.filter((run) => run.task_duration_seconds != null)
@@ -534,6 +624,7 @@ export async function mount(root, api) {
       Number.isFinite(displacement) && h("p", {}, `Final ${targetObject} position differed by ${(100 * displacement).toFixed(1)} cm.`),
       button("View original report", () => {
         selected = replay.campaign;
+        reportRuns.set(replay.campaign, replay.number);
         displayed = replay.number;
         refresh().catch(showError);
       }),
@@ -594,12 +685,14 @@ export async function mount(root, api) {
     if (!logStates.has(report.id)) logStates.set(report.id, {});
     const campaignLog = logPanel("Execution log", logStates.get(report.id));
     campaignLog.update([...report.logs].sort((a, b) => (a.at || 0) - (b.at || 0)));
-    content.replaceChildren(summary, config, timing, diagnostics, h("div", { class: "suite-actions suite-no-print" },
-      download(`${base}/export/json`, "JSON"), download(`${base}/export/csv`, "CSV"),
-      button("Print / PDF", () => window.print()), button("Load configuration", () => load(report.config))),
-      ...[comparison, reproduction, safety, sensitivity].filter(Boolean),
-      stats.trials > 0 ? table : h("p", {class: "muted"}, "No runs recorded yet."),
-      ...[selector && selector.element, compare, stats.trials > 0 && report.config.mode !== "quick" && charts].filter(Boolean),
+    campaignTitle.textContent = report.config.prompt;
+    exports.hidden = false;
+    exportItems.replaceChildren(download(`${base}/export/json`, "JSON"), download(`${base}/export/csv`, "CSV"),
+      button("Print / PDF", () => { exports.open = false; printReport(); }));
+    content.replaceChildren(summary, stats.trials > 0 ? table : h("p", {class: "muted"}, "No runs recorded yet."),
+      ...[selector && selector.element, compare, comparison, reproduction, safety, sensitivity, charts].filter(Boolean),
+      h("details", {}, h("summary", {}, "Campaign diagnostics"), config, timing, diagnostics,
+        button("Load configuration", () => load(report.config), {class: "btn btn-outline btn-sm suite-no-print"})),
       campaignLog.panel);
     if (selector) {
       selector.strip.scrollLeft = runStripScroll.get(report.id) || 0;
@@ -607,12 +700,59 @@ export async function mount(root, api) {
     }
   }
 
+  function completionBanner(id, type, title, summary, failed, open) {
+    const notice = h("article", {class: `campaign-banner${failed ? " error" : ""}`,
+      "data-report-type": type, "data-campaign-id": id},
+      h("div", {}, h("strong", {}, title), h("p", {}, summary)),
+      h("div", {class: "suite-actions"}, button("View report", async () => {
+        try {
+          await open();
+          results.focus({preventScroll: true});
+          results.scrollIntoView({block: "start"});
+          notice.remove();
+        } catch (error) { showError(error); }
+      }), button("Dismiss", () => notice.remove())));
+    find("campaign-notices").append(notice);
+  }
+
+  let robustnessCampaign = null;
+  let robustnessRevision = 0;
+  function updateRobustness(campaign) {
+    robustnessRevision++;
+    robustnessCampaign = campaign?.state === "running" ? campaign : null;
+    if (visible) renderLive();
+  }
+
+  async function refreshRobustness() {
+    if (!robustnessRoot) return;
+    const requested = ++robustnessRevision;
+    try {
+      const campaign = await request("GET", "/api/ext/robustness/status");
+      if (requested === robustnessRevision) updateRobustness(campaign);
+    } catch (error) {
+      console.error("Could not refresh the Robustness campaign status", error);
+    }
+  }
+
   function renderLive() {
+    monitorActions.hidden = view !== "report" || !(current || robustnessCampaign);
+    monitorCancel.hidden = !current;
+    if (!current && robustnessCampaign) {
+      const {mode, config, done, total, current: trial, started} = robustnessCampaign;
+      const name = ({adaptive: "Breaking Point", sweep: "Robustness Sweep", random: "Random Mix"})[mode] || "Robustness";
+      liveTask.textContent = trial?.index > done ? trial.prompt : config.task;
+      liveStatus.textContent = `${name} · Trial ${Math.min(total, Math.max(done + 1, trial?.index || 0))} of ${total}${config.dry_run ? " · Dry run" : ""}`;
+      elapsed.textContent = `Elapsed ${secondsText(Math.max(0, Date.now() / 1000 - started))}`;
+      liveProgress.hidden = false;
+      liveProgress.max = total;
+      liveProgress.value = done;
+      return;
+    }
     const event = activeId && (latest.get(activeId) || current?.live);
     liveTask.textContent = event?.task || current?.config.prompt || "";
-    liveStatus.textContent = current ? (event ? `Run ${event.trial} of ${event.total} · ${status(event.status)}`
+    liveStatus.textContent = current ? (event ? `Trial ${event.trial} of ${event.total} · ${status(event.status)}`
       : `${current.completed} of ${current.total} runs recorded`) : "No campaign running";
-    elapsed.textContent = event?.status === "running" ? `Elapsed ${secondsText(Math.max(0, Date.now() / 1000 - event.at))}` : "";
+    elapsed.textContent = current?.created ? `Elapsed ${secondsText(Math.max(0, Date.now() / 1000 - current.created))}` : "";
     liveProgress.hidden = !current;
     if (current) { liveProgress.max = current.total; liveProgress.value = current.completed; }
   }
@@ -628,6 +768,7 @@ export async function mount(root, api) {
       latest.set(activeId, current.live);
     }
     submit.disabled = Boolean(current);
+    stop.hidden = cancel.hidden = !current;
     stop.disabled = !current;
     cancel.disabled = !current;
     renderLive();
@@ -637,7 +778,9 @@ export async function mount(root, api) {
     if (!selected) { content.textContent = "Start a campaign to see results."; return; }
     history.value = selected;
     const report = await api.get(`/reports/${selected}`);
-    if (request === revision) render(report);
+    if (request !== revision) return;
+    displayed = reportRuns.get(report.id) ?? displayed;
+    render(report);
   }
 
   history.addEventListener("change", () => { selected = history.value; displayed = null; refresh().catch(showError); });
@@ -645,31 +788,56 @@ export async function mount(root, api) {
   for (const name of ["trial", "ended"]) api.on(name, () => { if (visible) refresh().catch(showError); });
   api.on("ended", (event, envelope) => {
     if (!event.stats || !["done", "stopped", "cancelled", "error"].includes(event.state) ||
-        notified.has(event.id) || (envelope?.t < loadedAt && event.id !== activeId && event.id !== selected)) return;
+        notified.has(event.id) || envelope?.t < loadedAt) return;
     notified.add(event.id);
     const {trials, successes, failures, unevaluated} = event.stats;
     const title = {done: "Test Campaign Complete", stopped: "Campaign Stopped", cancelled: "Campaign Cancelled",
       error: "Campaign Failed"}[event.state];
-    const notice = h("article", {class: `toast ${event.state === "error" ? "error" : ""}`},
-      h("strong", {}, title),
-      h("p", {}, `${trials} of ${event.total} runs recorded · ${successes} successful · ${failures} unsuccessful · ${unevaluated} unevaluated`),
-      h("div", {class: "suite-actions"},
-        button("View Report", async () => {
-          selected = event.id;
-          displayed = null;
-          switchWorkspace(true, false);
-          try {
-            await refresh();
-            results.focus({preventScroll: true});
-            results.scrollIntoView({block: "start"});
-            notice.remove();
-          } catch (error) { showError(error); }
-        }), button("Dismiss", () => notice.remove())));
-    find("campaign-notices").append(notice);
+    completionBanner(event.id, "test-suite", event.name ? `${event.name} · ${title}` : title,
+      `${trials} of ${event.total} runs recorded · ${successes} successful · ${failures} unsuccessful · ${unevaluated} unevaluated`,
+      event.state === "error", async () => {
+        selected = event.id;
+        reportType = "";
+        view = "report";
+        displayed = null;
+        switchWorkspace(true, false);
+        await refresh();
+      });
   });
-  api.onCore("ws.open", () => { if (visible) refresh().catch(showError); });
-  window.setInterval(() => { if (visible && activeId) renderLive(); }, 250);
+  robustnessRoot?.addEventListener("suite-campaign-started", (event) => updateRobustness(event.detail));
+  api.onCore("ext.robustness.progress", (campaign, envelope) => {
+    updateRobustness(campaign);
+    if (!["done", "stopped", "error"].includes(campaign.state) || notified.has(campaign.id) ||
+        !envelope || envelope.t < loadedAt) return;
+    notified.add(campaign.id);
+    const successes = campaign.rows.filter((row) => row.success).length;
+    const unevaluated = campaign.rows.filter((row) => ["invalid", "aborted"].includes(row.outcome)).length;
+    completionBanner(campaign.id, "robustness", `${campaign.config.task} · ${campaignState(campaign.state)}`,
+      `${campaign.done} of ${campaign.total} trials recorded · ${successes} successful · ${campaign.done - successes - unevaluated} unsuccessful · ${unevaluated} unevaluated${campaign.config.dry_run ? " · Scripted replay" : ""}`,
+      campaign.state === "error", () => {
+        reportType = "robustness";
+        view = "report";
+        switchWorkspace(true, false);
+        robustnessRoot?.dispatchEvent(new CustomEvent("suite-open-report", {detail: campaign.id}));
+      });
+  });
+  api.onCore("ext.robustness.trial", (trial) => {
+    if (robustnessCampaign) {
+      updateRobustness({...robustnessCampaign, current: trial});
+    } else if (visible) {
+      refreshRobustness();
+    }
+  });
+  api.onCore("ws.open", () => {
+    if (visible) {
+      refreshRobustness();
+      refresh().catch(showError);
+    }
+  });
+  window.setInterval(() => { if (visible && (activeId || robustnessCampaign)) renderLive(); }, 250);
   suite.hidden = false;
+  buildTab.addEventListener("click", () => setView("build"));
+  reportTab.addEventListener("click", () => setView("report"));
   suite.addEventListener("click", () => switchWorkspace(true));
   dashboard.addEventListener("click", () => switchWorkspace(false));
 }

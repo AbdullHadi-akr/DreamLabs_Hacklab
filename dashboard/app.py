@@ -162,18 +162,25 @@ def create_app() -> FastAPI:
 
     @app.get("/stream/{name}.mjpg")
     async def stream(name: str):
-        if name != "main" and name not in CAMERAS:
+        if name not in ("main", "main-teleop") and name not in CAMERAS:
             raise HTTPException(404)
 
         async def frames():
-            last = -1
-            while not closing.is_set():
-                frame = worker.frames.get(name)
-                if frame and frame[0] != last:
-                    last = frame[0]
-                    yield b"--frame\r\nContent-Type: image/jpeg\r\nContent-Length: %d\r\n\r\n%s\r\n" % (
-                        len(frame[1]), frame[1])
-                await asyncio.sleep(1 / (MAIN_FPS + 5))
+            teleop = name == "main-teleop"
+            last = worker.frames.get(name, (-1,))[0] if teleop else -1
+            if teleop:
+                worker.teleop_viewers += 1
+            try:
+                while not closing.is_set():
+                    frame = worker.frames.get(name)
+                    if frame and frame[0] != last:
+                        last = frame[0]
+                        yield b"--frame\r\nContent-Type: image/jpeg\r\nContent-Length: %d\r\n\r\n%s\r\n" % (
+                            len(frame[1]), frame[1])
+                    await asyncio.sleep(1 / (MAIN_FPS + 5))
+            finally:
+                if teleop:
+                    worker.teleop_viewers -= 1
 
         return StreamingResponse(frames(), media_type="multipart/x-mixed-replace; boundary=frame",
                                  headers={"Cache-Control": "no-store"})

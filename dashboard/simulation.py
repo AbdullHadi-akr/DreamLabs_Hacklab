@@ -131,6 +131,7 @@ class _CoreHook(Hooks):
     def on_reply(self, env, reply, rtt_s):
         self.worker.run_stats["requests"] += 1
         self.worker.run_stats["last_rtt_s"] = rtt_s
+        self.worker.run_stats["rtts_s"] = [*self.worker.run_stats["rtts_s"][-59:], rtt_s]
         rows = len(reply.get("q_l_chunk", []))
         self.worker.bus.emit("run.reply", {"id": self.request.id, "rtt_s": rtt_s, "rows": rows})
 
@@ -158,6 +159,7 @@ class SimWorker(threading.Thread):
         self.stop_event = threading.Event()
         self.shutdown_event = threading.Event()
         self.frames: dict[str, tuple[int, bytes]] = {}
+        self.teleop_viewers = 0  # Updated by MJPEG subscriptions on the dashboard event loop.
         self.state_snapshot: dict = {}
         self.current: RunRequest | None = None
         self.run_stats: dict = {}
@@ -287,7 +289,7 @@ class SimWorker(threading.Thread):
         env = self.env
         self.stop_event.clear()
         self.current = request
-        self.run_stats = {"steps": 0, "requests": 0, "last_rtt_s": None, "started": time.time()}
+        self.run_stats = {"steps": 0, "requests": 0, "last_rtt_s": None, "rtts_s": [], "started": time.time()}
         info = {"id": request.id, "task": request.task, "model": "offline" if request.offline else request.model,
                 "offline": request.offline, "source": request.source, "label": request.label,
                 "prompt": request.prompt or request.task}
@@ -359,6 +361,15 @@ class SimWorker(threading.Thread):
                 except Exception as error:
                     self.bus.log(f"decorate of {ext.id}: {error}", "error", ext.id)
             self._store("main", self.main_renderer.render())
+            if self.teleop_viewers:
+                for ext in self.extensions:
+                    decorate = getattr(ext, "decorate_teleop", None)
+                    if decorate:
+                        try:
+                            decorate(self.env, self.main_renderer.scene)
+                        except Exception as error:
+                            self.bus.log(f"decorate_teleop of {ext.id}: {error}", "error", ext.id)
+                self._store("main-teleop", self.main_renderer.render())
         if force or now - self._last["cams"] >= 1 / CAM_FPS:
             self._last["cams"] = now
             images = images or self.env.images()

@@ -22,6 +22,7 @@ export async function mount(root, api) {
   const { h, toast } = api.ui;
   const viewer = document.getElementById("viewer");
   const img = document.getElementById("main-view");
+  const isActive = () => root.isConnected && !root.closest("[hidden]");
   let savedFrame = null;
   try { savedFrame = localStorage.getItem("dream.teleop.frame"); } catch {}
   // frame: whose forward/left/right the keys use. "robot" = the robot's overhead camera, "view" = the 3D view.
@@ -62,7 +63,9 @@ export async function mount(root, api) {
   const speedSelect = h("select", { onchange: () => (state.speed = speedSelect.value) },
     Object.keys(SPEEDS).map((k) => h("option", { value: k }, k)));
   speedSelect.value = state.speed;
-  const orientSelect = h("select", { onchange: () => api.post("/orientation", { mode: orientSelect.value }).catch(report) },
+  const orientSelect = h("select", { onchange: () => {
+    if (isActive()) api.post("/orientation", { mode: orientSelect.value }).catch(report);
+  } },
     h("option", { value: "down" }, "points straight down"), h("option", { value: "free" }, "free (tilt with R / F)"));
   orientSelect.value = initial.orientation || "down";
 
@@ -110,6 +113,7 @@ export async function mount(root, api) {
   select("left");
 
   async function gripper(side, action) {
+    if (!isActive()) return;
     if (busy()) return warnBusy();
     try { await api.post("/gripper", { side, action }); } catch (error) { report(error); }
   }
@@ -121,13 +125,14 @@ export async function mount(root, api) {
   for (const side of SIDES) layer.append((labels[side] = h("div", { class: `teleop-label ${side}` })));
   viewer.append(layer);
   const hint = document.querySelector(".viewer-hint");
-  if (hint) hint.textContent += " · Ball: move gripper";
+  const teleopHint = h("span", {}, " · Ball: move gripper");
+  if (hint) hint.append(teleopHint);
 
-  // The image is shown with object-fit: cover, so it can be cropped: map image coordinates <-> viewer pixels.
+  // Match the main viewer's object-fit: contain when mapping image coordinates.
   function imageBox() {
     const rect = viewer.getBoundingClientRect();
     const iw = img.naturalWidth || RENDER[0], ih = img.naturalHeight || RENDER[1];
-    const scale = Math.max(rect.width / iw, rect.height / ih);
+    const scale = Math.min(rect.width / iw, rect.height / ih);
     const w = iw * scale, hh = ih * scale;
     return { rect, w, h: hh, x: (rect.width - w) / 2, y: (rect.height - hh) / 2 };
   }
@@ -173,7 +178,7 @@ export async function mount(root, api) {
   // ---------- 3D view: drag the TCP balls ----------
 
   function handleAt(e) {
-    if (!state.info) return null;
+    if (!isActive() || !state.info) return null;
     const box = imageBox();
     const mx = e.clientX - box.rect.left, my = e.clientY - box.rect.top;
     let best = null, bestDistance = HANDLE_PX;
@@ -196,7 +201,7 @@ export async function mount(root, api) {
     flushDrag();
   }
   async function flushDrag() {
-    if (dragSending || !dragNext) return;
+    if (!isActive() || dragSending || !dragNext) return;
     const body = dragNext;
     dragNext = null;
     dragSending = true;
@@ -213,11 +218,13 @@ export async function mount(root, api) {
     e.preventDefault();
     viewer.setPointerCapture(e.pointerId);
     select(side);
-    drag = { side, start: true };
+    drag = { side, pointerId: e.pointerId, start: true };
     queueDrag(e);
   }, { capture: true });
   viewer.addEventListener("pointermove", (e) => {
+    if (!isActive()) return;
     if (drag) {
+      if (e.pointerId !== drag.pointerId) return;
       e.stopPropagation();
       queueDrag(e);
       return;
@@ -225,7 +232,7 @@ export async function mount(root, api) {
     viewer.style.cursor = !e.buttons && handleAt(e) && !busy() ? "move" : "";
   }, { capture: true });
   const endDrag = (e) => {
-    if (!drag) return;
+    if (!drag || e.pointerId !== drag.pointerId) return;
     drag = null;
     e.stopPropagation();
   };
@@ -251,10 +258,12 @@ export async function mount(root, api) {
   const typing = (el) => el && (el.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName));
 
   window.addEventListener("keydown", (e) => {
+    if (!isActive()) return;
     state.slow = e.shiftKey;
     if (!state.keyboard || typing(e.target) || e.ctrlKey || e.metaKey || e.altKey) return;
     const key = e.key.toLowerCase();
     if (key in MOVES || key in TURNS) {
+      if (e.repeat && !pressed.has(key)) return;
       e.preventDefault();
       if (busy()) return warnBusy();
       pressed.add(key);
@@ -271,9 +280,39 @@ export async function mount(root, api) {
     state.slow = e.shiftKey;
     pressed.delete(e.key.toLowerCase());
   });
-  window.addEventListener("blur", () => pressed.clear());
+  function resetInput() {
+    pressed.clear();
+    state.slow = false;
+    clearInterval(loop);
+    loop = null;
+    pending = [0, 0, 0];
+    turn = [0, 0];
+    dragNext = null;
+    const pointerId = drag?.pointerId;
+    drag = null;
+    if (pointerId != null && viewer.hasPointerCapture(pointerId)) viewer.releasePointerCapture(pointerId);
+    viewer.style.cursor = "";
+  }
+  window.addEventListener("blur", resetInput);
+
+  let wasActive = false;
+  function syncVisibility() {
+    const active = isActive();
+    if (active !== wasActive) {
+      img.src = active ? "/stream/main-teleop.mjpg" : "/stream/main.mjpg";
+      wasActive = active;
+    }
+    layer.hidden = teleopHint.hidden = !active;
+    if (!active) resetInput();
+  }
+  const visibility = new MutationObserver(syncVisibility);
+  for (let element = root; element; element = element.parentElement) {
+    visibility.observe(element, {attributes: true, attributeFilter: ["hidden"]});
+  }
+  syncVisibility();
 
   function tick() {
+    if (!isActive()) { resetInput(); return; }
     if (!pressed.size) {
       clearInterval(loop);
       loop = null;
@@ -289,6 +328,7 @@ export async function mount(root, api) {
     flushJog();
   }
   async function flushJog() {
+    if (!isActive()) return;
     const length = Math.hypot(...pending);
     if (jogSending || (length < 1e-6 && !turn[0] && !turn[1])) return;
     if (busy()) { pending = [0, 0, 0]; turn = [0, 0]; return warnBusy(); }
