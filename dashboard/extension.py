@@ -54,7 +54,9 @@ class Extension:
     title: str = ""
     icon: str = ""
     description: str = ""
-    slot: str = "left"  # "left" = tab in the left column, "right" = card in the right column
+    slot: str = "left"  # "left" = tab in the left column, "right" = card in the right column,
+    #                     "suite" = tiles in the Test Suite's builder (falls back to "left" without the Test Suite)
+    suite_modes: list[dict] = []  # slot "suite": [{"id", "title", "subtitle", "icon"}], one builder tile each
     order: int = 100  # sort order (smaller = further up front)
 
     def __init__(self, ctx: ExtensionContext):
@@ -110,6 +112,7 @@ def load_extensions(sim, bus) -> list[Extension]:
 def describe(ext: Extension) -> dict:
     return {
         "id": ext.id, "title": ext.title, "icon": ext.icon, "description": ext.description, "slot": ext.slot,
+        "suite_modes": ext.suite_modes,
         "has_panel": (ext.folder / "panel.js").is_file(), "has_css": (ext.folder / "panel.css").is_file(),
     }
 

@@ -31,6 +31,9 @@ class Hooks:
     def on_reply(self, env, reply: dict, rtt_s: float) -> None:
         """After every get_action(): `reply["q_l_chunk"]`, `reply["q_r_chunk"]` are [H, 7] chunks."""
 
+    def on_request(self, error: Exception | None, rtt_s: float) -> None:
+        """When a managed inference attempt returns a reply or raises."""
+
     def on_step(self, env, step: int, images: dict[str, np.ndarray]) -> None:
         """After every 50 ms physics step. `images`: top/left/right RGB 360x640."""
 
@@ -62,6 +65,18 @@ class RunResult:
         return sum(self.rtts_s) / len(self.rtts_s) if self.rtts_s else None
 
 
+def _get_action(policy):
+    """Time the SDK call on its worker thread, independently of rendering and polling."""
+    started = time.monotonic()
+    try:
+        reply = policy.get_action()
+    except Exception as exc:
+        finished = time.monotonic()
+        return None, exc, finished - started, finished
+    finished = time.monotonic()
+    return reply, None, finished - started, finished
+
+
 def run_task(
     task: str,
     *,
@@ -75,6 +90,8 @@ def run_task(
     stop_on_success: bool = True,
     verbose: bool = True,
     prompt: str | None = None,
+    max_requests: int | None = None,
+    capture_each_step: bool = True,
 ) -> RunResult:
     """Runs a task with Dream-1 in the simulator. Needs an API key (see README).
 
@@ -90,18 +107,35 @@ def run_task(
 
     own_env = env is None
     env = env if env is not None else sim.YamEnv()
-    check = scene.success_check(task)
+    managed = max_requests is not None
+    check = None if managed else scene.success_check(task)
     prompt = prompt or task
     result = RunResult(task=task, model=model, success=False if check else None)
     log = print if verbose else (lambda *a, **k: None)
     policy = None
     started_at = time.monotonic()
     sim_start = None
+    ended_at = None
+    deadline = started_at + seconds
+
+    def open_policy(poses):
+        options = sim.policy_config(model, gateway, poses)
+        if managed:
+            options["timeout_ms"] = min(15000, max(1, int(1000 * (deadline - time.monotonic()))))
+        return sim.open_policy(options, key)
 
     try:
+        if managed:
+            for h in hooks:
+                h.on_start(env, task, model)
         windows = {name: deque(maxlen=sim.FRAMES) for name in sim.VIDEO_ROLES}
         steps = 0
         while any(len(w) < sim.FRAMES for w in windows.values()):
+            if managed:
+                reason = next((reason for h in hooks if (reason := h.should_stop(env))), None)
+                if reason or time.monotonic() >= deadline:
+                    result.stop_reason = reason or "task_deadline"
+                    return result
             state = env.state()
             env.step(state["left"], state["right"])
             sim.capture(env, windows, keep=steps % sim.FRAME_EVERY_STEPS == 0)
@@ -116,18 +150,26 @@ def run_task(
         with viewer_ctx as view, ThreadPoolExecutor(max_workers=1) as pool:
             if view is not None:
                 sim.aim_viewer(view)
-            for h in hooks:
-                h.on_start(env, task, model)
+            if not managed:
+                for h in hooks:
+                    h.on_start(env, task, model)
             poses = model in sim.POSE_MODELS
-            policy = sim.open_policy(sim.policy_config(model, gateway, poses), key)
+            policy = open_policy(poses)
             sim.feed(policy, env, windows, prompt, model, steps, every=0, station=poses)
-            # The time limit counts SIMULATED seconds: waiting for Dream-1's replies (physics paused) and a slow
-            # laptop do not use it up, so a run gets the same robot time on every computer.
-            sim_start = env.data.time
+            # Normal dashboard runs: the time limit counts SIMULATED seconds, so waiting for Dream-1's replies
+            # (physics paused) and a slow laptop do not use it up, and a run gets the same robot time on every
+            # computer. Managed runs (the Test Suite, max_requests set) keep their wall-clock task deadline.
+            sim_start = None if managed else env.data.time
             restarts = 0
 
             def stop_reason():
-                if env.data.time - sim_start >= seconds:
+                if managed:
+                    reason = next((reason for h in hooks if (reason := h.should_stop(env))), None)
+                    if reason:
+                        return reason
+                    if time.monotonic() >= deadline:
+                        return "task_deadline"
+                elif env.data.time - sim_start >= seconds:
                     return "timeout"
                 if view is not None and not view.is_running():
                     return "viewer closed"
@@ -135,38 +177,57 @@ def run_task(
                     result.success = True
                     if stop_on_success:
                         return "success"
-                for h in hooks:
-                    reason = h.should_stop(env)
-                    if reason:
-                        return reason
+                if not managed:
+                    for h in hooks:
+                        reason = h.should_stop(env)
+                        if reason:
+                            return reason
                 return None
 
             while (reason := stop_reason()) is None:
-                t0 = time.monotonic()
-                future = pool.submit(policy.get_action)
+                if managed and result.requests >= max_requests:
+                    reason = "request_budget"
+                    break
+                future = pool.submit(_get_action, policy)
+                pending_stop = None
                 while not future.done():  # physics paused, viewer stays responsive
+                    if managed and pending_stop is None and (pending_stop := stop_reason()):
+                        ended_at = deadline if pending_stop == "task_deadline" else time.monotonic()
                     if view is not None:
                         view.sync()
                     for h in hooks:
                         h.on_wait(env)
                     time.sleep(0.02)
-                try:
-                    reply = future.result()
-                except Exception as error:
+                reply, error, rtt, finished = future.result()
+                if managed:
+                    result.requests += 1
+                    result.rtts_s.append(rtt)
+                    for h in hooks:
+                        h.on_request(error, rtt)
+                    # A reply can finish after the deadline between two render polls.
+                    if pending_stop is None and finished >= deadline:
+                        pending_stop, ended_at = "task_deadline", deadline
+                    if pending_stop:
+                        reason = pending_stop
+                        if error is None:
+                            for h in hooks:
+                                h.on_reply(env, reply, rtt)
+                        break
+                if error is not None:
                     if type(error).__name__ == "DreamSessionExpired" and restarts < 3:
                         restarts += 1
                         continue
                     if poses or not sim.needs_poses(error):
-                        raise
+                        raise error
                     policy.close()
                     poses = True
-                    policy = sim.open_policy(sim.policy_config(model, gateway, poses), key)
+                    policy = open_policy(poses)
                     sim.feed(policy, env, windows, prompt, model, steps, every=0, station=poses)
                     continue
                 restarts = 0
-                rtt = time.monotonic() - t0
-                result.requests += 1
-                result.rtts_s.append(rtt)
+                if not managed:
+                    result.requests += 1
+                    result.rtts_s.append(rtt)
                 log(f"  Dream · RTT {rtt:.2f}s · request {result.requests} · step {steps}")
                 for h in hooks:
                     h.on_reply(env, reply, rtt)
@@ -178,26 +239,42 @@ def run_task(
                     tick = time.monotonic()
                     env.step(l_row, r_row)
                     kept = steps % sim.FRAME_EVERY_STEPS == 0
-                    images = sim.capture(env, windows, keep=kept)
+                    images = sim.capture(env, windows, keep=kept) if kept or capture_each_step else {}
                     if kept:
                         sim.feed(policy, env, windows, prompt, model, steps, station=poses)
                     steps += 1
                     result.steps += 1
                     for h in hooks:
                         h.on_step(env, steps, images)
+                    if managed and stop_reason() is not None:
+                        break
                     if view is not None:
                         view.sync()
                     time.sleep(max(0.0, 0.05 - (time.monotonic() - tick)))
             result.stop_reason = reason
+            if managed and reason in ("success", "task_completed"):
+                result.success = True
     except KeyboardInterrupt:
         result.stop_reason = "interrupted"
+    except Exception as error:
+        if not managed:
+            raise
+        if isinstance(error, TimeoutError) or getattr(error, "reason", None) == "queue_timeout":
+            result.stop_reason = "api_timeout"
+        else:
+            result.stop_reason = f"error: {type(error).__name__}: {error}"
     finally:
+        if managed:
+            if result.stop_reason == "task_deadline":
+                ended_at = deadline
+            result.seconds = (ended_at if ended_at is not None else time.monotonic()) - started_at
         if policy is not None:
             try:
                 policy.close()
             except Exception:
                 pass
-        result.seconds = time.monotonic() - started_at
+        if not managed:
+            result.seconds = time.monotonic() - started_at
         result.sim_seconds = 0.0 if sim_start is None else float(env.data.time - sim_start)
         for h in hooks:
             h.on_end(env, result)

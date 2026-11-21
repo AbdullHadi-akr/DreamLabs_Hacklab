@@ -7,6 +7,7 @@ import contextlib
 import json
 import mimetypes
 import secrets
+import threading
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
@@ -114,6 +115,8 @@ def create_app() -> FastAPI:
     app = FastAPI(title="Dream-1 Dashboard", lifespan=lifespan)
     app.state.bus, app.state.sim, app.state.extensions = bus, worker, extensions
     app.state.db, app.state.recorder, app.state.players = db, recorder, players
+    ## Set by the server on Ctrl+C (see __main__.py): ends the endless video streams, otherwise shutdown waits forever.
+    app.state.closing = closing = threading.Event()
 
     @app.middleware("http")
     async def no_cache(request, call_next):
@@ -388,7 +391,7 @@ def create_app() -> FastAPI:
             if guest_main:
                 worker.low_viewers += 1
             try:
-                while True:
+                while not closing.is_set():
                     frame = worker.frames.get(source)
                     if frame and frame[0] != last:
                         last = frame[0]

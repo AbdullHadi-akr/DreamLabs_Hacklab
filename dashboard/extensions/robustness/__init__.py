@@ -6,6 +6,8 @@ Two modes:
           trial 2 ...), so a sweep stopped halfway is still balanced. Trial i uses the same random draw at every
           strength (paired comparison: same direction, only the distance grows).
   random  every trial draws a random strength for each selected perturbation -> which factor hurts most.
+  adaptive  Bayesian search for the breaking point of one perturbation: every next strength is the one that tells
+          the most about where the model breaks (see adaptive.py). Fewer trials than a sweep for the same answer.
 
 Every trial is watched by a TrialMonitor (reach / lift / carry / place, outcome, optional MP4). Results stream to the
 panel and are saved in out/extensions/robustness/<campaign>/result.json; the report page shows them in full.
@@ -35,7 +37,7 @@ from dashboard import brain, credits
 from dashboard.extension import Extension
 from dreamtool import scene, sim
 
-from . import analysis, data, onefile, replay
+from . import adaptive, analysis, data, onefile, replay
 from .monitor import OUTCOMES, TrialMonitor
 from .perturbations import GROUPS, REGISTRY, InvalidSetup, Target, prepare, rewrite
 
@@ -44,11 +46,14 @@ CAMPAIGN_ID = re.compile(r"^[0-9]{8}-[0-9]{6}-[a-z_]+$")
 
 class StartBody(BaseModel):
     task: str = Field(min_length=2, max_length=300)
-    mode: Literal["sweep", "random"] = "sweep"
-    perturbation: str = "target_shift"  # sweep
+    mode: Literal["sweep", "random", "adaptive"] = "sweep"
+    perturbation: str = "target_shift"  # sweep, adaptive
     values: list[float] = Field(default_factory=list, max_length=20)  # sweep; empty = defaults
     factors: dict[str, float] = Field(default_factory=dict)  # random: id -> max strength
-    trials: int = Field(3, ge=1, le=100)  # sweep: per strength; random: total
+    trials: int = Field(3, ge=1, le=100)  # sweep: per strength; random, adaptive: total budget
+    max_strength: float | None = None  # adaptive: upper end of the searched range (default: the perturbation's max)
+    measure: Literal["success", "carried", "lifted", "reached"] = "success"  # adaptive: which stage must hold
+    baseline_trials: int = Field(3, ge=1, le=10)  # adaptive: unperturbed trials first
     seconds: float = Field(45, gt=1, le=600)
     model: str = sim.BETA_MODEL
     dry_run: bool = True
@@ -65,11 +70,17 @@ class Campaign:
         self.state = "running"
         self.current: dict | None = None
         self.started = time.time()
-        name = body.perturbation if body.mode == "sweep" else "random"
+        name = body.perturbation if body.mode != "random" else "random"
         self.id = f"{time.strftime('%Y%m%d-%H%M%S')}-{name}"
         self.dir = ext.ctx.data_dir / self.id
         self.plan = None
-        if body.mode == "sweep":
+        self.stopped_because = None
+        if body.mode == "adaptive":
+            p = REGISTRY[body.perturbation]
+            self.top = body.max_strength if body.max_strength is not None else p.max
+            self.values = []
+            self.schedule = None  # decided trial by trial
+        elif body.mode == "sweep":
             p = REGISTRY[body.perturbation]
             values = list(dict.fromkeys(body.values or p.defaults))
             if p.neutral not in values:
@@ -89,13 +100,19 @@ class Campaign:
         data = {
             "id": self.id, "state": self.state, "mode": b.mode, "config": b.model_dump(),
             "target": {"object": self.target.obj, "container": self.target.container},
-            "done": len(self.rows), "total": len(self.schedule), "current": self.current,
+            "done": len(self.rows), "total": self.total, "current": self.current,
             "started": self.started, "elapsed_s": round(time.time() - self.started, 1),
             "rows": self.rows, "outcome_labels": OUTCOMES,
             "policy": "scripted blind replay (dry run)" if b.dry_run else b.model,
             "cost": self.cost(),
         }
-        if b.mode == "sweep":
+        if b.mode == "adaptive":
+            p = REGISTRY[b.perturbation]
+            data.update(perturbation=_describe(p) | {"max": self.top},
+                        values=sorted({r["value"] for r in self.rows}),
+                        analysis=adaptive.summarize(self.rows, p.neutral, self.top, p.unit, b.measure, b.trials,
+                                                    self.stopped_because))
+        elif b.mode == "sweep":
             p = REGISTRY[b.perturbation]
             data.update(perturbation=_describe(p), values=self.values,
                         analysis=analysis.sweep_summary(self.values, self.rows, p.neutral, p.unit, p.discrete))
@@ -114,6 +131,41 @@ class Campaign:
         return {"calls": calls, "usd": None if price is None else round(calls * price, 6), "price_usd": price,
                 "note": "" if price is not None else "price of this model unknown"}
 
+    @property
+    def total(self) -> int:
+        if self.schedule is not None:
+            return len(self.schedule)
+        # adaptive: the budget while running; afterwards what was actually needed (it may stop early)
+        return self.body.trials if self.state == "running" else len(self.rows)
+
+    def entries(self):
+        """The trials to run. Fixed for sweep/random; for adaptive each one is chosen after the previous result."""
+        if self.schedule is not None:
+            yield from self.schedule
+            return
+        b = self.body
+        p = REGISTRY[b.perturbation]
+        level = adaptive.MEASURES[b.measure][0]
+        for t in range(min(b.baseline_trials, b.trials)):
+            yield {"value": p.neutral, "trial": t, "why": "baseline"}
+        base = [y for r in self.rows if (y := adaptive.event(r, level)) is not None]
+        if len(base) >= 3 and not any(base):
+            self.stopped_because = "measure never reached at baseline"
+            return
+        search = adaptive.BreakpointSearch(p.neutral, self.top)
+        for t in range(len(self.rows), b.trials):
+            observations = [(r["value"], y) for r in self.rows if (y := adaptive.event(r, level)) is not None]
+            search.fit(observations)
+            reason = search.stop_reason(len(self.rows) - b.baseline_trials)
+            if reason:
+                self.stopped_because = reason
+                return
+            strength, gain = search.next_strength()
+            est = search.estimate()
+            yield {"value": round(strength, 3), "trial": t, "why": "most informative",
+                   "gain": round(gain, 3), "ci_before": [round(v, 3) for v in est["ci"]]}
+        self.stopped_because = "budget used up"
+
     def save(self):
         self.dir.mkdir(parents=True, exist_ok=True)
         (self.dir / "result.json").write_text(json.dumps(self.summary(), indent=2, default=float), encoding="utf-8")
@@ -122,14 +174,19 @@ class Campaign:
 
     def _items(self, entry, rng):
         """(perturbation, strength) pairs for one trial."""
-        if self.body.mode == "sweep":
+        if self.body.mode != "random":
             return [(REGISTRY[self.body.perturbation], entry["value"])]
         return [(REGISTRY[fid], REGISTRY[fid].sample(rng, top)) for fid, top in self.body.factors.items()]
 
     def _run(self):
         ctx, body = self.ext.ctx, self.body
-        mode_text = (f"{REGISTRY[body.perturbation].label}, strengths {self.values}, {body.trials} trials each"
-                     if body.mode == "sweep" else f"random mix of {', '.join(body.factors)}, {body.trials} trials")
+        if body.mode == "sweep":
+            mode_text = f"{REGISTRY[body.perturbation].label}, strengths {self.values}, {body.trials} trials each"
+        elif body.mode == "adaptive":
+            mode_text = (f"breaking point of {REGISTRY[body.perturbation].label} up to {self.top:g}, "
+                         f"measure {body.measure}, budget {body.trials} trials")
+        else:
+            mode_text = f"random mix of {', '.join(body.factors)}, {body.trials} trials"
         ctx.log(f"Robustness {body.mode} started: {mode_text}" + (" (dry run)" if body.dry_run else ""))
         try:
             if body.dry_run:
@@ -138,7 +195,7 @@ class Campaign:
                 except Exception as error:
                     ctx.log(f"Scripted replay could not be planned ({error}); dry runs just hold still.", "warn")
                     self.plan = None
-            for index, entry in enumerate(self.schedule):
+            for index, entry in enumerate(self.entries()):
                 if self.stopped:
                     raise InterruptedError
                 self._trial(index, entry)
@@ -164,7 +221,7 @@ class Campaign:
             except Exception as error:
                 ctx.log(f"Second brain: {error}", "warn")
             verdict = self.summary()["analysis"]["verdict"]["text"]
-            ctx.log(f"Robustness {self.state}: {len(self.rows)}/{len(self.schedule)} trials. {verdict}")
+            ctx.log(f"Robustness {self.state}: {len(self.rows)}/{self.total} trials. {verdict}")
             ctx.emit("progress", self.summary())
 
     def _trial(self, index, entry):
@@ -176,14 +233,16 @@ class Campaign:
         prompt = rewrite(body.task, text_items, self.target, seed)
         params = {p.id: v for p, v in items}
         number = index + 1
-        label = (f"{items[0][0].label} {entry['value']:g}{items[0][0].unit}" if body.mode == "sweep"
-                 else "Random mix") + f" · trial {number}/{len(self.schedule)}"
+        label = (f"{items[0][0].label} {entry['value']:g}{items[0][0].unit}" if body.mode != "random"
+                 else "Random mix") + f" · trial {number}/{self.total}"
         self.current = {"index": number, "label": label, "params": params, "prompt": prompt}
         ctx.emit("trial", self.current)
         row = {"index": number, "trial": entry["trial"] + 1, "params": params, "prompt": prompt, "info": {},
                "stop_reason": "", "steps": 0, "seconds": 0.0, "mean_rtt_s": None, "redraws": 0, "video": None}
         if "value" in entry:
             row["value"] = entry["value"]
+        if "why" in entry:  # adaptive: why this strength was chosen
+            row["search"] = {k: entry[k] for k in ("why", "gain", "ci_before") if k in entry}
 
         # Set the scene up first (on the sim thread) and only start the run if it is a fair trial:
         # an invalid setup must neither cost credits nor count as a model failure.
@@ -242,6 +301,12 @@ class RobustnessLab(Extension):
     icon = ""
     description = "Perturb the scene and see how and when Dream-1 fails"
     order = 20
+    slot = "suite"  # three tiles in the Test Suite builder (a normal tab when there is no Test Suite)
+    suite_modes = [
+        {"id": "sweep", "title": "Robustness Sweep", "subtitle": "Failure curve", "icon": "⫶"},
+        {"id": "adaptive", "title": "Breaking Point", "subtitle": "Adaptive search", "icon": "◎"},
+        {"id": "random", "title": "Perturbation Mix", "subtitle": "Which factor hurts", "icon": "⁂"},
+    ]
 
     def setup(self):
         self.campaign: Campaign | None = None
@@ -268,10 +333,23 @@ class RobustnessLab(Extension):
         @r.post("/start")
         def start(body: StartBody):
             if scene.parse_task(body.task) is None:
-                raise HTTPException(400, "Task not understood. Use the form \"put <apple|banana|orange|bottle> "
-                                         "into/on the <bowl|plate>\" so success can be measured.")
-            if body.mode == "sweep" and body.perturbation not in REGISTRY:
+                raise HTTPException(400, "Can't tell which object should go into which container, so success can't "
+                                         "be measured. Name one object (apple, banana, orange, bottle) and the goal "
+                                         "after into/in/on/to (bowl, plate), e.g. \"pick up the banana and put it "
+                                         "on the plate\".")
+            if body.mode != "random" and body.perturbation not in REGISTRY:
                 raise HTTPException(400, f"Unknown perturbation: {body.perturbation}")
+            if body.mode == "adaptive":
+                p = REGISTRY.get(body.perturbation)
+                if p is None or p.discrete:
+                    raise HTTPException(400, "The breaking-point search needs a perturbation with an ordered strength "
+                                             "(not a set of prompt variants).")
+                top = body.max_strength if body.max_strength is not None else p.max
+                if top <= p.neutral:
+                    raise HTTPException(400, f"Maximum strength must be above {p.neutral:g} {p.unit}.")
+                if body.trials < body.baseline_trials + adaptive.MIN_ADAPTIVE:
+                    raise HTTPException(400, f"Budget too small: at least {body.baseline_trials + adaptive.MIN_ADAPTIVE} "
+                                             "trials (baseline + 3 searched).")
             if body.mode == "random":
                 unknown = [f for f in body.factors if f not in REGISTRY]
                 if unknown or not body.factors:

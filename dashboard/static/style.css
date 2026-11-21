@@ -321,3 +321,14 @@ h3 { margin: 14px 0 6px; font-size: 12px; font-weight: 400; color: var(--text-3)
 .join { width: min(380px, calc(100vw - 32px)); }
 .join h1 { font-size: 22px; margin: 0 0 6px; }
 .join .btn-main { width: 100%; margin-top: 4px; }
+
+.log-panel summary { cursor: pointer; font-weight: 600; }
+.log-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
+.log-panel .log { max-height: 18rem; overflow-y: auto; }
+.campaign-notices { position: fixed; top: 72px; right: 20px; width: min(380px, calc(100vw - 40px)); max-height: 65vh; overflow: auto; z-index: 12; display: grid; gap: 8px; }
+.campaign-notices .toast { background: var(--paper, white); }
+.campaign-notices .toast p { margin: 6px 0; }
+
+/* Test Suite workspace (dashboard/extensions/test_suite): its places stay hidden until the menu entry opens it */
+.workspace-nav[hidden], .suite-slot[hidden] { display: none !important; }
+.suite-slot { min-width: 0; }

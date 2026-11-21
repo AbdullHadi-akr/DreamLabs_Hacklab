@@ -1,4 +1,5 @@
 // Core UI of the dashboard: viewer, prompt bar, status, log, and loading the extension panels.
+import { logPanel } from "./lib/log_panel.js";
 import { EventHub, createExtensionApi, h, request } from "./lib/api.js";
 import { episodesPanel, setupEpisodes } from "./episodes.js";
 import { creditsPanel, gateRun, setupCredits } from "./credits.js";
@@ -22,13 +23,11 @@ function toast(message, level = "info", ms = 4000) {
   setTimeout(() => el.remove(), ms);
 }
 
+const debugLog = logPanel("Application log", {}, {clear: true});
+$("global-log").append(debugLog.panel);
+
 function log(message, level = "info", source = "core") {
-  const time = new Date().toLocaleTimeString("en-GB");
-  const item = h("li", { class: level }, h("time", {}, time), h("span", { class: "src" }, source), message);
-  const list = $("log");
-  list.append(item);
-  while (list.children.length > 400) list.firstChild.remove();
-  list.scrollTop = list.scrollHeight;
+  debugLog.append({message, level, source, at: Date.now() / 1000});
 }
 
 const pills = {};
@@ -176,7 +175,6 @@ function setupTaskbar(state) {
   $("btn-demo").onclick = () => action(request("POST", "/api/run", { task: core.currentTask() || "demo", offline: true }));
   $("btn-home").onclick = () => action(request("POST", "/api/home"));
   $("btn-reset").onclick = () => action(request("POST", "/api/reset"));
-  $("btn-clear-log").onclick = () => ($("log").innerHTML = "");
   if (!state.has_api_key) {
     $("btn-run").title = "No API key is set up. See the README.";
   }
@@ -283,8 +281,10 @@ function setupEvents() {
 // ---------------- Extensions ----------------
 
 // Menu names in plain words; the order here is the order in the menu. At most 6 entries.
-const MENU = [["teleop", "Control"], ["scene_inspector", "Scene"], ["robustness", "Robustness"], ["episodes", "Episodes"],
-  ["credits", "Credits"], ["players", "Players"]];
+// "Test Suite" opens the teammates' Test Suite workspace (dashboard/extensions/test_suite); Robustness lives inside it.
+// Without the Test Suite, Robustness falls back to its own entry.
+const MENU = [["teleop", "Control"], ["scene_inspector", "Scene"], ["test_suite", "Test Suite"], ["robustness", "Robustness"],
+  ["episodes", "Episodes"], ["credits", "Credits"], ["players", "Players"]];
 const GUEST_MENU = ["teleop", "scene_inspector", "players"]; // what a guest on another laptop sees
 const MENU_LIMIT = 6;
 
@@ -313,31 +313,45 @@ function setupFold() {
 
 async function loadExtensions(extensions, state) {
   const tabs = $("ext-tabs"), panels = $("ext-panels");
-  const left = extensions.filter((e) => e.slot !== "right");
+  // slot "suite" lives in the Test Suite builder; without a Test Suite it falls back to a normal tab
+  const hasSuite = extensions.some((e) => e.slot === "workspace");
+  const left = extensions.filter((e) => e.slot !== "right" && e.slot !== "workspace" && !(hasSuite && e.slot === "suite"));
   const right = extensions.filter((e) => e.slot === "right");
   const order = (id) => { const i = MENU.findIndex(([m]) => m === id); return i < 0 ? MENU.length : i; };
   const entries = [...left, { id: "episodes", title: "Episodes", core: true,
     description: "Recorded episodes, what is ready for a fine-tune, success and cost per model" },
     { id: "credits", title: "Credits", core: true, description: "Balance, spending, limits, model and time limit" },
-    { id: "players", title: "Players", core: true, description: "Public link, access code, who holds which arm" }].sort((a, b) => order(a.id) - order(b.id));
+    { id: "players", title: "Players", core: true, description: "Public link, access code, who holds which arm" },
+    ...(hasSuite ? [{ id: "test_suite", title: "Test Suite", core: true, workspace: true,
+      description: "Build and run tests: quick test, repeated runs, sweeps, safety, A/B, robustness" }] : []),
+  ].sort((a, b) => order(a.id) - order(b.id));
   if (core.me && core.me.role === "guest") entries.splice(0, entries.length, ...entries.filter((e) => GUEST_MENU.includes(e.id)));
   if (entries.length > MENU_LIMIT) console.warn(`The menu holds at most ${MENU_LIMIT} entries; extra tools are left out.`);
   panels.innerHTML = "";
   const setFolded = setupFold();
   const startFolded = $("layout").classList.contains("folded");
 
+  const markTab = (id) => { for (const t of tabs.children) t.classList.toggle("active", t.dataset.id === id); };
   const activate = (id) => {
-    for (const t of tabs.children) t.classList.toggle("active", t.dataset.id === id);
-    for (const p of panels.children) p.hidden = p.dataset.id !== id;
+    const inSuite = $("workspace-test-suite")?.getAttribute("aria-pressed") === "true";
+    if (id === "test_suite") {
+      $("workspace-test-suite")?.click(); // the Test Suite shows its own form, results and monitor
+    } else {
+      if (inSuite) $("workspace-dashboard").click();
+      for (const p of panels.children) p.hidden = p.dataset.id !== id;
+      try { localStorage.setItem("dream.activeTab", id); } catch {}
+    }
+    markTab(id);
     setFolded(false);
-    try { localStorage.setItem("dream.activeTab", id); } catch {}
   };
   core.activate = activate;
+  core.markTab = markTab;
   const label = (ext) => (MENU.find(([m]) => m === ext.id) || [])[1] || ext.title;
 
   for (const ext of entries.slice(0, MENU_LIMIT)) {
     tabs.append(h("button", { type: "button", class: "tab", "data-id": ext.id, title: ext.description || "",
       onclick: () => activate(ext.id) }, label(ext)));
+    if (ext.workspace) continue; // no panel here: the Test Suite fills its own places on the page
     const root = h("div", { class: "panel", "data-id": ext.id, hidden: true });
     panels.append(root);
     if (ext.id === "credits") creditsPanel(root, core, action, settingsPanel(state));
@@ -393,6 +407,19 @@ async function main() {
   drawRtt();
   window.addEventListener("resize", drawRtt);
   await loadExtensions(state.extensions, state);
+  const suite = state.extensions.find((ext) => ext.id === "test_suite");
+  if (suite && state.me.role !== "guest") {
+    // Extensions that add test modes to the builder are mounted first; the Test Suite shows them as tiles.
+    core.suiteExtensions = [];
+    for (const ext of state.extensions.filter((e) => e.slot === "suite")) {
+      const root = h("div", { class: "suite-extension", "data-id": ext.id, hidden: true });
+      await mountPanel(ext, root);
+      core.suiteExtensions.push({ ...ext, root });
+    }
+    await mountPanel(suite, $("test-suite-config"));
+    // Menu entry "Test Suite" and the (hidden) workspace buttons stay in step.
+    $("workspace-test-suite").addEventListener("click", () => core.markTab && core.markTab("test_suite"));
+  }
 }
 
 main().catch((error) => {

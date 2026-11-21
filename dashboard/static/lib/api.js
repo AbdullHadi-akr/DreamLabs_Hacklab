@@ -98,6 +98,8 @@ export function createExtensionApi(ext, core) {
       task: () => core.currentTask(), // text in the prompt field
     },
     ui: { h, toast: core.toast },
+    // Test Suite workspace: extensions with slot "suite", each {id, title, suite_modes, root} (root = mounted panel)
+    workspace: { extensions: () => core.suiteExtensions || [] },
     asset: (file) => `/ext/${ext.id}/${file}`,
   };
 }

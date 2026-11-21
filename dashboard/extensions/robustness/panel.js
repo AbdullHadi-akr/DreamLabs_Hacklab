@@ -1,6 +1,17 @@
 // Robustness panel: configure a sweep or a random mix, watch it live, open the full report.
 
-import { chartLegend, describeParams, factorTable, outcomeChip, outcomeLegend, pct, sweepChart, sweepTable } from "./charts.js";
+import {
+  adaptiveChart, adaptiveLegend, adaptiveStatus, chartLegend, describeParams, factorTable, outcomeChip, outcomeLegend,
+  pct, sweepChart, sweepTable,
+} from "./charts.js";
+import { renderReport } from "./report_view.js";
+
+const MEASURES = [
+  ["success", "Success (object in container)"],
+  ["carried", "Carried to the container"],
+  ["lifted", "Lifted the target"],
+  ["reached", "Reached the target"],
+];
 
 const RANDOM_DEFAULTS = ["target_shift", "container_shift", "camera_tilt", "light_dim", "prompt_typos"];
 
@@ -36,9 +47,22 @@ export async function mount(root, api) {
     }),
   ]));
 
+  const valuesField = h("label", { class: "field" }, h("span", {}, "Strengths (comma-separated, baseline is added)"), values);
+  const maxStrength = h("input", { type: "number", step: "any" });
+  const maxUnit = h("span", {});
+  const measure = h("select", {}, MEASURES.map(([v, t]) => h("option", { value: v }, t)));
+  const baselineTrials = h("input", { type: "number", min: 1, max: 10, value: 3 });
+  const adaptiveBox = h("div", { hidden: true },
+    h("p", { class: "muted rb-desc" }, "Finds the strength where the model breaks with as few trials as possible: " +
+      "baseline first, then every next strength is the one that tells the most about the breaking point. " +
+      "Stops as soon as it is pinned down, or when nothing breaks."),
+    h("div", { class: "row" },
+      h("label", { class: "field" }, h("span", {}, "Search up to"), h("div", { class: "rb-inline" }, maxStrength, maxUnit)),
+      h("label", { class: "field" }, h("span", {}, "Baseline trials"), baselineTrials)),
+    h("label", { class: "field", title: "Dream-1 rarely succeeds unperturbed: then measure an earlier stage" },
+      h("span", {}, "Stage that must hold"), measure));
   const sweepBox = h("div", {},
-    h("label", { class: "field" }, h("span", {}, "Perturbation"), kind), desc,
-    h("label", { class: "field" }, h("span", {}, "Strengths (comma-separated, baseline is added)"), values));
+    h("label", { class: "field" }, h("span", {}, "Perturbation"), kind), desc, valuesField, adaptiveBox);
   const randomBox = h("div", { hidden: true },
     h("p", { class: "muted rb-desc" }, "Every trial draws a random strength (from none up to the maximum) for each " +
       "checked factor. Afterwards the factor whose strength correlates most with failure is named."),
@@ -47,16 +71,22 @@ export async function mount(root, api) {
   const modeButtons = {
     sweep: h("button", { class: "btn small", onclick: () => setMode("sweep") }, "Sweep"),
     random: h("button", { class: "btn small btn-outline", onclick: () => setMode("random") }, "Random mix"),
+    adaptive: h("button", { class: "btn small btn-outline", onclick: () => setMode("adaptive"),
+      title: "Bayesian search for the breaking point" }, "Breaking point"),
   };
   function setMode(next) {
     mode = next;
-    modeButtons.sweep.className = `btn small ${mode === "sweep" ? "" : "btn-outline"}`;
-    modeButtons.random.className = `btn small ${mode === "random" ? "" : "btn-outline"}`;
-    sweepBox.hidden = mode !== "sweep";
+    for (const [m, btn] of Object.entries(modeButtons)) btn.className = `btn small ${mode === m ? "" : "btn-outline"}`;
+    sweepBox.hidden = mode === "random";
+    valuesField.hidden = mode !== "sweep";
+    adaptiveBox.hidden = mode !== "adaptive";
     randomBox.hidden = mode !== "random";
-    trialsLabel.textContent = mode === "sweep" ? "Trials per strength" : "Trials in total";
-    if (mode === "random" && Number(trials.value) < 10) trials.value = 12;
+    trialsLabel.textContent = { sweep: "Trials per strength", random: "Trials in total", adaptive: "Budget (max. trials)" }[mode];
+    if (mode !== "sweep" && Number(trials.value) < 10) trials.value = 12;
     if (mode === "sweep" && Number(trials.value) > 10) trials.value = 3;
+    // categorical perturbations (prompt variants) have no order to search along
+    for (const option of kind.querySelectorAll("option")) option.disabled = mode === "adaptive" && byId[option.value].discrete;
+    if (mode === "adaptive" && byId[kind.value].discrete) { kind.value = "target_shift"; updateKind(); }
     updateEstimate();
   }
 
@@ -64,20 +94,25 @@ export async function mount(root, api) {
   function updateKind() {
     const p = byId[kind.value];
     values.value = p.defaults.join(", ");
+    maxStrength.value = p.max;
+    maxStrength.min = p.neutral;
+    maxUnit.textContent = p.unit;
     desc.textContent = p.description;
     updateEstimate();
   }
   function trialCount() {
-    if (mode === "random") return Number(trials.value || 0);
+    if (mode !== "sweep") return Number(trials.value || 0);
     const vals = parseValues(), p = byId[kind.value];
     const n = new Set(vals.includes(p.neutral) ? vals : [p.neutral, ...vals]).size;
     return n * Number(trials.value || 0);
   }
   function updateEstimate() {
     const n = trialCount();
-    estimate.textContent = dry.checked
-      ? `${n} trials with the scripted replay (no API, no credits, ~6 s each).`
-      : `${n} Dream-1 runs of up to ${seconds.value} s → up to ~${Math.ceil((n * (Number(seconds.value) + 10)) / 60)} min. Uses credits!`;
+    const upTo = mode === "adaptive" ? "up to " : "";
+    estimate.textContent = (dry.checked
+      ? `${upTo}${n} trials with the scripted replay (no API, no credits, ~6 s each).`
+      : `${upTo}${n} Dream-1 runs of up to ${seconds.value} s → up to ~${Math.ceil((n * (Number(seconds.value) + 10)) / 60)} min. Uses credits!`)
+      + (mode === "adaptive" ? " Usually stops earlier." : "");
     estimate.className = dry.checked ? "muted" : "warn";
   }
   kind.onchange = updateKind;
@@ -98,6 +133,8 @@ export async function mount(root, api) {
       dry_run: dry.checked, record: record.checked,
     };
     if (mode === "sweep") Object.assign(body, { perturbation: kind.value, values: parseValues() });
+    else if (mode === "adaptive") Object.assign(body, { perturbation: kind.value, max_strength: Number(maxStrength.value),
+      measure: measure.value, baseline_trials: Number(baselineTrials.value) });
     else body.factors = Object.fromEntries(Object.entries(factorInputs)
       .filter(([, f]) => f.check.checked).map(([id, f]) => [id, Number(f.max.value)]));
     if (!dry.checked && !confirm(`Start ${trialCount()} Dream-1 runs? This uses credits.`)) return;
@@ -106,8 +143,23 @@ export async function mount(root, api) {
 
   const reportUrl = (id, trial) => `${api.asset("report.html")}?id=${encodeURIComponent(id)}${trial ? `#trial-${trial}` : ""}`;
 
+  // Inside the Test Suite the builder tiles pick the mode and the full report fills the wide report area.
+  const embedded = root.classList.contains("suite-extension");
+  const wideReport = () => document.getElementById("robustness-wide-report");
+  let shown = null;
+
   function render(s) {
-    if (!s) return;
+    if (!s) {
+      const wide = wideReport();
+      if (embedded && wide && !wide.childElementCount) {
+        wide.append(h("div", { class: "rb-wide-empty" }, h("h2", { class: "pixel" }, "Robustness report"),
+          h("p", { class: "muted" }, "Start a robustness test on the left, or open a past one from its history.")));
+      }
+      return;
+    }
+    shown = s;
+    const wide = embedded ? wideReport() : null;
+    if (wide) renderReport(wide, s, { standalone: false });
     const running = s.state === "running";
     startBtn.disabled = running;
     stopBtn.disabled = !running;
@@ -119,11 +171,20 @@ export async function mount(root, api) {
     const a = s.analysis;
     const scored = s.rows.filter((r) => r.outcome !== "invalid");
     const invalid = s.rows.length - scored.length;
+    if (wide) {  // the details are in the wide report; keep only the verdict here
+      results.replaceChildren(h("div", { class: `rb-verdict ${a.verdict.breaking_point != null || a.verdict.most_harmful ? "bad" : ""}` },
+        h("strong", {}, s.mode === "sweep" ? s.perturbation.label : s.mode === "adaptive" ? `Breaking point · ${s.perturbation.label}` : "Random mix"),
+        h("span", {}, a.verdict.text)),
+        invalid ? h("p", { class: "muted" }, `${invalid} trial(s) not counted (no fair setup found, or the simulator glitched).`) : "");
+      return;
+    }
     results.replaceChildren(h("div", {},
       h("div", { class: `rb-verdict ${a.verdict.breaking_point !== null && a.verdict.breaking_point !== undefined || a.verdict.most_harmful ? "bad" : ""}` },
-        h("strong", {}, s.mode === "sweep" ? s.perturbation.label : "Random mix"),
+        h("strong", {}, s.mode === "sweep" ? s.perturbation.label : s.mode === "adaptive" ? `Breaking point · ${s.perturbation.label}` : "Random mix"),
         h("span", {}, a.verdict.text)),
-      s.mode === "sweep" ? [sweepChart(s), chartLegend(), sweepTable(s)] : factorTable(s),
+      s.mode === "sweep" ? [sweepChart(s), chartLegend(), sweepTable(s)]
+        : s.mode === "adaptive" ? [adaptiveChart(s), adaptiveLegend(s), adaptiveStatus(s)]
+          : factorTable(s),
       s.rows.length ? outcomeLegend(s.rows, s.outcome_labels) : null,
       invalid ? h("p", { class: "muted" }, `${invalid} trial(s) not counted (no fair setup found, or the simulator glitched).`) : null,
       h("h4", {}, "Trials"),
@@ -149,8 +210,18 @@ export async function mount(root, api) {
     try { render(await api.get(`/results/${history.value}`)); } catch (e) { api.ui.toast(e.message, "error"); }
   };
 
+  const modeRow = h("div", { class: "row rb-modes", hidden: embedded }, modeButtons.sweep, modeButtons.random, modeButtons.adaptive);
+  const modeTitle = h("h3", { class: "rb-suite-title", hidden: !embedded });
+  const MODE_TITLES = { sweep: "Robustness sweep", adaptive: "Breaking point search", random: "Perturbation mix" };
+  // The Test Suite's tiles send {detail: "sweep" | "adaptive" | "random"}; also re-show the last report.
+  root.addEventListener("suite-mode", (event) => {
+    setMode(event.detail);
+    modeTitle.textContent = MODE_TITLES[event.detail] || "";
+    if (shown) render(shown); else render(null);
+  });
+
   root.append(
-    h("div", { class: "row rb-modes" }, modeButtons.sweep, modeButtons.random),
+    modeTitle, modeRow,
     h("label", { class: "field" }, h("span", {}, "Task"), task),
     sweepBox, randomBox,
     h("div", { class: "row" },

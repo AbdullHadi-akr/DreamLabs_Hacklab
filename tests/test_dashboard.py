@@ -105,3 +105,21 @@ def test_robustness_dry_run_sweep(client):
     assert status["state"] == "done" and status["done"] == 2
     after = app.state.sim.call(lambda env: env.model.camera("top").quat.copy()).result(timeout=5)
     assert (after == original).all(), "camera perturbation was not restored"
+
+
+def test_robustness_adaptive_search(client):
+    app = client.app_ref
+    wait_idle(app)
+    body = {"task": "put apple into the bowl", "mode": "adaptive", "perturbation": "target_shift", "trials": 4,
+            "baseline_trials": 1, "seconds": 5, "dry_run": True, "record": False}
+    assert client.post("/api/ext/robustness/start", json={**body, "perturbation": "prompt_paraphrase"}).status_code == 400
+    assert client.post("/api/ext/robustness/start", json=body).status_code == 200
+    end = time.time() + 120
+    while client.get("/api/ext/robustness/status").json()["state"] == "running" and time.time() < end:
+        time.sleep(0.2)
+    status = client.get("/api/ext/robustness/status").json()
+    assert status["state"] == "done" and status["done"] == 4
+    assert status["rows"][0]["value"] == 0 and status["rows"][0]["search"]["why"] == "baseline"
+    assert all(r["search"]["why"] == "most informative" for r in status["rows"][1:])
+    assert status["analysis"]["stopped_because"] == "budget used up"
+    assert client.get(f"/api/ext/robustness/download/{status['id']}/trials.csv").text.count("\n") == 5

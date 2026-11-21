@@ -28,8 +28,26 @@ CONTAINER_SIZE = {"bowl": (0.075, 0.12), "plate": (0.065, 0.10)}
 ## Free joint of each movable object (the bottle's joint is not named after its body).
 FREE_JOINTS = {"apple": "apple_free", "banana": "banana_free", "orange": "orange_free", "water_bottle": "bottle_free"}
 
-## Words in the task text -> body names.
-ALIASES = {"bottle": "water_bottle", "water": "water_bottle", "dish": "plate", "fruits": "fruit"}
+## Words in the task text -> body names (English and German, singular and plural).
+OBJECT_WORDS = {
+    "apple": "apple", "apples": "apple", "apfel": "apple", "äpfel": "apple",
+    "banana": "banana", "bananas": "banana", "banane": "banana", "bananen": "banana",
+    "orange": "orange", "oranges": "orange", "orangen": "orange", "mandarine": "orange",
+    "bottle": "water_bottle", "bottles": "water_bottle", "water": "water_bottle", "flasche": "water_bottle",
+    "wasserflasche": "water_bottle",
+}
+CONTAINER_WORDS = {
+    "bowl": "bowl", "bowls": "bowl", "schüssel": "bowl", "schuessel": "bowl", "schale": "bowl",
+    "plate": "plate", "plates": "plate", "dish": "plate", "teller": "plate",
+}
+ALIASES = {**OBJECT_WORDS, **CONTAINER_WORDS, "fruits": "fruit"}  # used by the rules below and older callers
+
+## A container counts as the goal only right after one of these (with at most a few words in between) ...
+_PLACE = {"into", "in", "onto", "on", "inside", "to", "->", "→", "auf", "rein", "hinein"}
+## ... and not when the words in between say "next to / in front of / out of" etc.
+_NOT_PLACE = {"front", "next", "behind", "beside", "near", "left", "right", "side", "away", "from", "out", "off",
+              "under", "below", "beneath", "around", "between", "neben", "vor", "hinter", "unter", "aus", "von",
+              "of"}
 
 ## Directions as the robot sees them (its overhead camera looks along -y; its left arm is on the +x side).
 DIRECTIONS = {
@@ -79,6 +97,37 @@ def is_upright(env, obj: str, max_deg: float = UPRIGHT_DEG) -> bool:
 def _name(word: str) -> str:
     word = word.lower()
     return ALIASES.get(word, word)
+
+
+def _tokens(task: str) -> list[str]:
+    text = task.lower()
+    text = re.sub(r"\b(on )?top of\b", "on", text)  # "on top of the plate" = on the plate
+    text = re.sub(r"\binside of\b", "inside", text)
+    return re.findall(r"->|→|[a-zäöüß]+", text)
+
+
+## Words that negate the task ("do not put ...", "don't", "never", German "nicht"/"kein").
+_NEGATION = {"not", "never", "dont", "nicht", "kein", "keine", "niemals"}
+## Actions after the goal change the final state ("... and then remove it"): no single goal to measure.
+_LATER_ACTION = {"then", "remove", "take", "lift", "pick", "move", "put", "place", "drop", "back", "again",
+                 "dann", "danach", "wieder", "nimm", "nehme"}
+
+
+def _goal(tokens: list[str]) -> tuple[str, int, int] | None:
+    """(container, index of its placement word, index of the container word): the last container that follows a
+    placement word."""
+    for i in range(len(tokens) - 1, -1, -1):
+        if tokens[i] not in CONTAINER_WORDS:
+            continue
+        for j in range(i - 1, max(-1, i - 5), -1):  # up to 3 words in between ("the big blue plate")
+            word = tokens[j]
+            if word in _NOT_PLACE:
+                break
+            if word in _PLACE:
+                if j > 0 and tokens[j - 1] in _NOT_PLACE:  # "next to the bowl", "close to"
+                    break
+                return CONTAINER_WORDS[tokens[i]], j, i
+    return None
 
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -208,7 +257,8 @@ RULES: list[Rule] = [
          r"(?:take|get|remove) " + OBJ + r" (?:out of|from) " + OBJ, _take_out),
     Rule("stack", "stack the orange on the apple", "the object rests on top of the other one",
          r"(?:stack|place) " + OBJ + r" (?:on top of|onto|on) " + OBJ, _stack),
-    Rule("put_in", "put the banana on the plate", "the object is in or on the container",
+    Rule("put_in", "put the banana on the plate", "the object is in or on the container (natural sentences and "
+         "German work too, for example 'Leg den Apfel in die Schüssel')",
          r"(?:put|place) " + OBJ + r" (?:into|in|onto|on) " + OBJ, _put_in),
     Rule("next_to", "put the apple next to the bowl", "3 to 15 cm apart, not in it, on the table",
          r"(?:put|place|move) " + OBJ + r" (?:next to|beside|near) " + OBJ, _next_to),
@@ -223,6 +273,12 @@ RULES: list[Rule] = [
 
 def _single(task: str) -> Check | None:
     text = task.lower().strip()
+    # "put / place X in or on Y" in natural words or German: parse_task reads it first, so "Pick up the banana and put
+    # it on the plate" is a placing task, not a lifting one. It returns None for the other task types.
+    placing = parse_task(text)
+    if placing:
+        obj, container = placing
+        return Check(task, lambda env, s: is_in(env, obj, container))
     for rule in RULES:
         match = re.search(rule.pattern, text)
         if match:
@@ -267,15 +323,37 @@ def describe_rules() -> list[dict]:
 
 
 def parse_task(task: str) -> tuple[str, str] | None:
-    """(object, container) from tasks of the form "put <object> into/in/on the <container>", else None.
-    Used by the robustness lab and the scene inspector, which need one object and one container."""
-    match = re.search(r"put (?:the |an? )?(\w+) (?:into|in|onto|on) (?:the |a )?(\w+)", task.lower())
-    if not match:
+    """(object, container) from a natural task, else None.
+
+    Understands e.g. "put apple into the bowl", "Pick up the banana and put it on the green plate",
+    "place the water bottle in the bowl", "move the apple from the plate to the bowl", "apple -> bowl",
+    "Leg den Apfel in die Schüssel". The goal is the container after the last placement word (into, in, on, to,
+    auf ...); the object is the first object named before it. Color/size words are ignored, and an object word used
+    as an adjective ("the orange bowl") is not taken as the object.
+
+    Returns None when the goal cannot be measured: negated tasks ("Do not place the apple in the bowl") and tasks
+    that act again after placing ("Put the banana on the plate and then remove it").
+    The success check uses it first for "put / place X in or on Y" tasks; the other task types go to RULES.
+    """
+    tokens = _tokens(task.replace("n't", " not").replace("n’t", " not"))
+    if _NEGATION & set(tokens):
         return None
-    obj, container = _name(match[1]), _name(match[2])
-    if obj not in OBJECTS or container not in CONTAINERS:
+    goal = _goal(tokens)
+    if goal is None:
         return None
-    return obj, container
+    container, place_at, container_at = goal
+    if _LATER_ACTION & set(tokens[container_at + 1:]):
+        return None
+    for k, word in enumerate(tokens[:place_at]):
+        if word not in OBJECT_WORDS:
+            continue
+        following = tokens[k + 1] if k + 1 < len(tokens) else ""
+        if following in CONTAINER_WORDS:  # "the orange bowl": a color, not the orange
+            continue
+        if word == "water" and following not in ("bottle", "bottles", ""):
+            continue  # "water" alone only counts in "water bottle"
+        return OBJECT_WORDS[word], container
+    return None
 
 
 def place(env, obj: str, container: str, height: float = 0.04) -> None:

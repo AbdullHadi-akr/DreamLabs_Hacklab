@@ -52,7 +52,8 @@ from dreamtool.runner import Hooks
 class MyTool(Extension):
     title = "My tool"
     icon = ""
-    slot = "left"          # "left" = tab in the left column, "right" = card in the right column
+    slot = "left"          # "left" = tab in the left column, "right" = card in the right column,
+                           # "suite" = tiles in the Test Suite builder (set suite_modes; see robustness/)
     order = 50
 
     def setup(self): ...                       # once on startup
@@ -81,6 +82,14 @@ class MyHook(Hooks):
 More helpers on the context: `self.ctx.emit("event", data)` (to the panel), `self.ctx.log("text")` (to the log),
 `self.ctx.data_dir` (results folder `out/extensions/<id>/`). Errors in hooks, in `decorate` or while loading are
 caught and logged; a broken extension does not take the dashboard down.
+
+### Test modes in the Test Suite (`slot = "suite"`)
+
+An extension with `slot = "suite"` and `suite_modes = [{"id", "title", "subtitle", "icon"}]` gets one tile per mode
+in the Test Suite's builder instead of a tab (without a Test Suite it falls back to a normal tab). When a tile is
+chosen, the Test Suite shows the extension's panel in place of its own form and fires
+`root.dispatchEvent(new CustomEvent("suite-mode", {detail: mode_id}))` on the panel's root. The report area then
+shows an element with id `<extension id>-wide-report` that the panel may fill with its full report. See `robustness/`.
 
 ## Frontend: `panel.js`
 

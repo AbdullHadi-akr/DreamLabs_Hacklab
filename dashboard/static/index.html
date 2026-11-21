@@ -9,6 +9,11 @@
 <body>
   <header class="topbar">
     <span class="brand">Dream-1 Lab</span>
+    <!-- The Test Suite switches the page between these two workspaces; the menu entry "Test Suite" uses them. -->
+    <nav class="workspace-nav" aria-label="Workspace" hidden>
+      <button class="tab active" id="workspace-dashboard" type="button" aria-pressed="true">Dashboard</button>
+      <button class="tab" id="workspace-test-suite" type="button" aria-pressed="false" hidden>Test Suite</button>
+    </nav>
     <a href="#" class="credit-left" id="credit-left" title="Open Credits"></a>
     <div class="status">
       <button type="button" class="status-button" id="status-button" aria-expanded="false" aria-controls="status-details">
@@ -30,9 +35,12 @@
     </nav>
 
     <aside class="side" id="side">
-      <div class="panels" id="ext-panels">
-        <div class="empty">No tools loaded.</div>
+      <div id="dashboard-tools">
+        <div class="panels" id="ext-panels">
+          <div class="empty">No tools loaded.</div>
+        </div>
       </div>
+      <section class="suite-slot" id="test-suite-config" hidden></section>
     </aside>
 
     <section class="center">
@@ -68,7 +76,10 @@
         <span class="muted" id="status-sub"></span>
       </div>
 
+      <section class="suite-slot" id="test-suite-results" hidden></section>
+
       <div class="below">
+        <section class="block suite-slot" id="test-suite-monitor" hidden></section>
         <section class="block">
           <h2>Current run</h2>
           <dl class="kv" id="run-info">
@@ -86,14 +97,14 @@
           <div id="right-slot"></div>
         </section>
         <section class="block log-block">
-          <div class="block-head"><h2>Log</h2><button class="btn-quiet small" id="btn-clear-log" type="button">Clear</button></div>
-          <ol class="log" id="log"></ol>
+          <div id="global-log"></div>
         </section>
       </div>
     </section>
   </main>
 
   <div class="toasts" id="toasts"></div>
+  <div class="campaign-notices" id="campaign-notices" aria-live="polite" aria-relevant="additions"></div>
   <script type="module" src="/static/app.js"></script>
 </body>
 </html>

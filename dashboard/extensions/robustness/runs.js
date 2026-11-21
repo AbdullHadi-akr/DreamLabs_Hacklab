@@ -69,7 +69,7 @@ async function render() {
     !state.policy
       ? h("p", { class: "rp-note" }, "Pick one policy to see the map. Pooling dry runs with Dream-1 would mix two different robots' behaviour.")
       : h("div", {},
-        h("p", { class: "rp-note" }, "Every sweep for this task and policy, pooled. Columns: strength as a share of each perturbation's " +
+        h("p", { class: "rp-note" }, "Every sweep and breaking-point search for this task and policy, pooled. Columns: strength as a share of each perturbation's " +
           "maximum (e.g. ≤ 50 % of 8 cm = up to 4 cm). Dark = robust, light = fails. Hover a cell for details, click it for the newest report." +
           (map.excluded_random ? ` ${map.excluded_random} random-mix run(s) are not included: they change several things at once.` : "")),
         h("div", { class: "rp-heat-wrap" }, robustnessMap(map, { metric: state.metric, onCell: newestReport })),
@@ -80,7 +80,7 @@ async function render() {
     h("tbody", {}, runs.map((r) => h("tr", {},
       h("td", { class: "num" }, r.started ? new Date(r.started * 1000).toLocaleString([], { dateStyle: "short", timeStyle: "short" }) : r.id),
       h("td", {}, h("a", { href: `report.html?id=${encodeURIComponent(r.id)}` }, r.label),
-        h("div", { class: "muted" }, r.mode === "sweep" ? "sweep" : `random: ${r.factors.join(", ")}`)),
+        h("div", { class: "muted" }, r.mode === "random" ? `random: ${r.factors.join(", ")}` : r.mode === "adaptive" ? "breaking-point search" : "sweep")),
       h("td", {}, r.task),
       h("td", {}, h("span", { class: `rp-tag ${r.dry_run ? "" : "live"}` }, r.dry_run ? "dry run" : r.policy)),
       h("td", { class: "num" }, `${r.done}/${r.total}`, r.state !== "done" ? h("div", { class: "muted" }, r.state) : null),

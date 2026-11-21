@@ -174,7 +174,7 @@ export function factorScatter(summary, factor, { width = 220, height = 120 } = {
 }
 
 export function describeParams(row, summary) {
-  const defs = summary.mode === "sweep" ? [summary.perturbation] : summary.factors;
+  const defs = summary.perturbation ? [summary.perturbation] : summary.factors;
   return defs.map((p) => `${p.label} ${strength(row.params[p.id], p)}`).join(" · ");
 }
 
@@ -323,6 +323,110 @@ export function interactionHeatmap(summary, xId, yId, { bins = 4 } = {}) {
     }
   }
   return h("div", {}, grid, h("div", { class: "rb-heat-foot muted" }, `${fx.label} (${fx.unit}) →`));
+}
+
+// ---------------- adaptive breaking-point search ----------------
+
+/**
+ * Estimated P(measure) over strength with its 80% band, every trial as a dot (top = stage reached, bottom = not),
+ * the breaking point with its 80% interval, and below it the belief about where the break lies.
+ */
+export function adaptiveChart(summary, { width = 288, height = 210 } = {}) {
+  const p = summary.perturbation, a = summary.analysis, labels = summary.outcome_labels;
+  const lo = p.neutral, hi = p.max;
+  const m = { l: 32, r: 12, t: 12, b: 26 }, beliefH = 34, gap = 14;
+  const W = width - m.l - m.r, H = height - m.t - m.b - beliefH - gap;
+  const x = (v) => m.l + ((Math.min(Math.max(v, lo), hi) - lo) / (hi - lo || 1)) * W;
+  const y = (v) => m.t + H - v * H;
+  const root = svg("svg", { viewBox: `0 0 ${width} ${height}`, class: "rb-chart", role: "img",
+    "aria-label": `Estimated ${a.measure.label.toLowerCase()} probability over ${p.label} strength` });
+
+  for (const t of [0, 0.5, 1]) root.append(svg("line", { x1: m.l, x2: width - m.r, y1: y(t), y2: y(t), class: "rb-grid" }),
+    svg("text", { x: m.l - 6, y: y(t) + 4, class: "rb-axis", "text-anchor": "end" }, `${t * 100}%`));
+  const ticks = 4;
+  for (let i = 0; i <= ticks; i++) {
+    const v = lo + ((hi - lo) * i) / ticks;
+    root.append(svg("text", { x: x(v), y: height - 8, class: "rb-axis", "text-anchor": i === 0 ? "start" : i === ticks ? "end" : "middle" },
+      strength(+v.toFixed(2), p)));
+  }
+
+  const bp = a.verdict.breaking_point;
+  if (bp !== null && bp !== undefined) {
+    const [cl, ch] = a.estimate.ci;
+    root.append(svg("rect", { x: x(cl), y: m.t, width: Math.max(1, x(ch) - x(cl)), height: H, class: "rb-ad-ci" }),
+      svg("line", { x1: x(bp), x2: x(bp), y1: m.t, y2: m.t + H, class: "rb-break" }),
+      svg("text", { x: x(bp) + (x(bp) > m.l + W * 0.8 ? -4 : 4), y: m.t + 9, class: "rb-break-label",
+        "text-anchor": x(bp) > m.l + W * 0.8 ? "end" : "start" }, `breaks ≈ ${strength(+bp.toFixed(2), p)}`));
+  }
+
+  const c = a.curve;
+  const band = c.s.map((s, i) => `${x(s)},${y(c.hi[i])}`).concat([...c.s].reverse().map((s, i) => `${x(s)},${y(c.lo[c.s.length - 1 - i])}`));
+  root.append(svg("polygon", { points: band.join(" "), class: "rb-ad-band" }),
+    svg("polyline", { points: c.s.map((s, i) => `${x(s)},${y(c.mean[i])}`).join(" "), class: "rb-ad-mean" }));
+
+  // trials: stacked at the top (stage reached) or bottom (not reached) so repeats stay visible
+  const stacks = {};
+  const level = a.measure.level;
+  for (const r of summary.rows) {
+    if (r.progress === null || r.progress === undefined || ["invalid", "aborted"].includes(r.outcome)) continue;
+    const hit = r.progress >= level - 1e-9;
+    const key = `${r.value}-${hit}`;
+    const k = (stacks[key] = (stacks[key] || 0) + 1) - 1;
+    const cy = hit ? y(1) + 6 + k * 7 : y(0) - 6 - k * 7;
+    const dot = svg("circle", { cx: x(r.value), cy, r: 4.5, fill: OUTCOME_COLORS[r.outcome], class: "rb-ad-dot" });
+    root.append(dot);
+    tooltip(dot, () => h("div", {}, h("b", {}, `Trial #${r.index} · ${strength(r.value, p)}`),
+      h("div", {}, labels[r.outcome]), h("div", { class: "muted" }, r.search?.why === "baseline" ? "baseline trial" :
+        `chosen as most informative${r.search?.ci_before ? `; interval before: ${r.search.ci_before.map((v) => +v.toFixed(2)).join("–")}` : ""}`)));
+  }
+  if (summary.state === "running" && a.next && a.next.s !== undefined && summary.rows.length >= (summary.config.baseline_trials || 0)) {
+    root.append(svg("path", { d: `M${x(a.next.s) - 5},${m.t + H + 9} l5,-7 l5,7 z`, class: "rb-ad-next" },
+      svg("title", {}, `next trial: ${strength(a.next.s, p)}`)));
+  }
+
+  // belief about the breaking point (posterior of theta), same x axis
+  const top = m.t + H + gap, inRange = a.theta.s.map((s, i) => [s, a.theta.mass[i]]).filter(([s]) => s <= hi + 1e-9);
+  const peak = Math.max(...a.theta.mass, 1e-9);
+  const area = [`${x(lo)},${top + beliefH}`, ...inRange.map(([s, v]) => `${x(s)},${top + beliefH - (v / peak) * beliefH}`), `${x(hi)},${top + beliefH}`];
+  root.append(svg("line", { x1: m.l, x2: width - m.r, y1: top + beliefH, y2: top + beliefH, class: "rb-grid" }),
+    svg("polygon", { points: area.join(" "), class: "rb-ad-belief" }),
+    svg("text", { x: m.l - 6, y: top + beliefH - 2, class: "rb-axis", "text-anchor": "end" }, "θ"));
+  if (a.estimate.p_beyond > 0.05) {
+    root.append(svg("text", { x: width - m.r, y: top + 8, class: "rb-axis", "text-anchor": "end" },
+      `${Math.round(a.estimate.p_beyond * 100)}% beyond →`));
+  }
+  return root;
+}
+
+export function adaptiveLegend(summary) {
+  return h("div", { class: "rb-chart-legend muted" },
+    h("span", {}, h("i", { class: "rb-key-ad" }), `P(${summary.analysis.measure.label.toLowerCase()}), 80% band`),
+    h("span", {}, h("i", { class: "rb-key-break" }), "breaking point ± 80%"),
+    h("span", {}, h("i", { class: "rb-key-belief" }), "θ: where the break lies"));
+}
+
+/** One line: interval, trials used, why it stopped / what comes next. */
+export function adaptiveStatus(summary) {
+  const a = summary.analysis, p = summary.perturbation, e = a.estimate;
+  const parts = [];
+  if (a.observations.length) parts.push(`80% interval ${strength(+e.ci[0].toFixed(2), p)}–${e.ci[1] > p.max ? `>${strength(p.max, p)}` : strength(+e.ci[1].toFixed(2), p)}`);
+  parts.push(`${summary.rows.length} of max. ${a.budget} trials`);
+  if (summary.state === "running" && a.next?.gain !== null && summary.rows.length >= summary.config.baseline_trials) parts.push(`next: ${strength(a.next.s, p)}`);
+  if (a.stopped_because && summary.state !== "running") parts.push(`stopped: ${a.stopped_because}`);
+  return h("p", { class: "muted rb-ad-status" }, parts.join(" · "));
+}
+
+/** Report: every step of the search and why it went there. */
+export function searchTable(summary) {
+  const p = summary.perturbation, labels = summary.outcome_labels;
+  return h("table", { class: "table rb-table" },
+    h("thead", {}, h("tr", {}, ["#", "Strength", "Why", "Interval before", "Outcome"].map((t) => h("th", {}, t)))),
+    h("tbody", {}, summary.rows.map((r) => h("tr", {},
+      h("td", { class: "num" }, r.index),
+      h("td", { class: "num" }, strength(r.value, p)),
+      h("td", {}, r.search?.why === "baseline" ? "baseline" : r.search?.gain !== undefined ? `info gain ${r.search.gain.toFixed(2)}` : "–"),
+      h("td", { class: "num" }, r.search?.ci_before ? r.search.ci_before.map((v) => +v.toFixed(1)).join("–") : "–"),
+      h("td", {}, outcomeChip(r.outcome, labels))))));
 }
 
 /** Download buttons for one campaign. */
