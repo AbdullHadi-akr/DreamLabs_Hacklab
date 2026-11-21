@@ -16,6 +16,10 @@
       <span>Dream-1 Lab</span>
       <span class="brand-sub pixel">Sim Dashboard</span>
     </div>
+    <nav class="tabs workspace-nav" aria-label="Workspace">
+      <button class="tab active" id="workspace-dashboard" type="button" aria-pressed="true">Dashboard</button>
+      <button class="tab" id="workspace-test-suite" type="button" aria-pressed="false" hidden>Test Suite</button>
+    </nav>
     <div class="pills">
       <span class="pill" id="pill-ws"><i></i><span>Connection</span></span>
       <span class="pill" id="pill-sim"><i></i><span>Simulation</span></span>
@@ -26,13 +30,14 @@
 
   <main class="layout">
     <aside class="col col-left">
-      <section class="card tools">
+      <section class="card tools" id="dashboard-tools">
         <div class="section-head"><h2 class="pixel">Tools</h2></div>
         <nav class="tabs" id="ext-tabs"></nav>
         <div class="panels" id="ext-panels">
           <div class="empty">No extensions loaded.</div>
         </div>
       </section>
+      <section class="card" id="test-suite-config" hidden></section>
     </aside>
 
     <section class="col col-center">
@@ -81,9 +86,11 @@
 
       <div class="section-head"><h2 class="pixel">Robot cameras</h2><span class="muted">What Dream-1 sees</span></div>
       <div class="cams" id="cams"></div>
+      <section class="card" id="test-suite-results" hidden></section>
     </section>
 
     <aside class="col col-right">
+      <section class="card" id="test-suite-monitor" hidden></section>
       <section class="card">
         <div class="section-head"><h2 class="pixel">Current run</h2></div>
         <dl class="kv" id="run-info">
@@ -102,13 +109,13 @@
       </section>
       <div id="right-slot"></div>
       <section class="card grow">
-        <div class="section-head"><h2 class="pixel">Log</h2><button class="link" id="btn-clear-log" type="button">clear</button></div>
-        <ol class="log" id="log"></ol>
+        <div id="global-log"></div>
       </section>
     </aside>
   </main>
 
   <div class="toasts" id="toasts"></div>
+  <div class="campaign-notices" id="campaign-notices" aria-live="polite" aria-relevant="additions"></div>
   <script type="module" src="/static/app.js"></script>
 </body>
 </html>

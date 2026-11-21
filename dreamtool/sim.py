@@ -12,16 +12,17 @@ import sys
 import sysconfig
 from pathlib import Path
 
-## Hacklab/ (the folder where dream-tool/ and dreamlabs/ sit side by side)
-WORKSPACE = Path(__file__).resolve().parents[2]
+PROJECT = Path(__file__).resolve().parents[1]
+WORKSPACE = PROJECT.parent
 
 
 def find_sim_dir() -> Path:
-    """Folder of the yam_mujoco example: $DREAM_SIM_DIR, else the repo clone next to us, else the copy in the wheel."""
+    """Find the yam_mujoco example in the configured path, repo checkout, or wheel."""
     candidates = []
     if os.environ.get("DREAM_SIM_DIR"):
         candidates.append(Path(os.environ["DREAM_SIM_DIR"]))
     candidates.append(WORKSPACE / "dreamlabs" / "dream_library" / "examples" / "yam_mujoco")
+    candidates.append(PROJECT / "dreamlabs" / "dream_library" / "examples" / "yam_mujoco")
     candidates.append(Path(sysconfig.get_paths()["purelib"]) / "dream_examples" / "yam_mujoco")
     for path in candidates:
         if (path / "yam_env.py").is_file():

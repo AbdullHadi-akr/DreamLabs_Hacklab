@@ -83,6 +83,12 @@ python start.py                      # or: python -m dashboard   → opens http:
   The **run** button and sweeps without dry run call Dream-1.
 - The server only listens locally (127.0.0.1). Ctrl+C stops it.
 
+### Validation Test Suite
+
+Open **Test Suite** next to **Dashboard**. Quick Test takes a single run from the current scene. Repeated Runs samples one scene per repetition, Parameter Sweep enumerates explicit combinations, and Safety Stress Test applies selected reach and visibility disturbances. A/B Comparison restores matched scenes for both prompts. Failure Reproduction restores the recorded scene settings and, for newly recorded runs, the initial MuJoCo physics state. Dream-1 inference can vary between otherwise identical runs.
+
+Placement outcomes use simulated contact, release, and stability evidence. Reports include the last observed stage and flag new contacts between opposite arms and modeled joint-limit violations. Workspace boundaries and contact force limits require additional safety definitions. API errors and unsupported goals can leave a run unevaluated. Dry runs exercise the workflow without live inference.
+
 ### Robustness test
 
 Tab **Robustness**: change the world on purpose and see how and when Dream-1 fails.

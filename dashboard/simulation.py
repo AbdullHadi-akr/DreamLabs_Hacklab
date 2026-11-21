@@ -99,6 +99,8 @@ class RunRequest:
     teardown: Callable | None = None  # env -> None, after the run (also on errors)
     hooks: list = field(default_factory=list)
     stop_on_success: bool = True
+    max_requests: int | None = None
+    capture_each_step: bool = True
     prompt: str | None = None  # text sent to Dream-1 instead of `task` (the success check still uses `task`)
     realtime: bool = True  # offline: play targets at 20 Hz wall clock; False = as fast as possible
     source: str = "core"  # who started the run (core or an extension id)
@@ -312,6 +314,8 @@ class SimWorker(threading.Thread):
                 result = runner.run_task(
                     request.task, model=request.model, seconds=request.seconds, env=env, hooks=hooks,
                     viewer=False, verbose=False, stop_on_success=request.stop_on_success, prompt=request.prompt,
+                    max_requests=request.max_requests,
+                    capture_each_step=request.capture_each_step,
                 )
         except Exception as error:
             result.stop_reason = f"error: {type(error).__name__}: {error}"
@@ -386,6 +390,7 @@ class _SafeHook(Hooks):
 
     def on_start(self, *a): self._call("on_start", *a)  # noqa: E704
     def on_reply(self, *a): self._call("on_reply", *a)  # noqa: E704
+    def on_request(self, *a): self._call("on_request", *a)  # noqa: E704
     def on_step(self, *a): self._call("on_step", *a)  # noqa: E704
     def on_wait(self, *a): self._call("on_wait", *a)  # noqa: E704
     def should_stop(self, *a): return self._call("should_stop", *a)  # noqa: E704

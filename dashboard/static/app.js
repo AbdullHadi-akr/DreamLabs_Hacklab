@@ -1,4 +1,5 @@
 // Core UI of the dashboard: viewer, prompt bar, status, log, and loading the extension panels.
+import { logPanel } from "./lib/log_panel.js";
 import { EventHub, createExtensionApi, h, request } from "./lib/api.js";
 
 const $ = (id) => document.getElementById(id);
@@ -19,13 +20,11 @@ function toast(message, level = "info", ms = 4000) {
   setTimeout(() => el.remove(), ms);
 }
 
+const debugLog = logPanel("Application log", {}, {clear: true});
+$("global-log").append(debugLog.panel);
+
 function log(message, level = "info", source = "core") {
-  const time = new Date().toLocaleTimeString("en-GB");
-  const item = h("li", { class: level }, h("time", {}, time), h("span", { class: "src" }, source), message);
-  const list = $("log");
-  list.append(item);
-  while (list.children.length > 400) list.firstChild.remove();
-  list.scrollTop = list.scrollHeight;
+  debugLog.append({message, level, source, at: Date.now() / 1000});
 }
 
 function setPill(id, state, text) {
@@ -125,7 +124,6 @@ function setupTaskbar(state) {
   $("btn-demo").onclick = () => action(request("POST", "/api/run", { task: core.currentTask() || "demo", offline: true }));
   $("btn-home").onclick = () => action(request("POST", "/api/home"));
   $("btn-reset").onclick = () => action(request("POST", "/api/reset"));
-  $("btn-clear-log").onclick = () => ($("log").innerHTML = "");
   if (!state.has_api_key) {
     $("btn-run").title = "No API key configured – see README";
   }
@@ -243,7 +241,7 @@ function setupEvents() {
 
 async function loadExtensions(extensions) {
   const tabs = $("ext-tabs"), panels = $("ext-panels");
-  const left = extensions.filter((e) => e.slot !== "right");
+  const left = extensions.filter((e) => e.slot !== "right" && e.slot !== "workspace");
   const right = extensions.filter((e) => e.slot === "right");
   if (left.length) panels.innerHTML = "";
 
@@ -301,6 +299,8 @@ async function main() {
   drawRtt();
   window.addEventListener("resize", drawRtt);
   await loadExtensions(state.extensions);
+  const suite = state.extensions.find((ext) => ext.id === "test_suite");
+  if (suite) await mountPanel(suite, $("test-suite-config"));
 }
 
 main().catch((error) => {
