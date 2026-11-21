@@ -181,6 +181,18 @@ run, robustness campaign and export into `brain/raw/` by itself (plus a daily su
 agent reads `brain/AGENTS.md` and keeps `brain/wiki/` up to date (write `ingest` to it); people read the wiki, for
 example in Obsidian. See [brain/README.md](brain/README.md).
 
+### Architecture diagrams
+
+[docs/architecture/Dream-1-Lab-architecture.docx](docs/architecture/Dream-1-Lab-architecture.docx) (Word) holds the
+deployment diagram, the C4 diagrams (levels 1 to 3), the layers and the teaching loop, with a table for each. The
+pictures are also in [docs/architecture/png/](docs/architecture/png/). After a change to the system, update
+`docs/architecture/diagrams.py` and `make_docx.py` and run:
+
+```bash
+python docs/architecture/diagrams.py docs/architecture/png
+python docs/architecture/make_docx.py docs/architecture/png docs/architecture/Dream-1-Lab-architecture.docx
+```
+
 **Building a new feature:** copy `dashboard/extensions/_template` → see
 [dashboard/EXTENSIONS.md](dashboard/EXTENSIONS.md).
 
