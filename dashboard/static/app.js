@@ -1,5 +1,6 @@
 // Core UI of the dashboard: viewer, prompt bar, status, log, and loading the extension panels.
 import { EventHub, createExtensionApi, h, request } from "./lib/api.js";
+import { episodesPanel, setupEpisodes } from "./episodes.js";
 
 const $ = (id) => document.getElementById(id);
 const core = {
@@ -276,7 +277,8 @@ function setupEvents() {
 // ---------------- Extensions ----------------
 
 // Menu names in plain words; the order here is the order in the menu. At most 6 entries.
-const MENU = [["teleop", "Control"], ["scene_inspector", "Scene"], ["robustness", "Robustness"], ["settings", "Settings"]];
+const MENU = [["teleop", "Control"], ["scene_inspector", "Scene"], ["robustness", "Robustness"], ["episodes", "Episodes"],
+  ["settings", "Settings"]];
 const MENU_LIMIT = 6;
 
 function settingsPanel(state) {
@@ -307,7 +309,9 @@ async function loadExtensions(extensions, state) {
   const left = extensions.filter((e) => e.slot !== "right");
   const right = extensions.filter((e) => e.slot === "right");
   const order = (id) => { const i = MENU.findIndex(([m]) => m === id); return i < 0 ? MENU.length : i; };
-  const entries = [...left, { id: "settings", title: "Settings", core: true }].sort((a, b) => order(a.id) - order(b.id));
+  const entries = [...left, { id: "episodes", title: "Episodes", core: true,
+    description: "Recorded episodes, what is ready for a fine-tune, success and cost per model" },
+    { id: "settings", title: "Settings", core: true }].sort((a, b) => order(a.id) - order(b.id));
   if (entries.length > MENU_LIMIT) console.warn(`The menu holds at most ${MENU_LIMIT} entries; extra tools are left out.`);
   panels.innerHTML = "";
   const setFolded = setupFold();
@@ -319,6 +323,7 @@ async function loadExtensions(extensions, state) {
     setFolded(false);
     try { localStorage.setItem("dream.activeTab", id); } catch {}
   };
+  core.activate = activate;
   const label = (ext) => (MENU.find(([m]) => m === ext.id) || [])[1] || ext.title;
 
   for (const ext of entries.slice(0, MENU_LIMIT)) {
@@ -326,7 +331,8 @@ async function loadExtensions(extensions, state) {
       onclick: () => activate(ext.id) }, label(ext)));
     const root = h("div", { class: "panel", "data-id": ext.id, hidden: true });
     panels.append(root);
-    if (ext.core) root.append(...settingsPanel(state));
+    if (ext.id === "settings") root.append(...settingsPanel(state));
+    else if (ext.id === "episodes") episodesPanel(root, core, action);
     else await mountPanel(ext, root);
   }
   for (const ext of right) {
@@ -369,6 +375,7 @@ async function main() {
   setupViewer(state.camera);
   setupCameras(state.cameras);
   setupTaskbar(state);
+  setupEpisodes(core, action, state.episode);
   updateControls(state.status);
   drawRtt();
   window.addEventListener("resize", drawRtt);

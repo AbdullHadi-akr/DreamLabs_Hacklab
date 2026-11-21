@@ -14,8 +14,11 @@ from pydantic import BaseModel, Field
 
 from dreamtool import sim as dsim
 
+from .episodes import Recorder
+from .episodes import export as export_episodes
 from .events import EventBus
 from .extension import describe, load_extensions
+from .lab_db import LabDB
 from .simulation import CAMERAS, MAIN_FPS, SimWorker, demo_motion
 
 ## Windows reads MIME types from the registry, which often maps .js to text/plain -> browsers refuse ES modules.
@@ -39,6 +42,15 @@ class RunBody(BaseModel):
     offline: bool = False
 
 
+class RecordBody(BaseModel):
+    enabled: bool
+
+
+class ExportBody(BaseModel):
+    task: str = Field(min_length=2, max_length=300)
+    name: str = Field(pattern=r"^[a-z0-9-]{1,64}$")
+
+
 class CameraBody(BaseModel):
     lookat: list[float] | None = None
     distance: float | None = None
@@ -49,7 +61,9 @@ class CameraBody(BaseModel):
 
 def create_app() -> FastAPI:
     bus = EventBus()
-    worker = SimWorker(bus)
+    db = LabDB()
+    recorder = Recorder(db, bus)
+    worker = SimWorker(bus, db=db, recorder=recorder)
     extensions = load_extensions(worker, bus)
     worker.extensions = extensions
 
@@ -67,6 +81,7 @@ def create_app() -> FastAPI:
 
     app = FastAPI(title="Dream-1 Dashboard", lifespan=lifespan)
     app.state.bus, app.state.sim, app.state.extensions = bus, worker, extensions
+    app.state.db, app.state.recorder = db, recorder
 
     @app.middleware("http")
     async def no_cache(request, call_next):
@@ -106,6 +121,7 @@ def create_app() -> FastAPI:
             "status": worker.status(),
             "sim": worker.state_snapshot,
             "extensions": [describe(e) for e in extensions],
+            "episode": recorder.status(),
         }
 
     def require_idle():
@@ -131,6 +147,7 @@ def create_app() -> FastAPI:
     def reset():
         worker.cancel_queued()
         worker.stop()
+        worker.call(recorder.save)  # an open episode is kept, marked by the success check, before the scene resets
         worker.call(lambda env: env.reset())
         bus.log("Scene reset.")
         return {"ok": True}
@@ -141,6 +158,53 @@ def create_app() -> FastAPI:
         worker.run_task("move arms home", offline=True, targets=lambda env: dsim.home_path(env.state()),
                         label="Home", stop_on_success=False)
         return {"ok": True}
+
+    # ---------- Episodes (teaching loop) and the lab database ----------
+
+    @app.get("/api/episodes")
+    def episodes():
+        return {
+            "status": recorder.status(),
+            "summary": db.summary(),
+            "episodes": db.query(
+                "SELECT id, task, model, took_over, seconds, dream_success, success, finetune_id, note, started_at "
+                "FROM episodes WHERE status = 'saved' ORDER BY id DESC LIMIT 30"),
+            "finetunes": db.query("SELECT id, name, task, episodes, frames, status, model_id, created_at "
+                                  "FROM finetunes ORDER BY id DESC LIMIT 10"),
+        }
+
+    @app.post("/api/episodes/take-over")
+    def take_over():
+        try:
+            return {"ok": True, "state": recorder.take_over(worker)}
+        except ValueError as error:
+            raise HTTPException(409, str(error)) from None
+
+    @app.post("/api/episodes/save")
+    def save_episode():
+        if recorder.mode in (None, "dream"):
+            raise HTTPException(409, "No episode to save. While Dream-1 works, press Take over or Stop first.")
+        return {"ok": True, "episode": worker.call(recorder.save).result(timeout=120)}
+
+    @app.post("/api/episodes/discard")
+    def discard_episode():
+        if recorder.mode in (None, "dream"):
+            raise HTTPException(409, "No episode to discard. While Dream-1 works, press Take over or Stop first.")
+        worker.call(recorder.discard).result(timeout=60)
+        return {"ok": True}
+
+    @app.post("/api/episodes/record")
+    def record(body: RecordBody):
+        recorder.enabled = body.enabled
+        bus.emit("episode.state", recorder.status())
+        return recorder.status()
+
+    @app.post("/api/episodes/export")
+    def export(body: ExportBody):
+        try:
+            return export_episodes(db, body.task, body.name)
+        except ValueError as error:
+            raise HTTPException(400, str(error)) from None
 
     @app.post("/api/camera")
     def camera(body: CameraBody):

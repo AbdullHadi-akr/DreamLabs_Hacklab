@@ -287,3 +287,13 @@ h3 { margin: 14px 0 6px; font-size: 12px; font-weight: 400; color: var(--text-3)
   .thumb { width: 72px; }
   .viewer-hint { display: none; }
 }
+
+/* Episodes */
+.chip.rec { background: var(--bad); }
+.check { display: flex; gap: 8px; align-items: center; font-size: 13px; margin-bottom: 6px; }
+.ep-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 6px; }
+.ep-table th { text-align: left; font-weight: 400; color: var(--text-3); padding: 4px 6px 4px 0; }
+.ep-table td { padding: 4px 6px 4px 0; border-top: 1px solid var(--surface-3); overflow-wrap: anywhere; }
+.ep-export { display: flex; flex-direction: column; gap: 6px; margin: 8px 0; }
+.ep-export input { background: var(--surface-2); color: var(--text); border: 1px solid var(--surface-3);
+  border-radius: 4px; padding: 6px 8px; font: inherit; font-size: 13px; }

@@ -134,6 +134,8 @@ class _CoreHook(Hooks):
 
     def on_step(self, env, step, images):
         self.worker.run_stats["steps"] = step
+        if self.worker.records_now():
+            self.worker.recorder.on_step(env, images)
         self.worker.publish(images or None)
 
     def on_wait(self, env):
@@ -146,9 +148,11 @@ class _CoreHook(Hooks):
 
 
 class SimWorker(threading.Thread):
-    def __init__(self, bus, extensions: list | None = None):
+    def __init__(self, bus, extensions: list | None = None, db=None, recorder=None):
         super().__init__(name="sim-worker", daemon=True)
         self.bus = bus
+        self.db = db  # LabDB: one row per run (dashboard/lab_db.py)
+        self.recorder = recorder  # Recorder: episodes for the teaching loop (dashboard/episodes.py)
         self.extensions = extensions or []
         self.camera = OrbitCamera()
         self.jobs: queue.Queue = queue.Queue()
@@ -224,6 +228,12 @@ class SimWorker(threading.Thread):
         return {"ready": self.ready.is_set(), "error": self.error, "running": run is not None, "run": run,
                 "queued": queued}
 
+    def records_now(self) -> bool:
+        """Whether the recorder sees the steps: between runs, and during Dream-1 runs started from the task bar.
+        Test motion, Home and extension runs (robustness) never go into an episode."""
+        r = self.current
+        return self.recorder is not None and (r is None or (r.source == "core" and not r.offline))
+
     def shutdown(self) -> None:
         self.shutdown_event.set()
         self.stop_event.set()
@@ -238,6 +248,15 @@ class SimWorker(threading.Thread):
             self.main_renderer = mujoco.Renderer(self.env.model, height=MAIN_SIZE[1], width=MAIN_SIZE[0])
             self.main_cam = mujoco.MjvCamera()
             self.hold = self.env.state()
+            step = self.env.step
+
+            def recorded_step(left, right):
+                # the targets the arms are sent: the recorder stores them as the action of its last frame
+                if self.records_now():
+                    self.recorder.note_action(left, right)
+                return step(left, right)
+
+            self.env.step = recorded_step
             self.ready.set()
             self.bus.log("Simulation ready.")
         except Exception as error:
@@ -259,7 +278,11 @@ class SimWorker(threading.Thread):
                 continue
             tick = time.monotonic()
             self.env.step(self.hold["left"], self.hold["right"])
-            self.publish()
+            images = None
+            if self.recorder is not None and self.recorder.recording_idle:  # a person moves the arms: record
+                images = self.env.images() if self.recorder.frame_due() else None
+                self.recorder.on_step(self.env, images)
+            self.publish(images)
             time.sleep(max(0.0, 0.05 - (time.monotonic() - tick)))
 
         self.env.close()
@@ -290,6 +313,15 @@ class SimWorker(threading.Thread):
                 "offline": request.offline, "source": request.source, "label": request.label,
                 "prompt": request.prompt or request.task}
         self.bus.emit("run.started", info)
+        run_id = None
+        try:
+            if self.db is not None:
+                run_id = self.db.run_started(task=request.task, prompt=info["prompt"], model=info["model"],
+                                             source=request.source, label=request.label)
+            if self.recorder is not None:
+                self.recorder.run_started(info, run_id, env)
+        except Exception:
+            self.bus.log(f"Recording failed to start:\n{traceback.format_exc()}", "error")
         hooks = [_CoreHook(self, request)]
         for ext in self.extensions:
             try:
@@ -335,7 +367,18 @@ class SimWorker(threading.Thread):
             self.hold = env.state()
             self.current = None
             self.stop_event.clear()
-        self.bus.emit("run.ended", {**info, "result": result_dict(result)})
+        episode = self.recorder.episode if self.recorder is not None else None
+        if episode and episode["take_over_requested"] and result.stop_reason == "stopped":
+            result.stop_reason = "take over"
+        data = result_dict(result)
+        try:
+            if self.db is not None and run_id is not None:
+                self.db.run_ended(run_id, data)
+            if self.recorder is not None:
+                self.recorder.run_ended(data, env)
+        except Exception:
+            self.bus.log(f"Recording failed at the end of the run:\n{traceback.format_exc()}", "error")
+        self.bus.emit("run.ended", {**info, "result": data})
         future.set_result(result)
         self.publish(force=True)
 

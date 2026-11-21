@@ -42,6 +42,7 @@
           <div class="viewer-top">
             <span class="caption" id="caption-task">Waiting for the next task</span>
             <span class="chip" id="badge-run" hidden>Live</span>
+            <span class="chip" id="badge-rec" hidden>Recording</span>
             <span class="chip mono" id="badge-time">0.0 s</span>
           </div>
           <div class="viewer-hint">Drag to turn. Right-drag or Shift-drag to move. Wheel to zoom. Double-click to reset.</div>
@@ -56,6 +57,9 @@
       </form>
       <div class="actions">
         <button type="button" class="btn-quiet" id="btn-stop">Stop</button>
+        <button type="button" class="btn-quiet" id="btn-takeover" hidden title="Stop Dream-1 without resetting the scene, then finish the task with Control">Take over</button>
+        <button type="button" class="btn-quiet" id="btn-ep-save" hidden title="Keep this episode. The success check marks it.">Save episode</button>
+        <button type="button" class="btn-quiet" id="btn-ep-discard" hidden title="Delete this episode">Discard</button>
         <button type="button" class="btn-quiet" id="btn-home" title="Move the arms to their start pose">Home</button>
         <button type="button" class="btn-quiet" id="btn-reset" title="Put the objects and the arms back to the start">Reset</button>
         <button type="button" class="btn-quiet" id="btn-demo" title="Test motion without Dream-1. Costs no credits.">Test motion</button>
