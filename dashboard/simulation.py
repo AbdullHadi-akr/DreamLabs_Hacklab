@@ -360,6 +360,9 @@ class SimWorker(threading.Thread):
             images = images or self.env.images()
             for name in CAMERAS:
                 self._store(name, cv2.resize(images[name], CAM_SIZE, interpolation=cv2.INTER_AREA))
+                # The same picture at the camera's own size, for when a viewer makes this camera the large view.
+                # No extra rendering: only one more JPEG encoding of a picture that is already drawn.
+                self._store(f"{name}-large", images[name])
         if force or now - self._last["state"] >= 1 / STATE_HZ:
             self._last["state"] = now
             state = self.env.state()

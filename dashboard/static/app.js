@@ -28,10 +28,27 @@ function log(message, level = "info", source = "core") {
   list.scrollTop = list.scrollHeight;
 }
 
+const pills = {};
 function setPill(id, state, text) {
   const el = $(id);
-  el.className = `pill ${state}`;
+  el.className = state;
   el.lastChild.textContent = text;
+  pills[id] = { state, text };
+  // One dot: red if anything is broken, yellow while busy or waiting, green when everything works.
+  const states = Object.values(pills).map((p) => p.state);
+  const bad = Object.values(pills).find((p) => p.state === "bad");
+  const waiting = Object.values(pills).find((p) => p.state === "warn" || p.state === "busy");
+  const dot = bad ? "bad" : waiting ? "wait" : states.length && states.every((s) => s === "ok") ? "ok" : "";
+  $("status-dot").className = `dot ${dot}`;
+  $("status-text").textContent = bad ? bad.text : waiting ? waiting.text : dot === "ok" ? "Everything works" : "Starting";
+}
+
+function setupStatus() {
+  const button = $("status-button"), details = $("status-details");
+  const show = (open) => { details.hidden = !open; button.setAttribute("aria-expanded", String(open)); };
+  button.onclick = (e) => { e.stopPropagation(); show(details.hidden); };
+  document.addEventListener("click", (e) => { if (!details.contains(e.target)) show(false); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") show(false); });
 }
 
 async function action(promise, okMessage) {
@@ -99,19 +116,48 @@ function setupViewer(camera) {
   });
 }
 
+const VIEW_LABELS = { main: "Free view", top: "Overhead", left: "Left wrist", right: "Right wrist" };
+
+function streamImage(img, path) {
+  img.onerror = () => setTimeout(() => { if (img.dataset.src === path) img.src = `${path}?r=${Date.now()}`; }, 1500);
+  img.dataset.src = path;
+  img.src = path;
+}
+
+// Which view is large: "main" (the free 3D view) or a robot camera. Each browser chooses for itself.
 function setupCameras(names) {
-  const labels = { top: "Overhead", left: "Left wrist", right: "Right wrist" };
-  for (const name of names) {
-    const img = h("img", { src: `/stream/${name}.mjpg`, alt: name });
-    img.onerror = () => setTimeout(() => (img.src = `/stream/${name}.mjpg?r=${Date.now()}`), 1500);
-    $("cams").append(h("div", { class: "cam" }, h("div", { class: "cam-inner" }, img, h("span", {}, labels[name] || name))));
+  const viewer = $("viewer"), focus = $("focus-view"), thumbs = $("cams");
+  const all = ["main", ...names];
+  let large = "main";
+  try { const saved = localStorage.getItem("dream.largeView"); if (all.includes(saved)) large = saved; } catch {}
+
+  // The large robot picture lies on top of the free view, so the free view's own controls stay as they are.
+  for (const type of ["pointerdown", "pointermove", "wheel", "dblclick", "contextmenu"]) {
+    focus.addEventListener(type, (e) => e.stopPropagation());
   }
+
+  const show = (name) => {
+    large = name;
+    try { localStorage.setItem("dream.largeView", name); } catch {}
+    const robot = name !== "main";
+    viewer.classList.toggle("robot-view", robot);
+    focus.hidden = !robot;
+    if (robot) streamImage(focus, `/stream/${name}-large.mjpg`);
+    else { focus.removeAttribute("src"); focus.dataset.src = ""; }
+    thumbs.replaceChildren(...all.filter((n) => n !== name).map((n) => {
+      const img = h("img", { alt: "", draggable: "false" });
+      streamImage(img, n === "main" ? "/stream/main.mjpg" : `/stream/${n}.mjpg`);
+      return h("button", { type: "button", class: "thumb", title: `Show ${VIEW_LABELS[n] || n} large`,
+        onclick: (e) => { e.stopPropagation(); show(n); },
+        onpointerdown: (e) => e.stopPropagation() }, img, h("span", {}, VIEW_LABELS[n] || n));
+    }));
+  };
+  show(large);
 }
 
 // ---------------- Prompt bar ----------------
 
 function setupTaskbar(state) {
-  $("model").value = state.default_model;
   for (const task of state.tasks) $("task-list").append(h("option", { value: task }));
   $("task").value = state.tasks[0];
 
@@ -127,7 +173,7 @@ function setupTaskbar(state) {
   $("btn-reset").onclick = () => action(request("POST", "/api/reset"));
   $("btn-clear-log").onclick = () => ($("log").innerHTML = "");
   if (!state.has_api_key) {
-    $("btn-run").title = "No API key configured – see README";
+    $("btn-run").title = "No API key is set up. See the README.";
   }
 }
 
@@ -136,30 +182,25 @@ function updateControls(status) {
   for (const id of ["btn-run", "btn-demo", "btn-home"]) $(id).disabled = busy;
   $("btn-stop").disabled = !busy;
   $("viewer-frame").classList.toggle("running", status.running);
-  $("status-dot").className = `dot ${busy ? "wait" : "live"}`;
   if (status.running) {
     const r = status.run;
     const offline = r.model === "offline";
-    setPill("pill-run", "busy", offline ? "Offline run" : "Dream-1 running");
+    setPill("pill-run", "busy", offline ? "Test motion running" : "Dream-1 is working");
     $("badge-run").hidden = false;
-    $("badge-run").lastChild.textContent = offline ? "Offline" : "Live";
-    $("status-text").textContent = offline ? "Offline run" : "Dream-1 is working";
+    $("badge-run").textContent = offline ? "Test motion" : `Live, ${r.model}`;
     $("status-sub").textContent = r.label || r.source;
-    $("caption-label").textContent = offline ? "Offline · no API" : `Dream-1 · ${r.model}`;
-    $("caption-task").textContent = `“${r.task}”`;
+    $("caption-task").textContent = r.task;
     $("ri-state").textContent = "running";
     $("ri-task").textContent = r.task;
     $("ri-source").textContent = r.source + (r.label ? ` · ${r.label}` : "");
     $("ri-steps").textContent = r.steps ?? 0;
     $("ri-requests").textContent = r.requests ?? 0;
-    $("ri-rtt").textContent = r.last_rtt_s ? `${r.last_rtt_s.toFixed(2)} s` : "–";
+    $("ri-rtt").textContent = r.last_rtt_s ? `${r.last_rtt_s.toFixed(2)} s` : "-";
   } else {
-    setPill("pill-run", status.queued ? "warn" : "ok", status.queued ? `${status.queued} queued` : "Ready");
+    setPill("pill-run", status.queued ? "warn" : "ok", status.queued ? `${status.queued} waiting` : "Ready");
     $("badge-run").hidden = true;
-    $("status-text").textContent = status.queued ? `${status.queued} queued` : "Ready";
-    $("status-sub").textContent = "Your prompt runs next";
-    $("caption-label").textContent = "Ready";
-    $("caption-task").textContent = "Waiting for the next prompt…";
+    $("status-sub").textContent = status.queued ? `${status.queued} waiting` : "";
+    $("caption-task").textContent = "Waiting for the next task";
   }
 }
 
@@ -177,30 +218,23 @@ function drawRtt() {
   const css = getComputedStyle(document.documentElement);
   const color = (name) => css.getPropertyValue(name).trim();
   ctx.font = `12px ${color("--font-sans")}`;
-  ctx.fillStyle = color("--ink-3");
-  if (!rtts.length) { ctx.fillText("No requests yet", 4, hgt / 2); return; }
+  ctx.fillStyle = color("--text-3");
+  if (!rtts.length) { ctx.fillText("No calls yet", 4, hgt / 2); return; }
   const max = Math.max(1.5, ...rtts) * 1.15;
   const step = w / Math.max(1, rtts.length - 1);
   const y = (v) => hgt - (v / max) * (hgt - 4);
-  ctx.strokeStyle = color("--grey-2");
+  ctx.strokeStyle = color("--surface-3");
   ctx.setLineDash([4, 4]);
   ctx.beginPath(); ctx.moveTo(0, y(1)); ctx.lineTo(w, y(1)); ctx.stroke();
   ctx.setLineDash([]);
   ctx.fillText("1 s", 2, y(1) - 4);
-  const gradient = ctx.createLinearGradient(0, 0, 0, hgt);
-  gradient.addColorStop(0, "rgba(255, 184, 123, .45)");
-  gradient.addColorStop(1, "rgba(255, 232, 133, 0)");
-  ctx.beginPath();
-  rtts.forEach((v, i) => (i ? ctx.lineTo(i * step, y(v)) : ctx.moveTo(0, y(v))));
-  ctx.lineTo((rtts.length - 1) * step, hgt); ctx.lineTo(0, hgt); ctx.closePath();
-  ctx.fillStyle = gradient; ctx.fill();
-  ctx.strokeStyle = color("--creamsicle-deep"); ctx.lineWidth = 2; ctx.lineJoin = "round"; ctx.beginPath();
+  ctx.strokeStyle = color("--text-2"); ctx.lineWidth = 1.5; ctx.lineJoin = "round"; ctx.beginPath();
   rtts.forEach((v, i) => (i ? ctx.lineTo(i * step, y(v)) : ctx.moveTo(0, y(v))));
   ctx.stroke();
   const avg = rtts.reduce((a, b) => a + b, 0) / rtts.length;
-  ctx.fillStyle = color("--ink");
+  ctx.fillStyle = color("--text-2");
   ctx.textAlign = "right";
-  ctx.fillText(`avg ${avg.toFixed(2)} s · last ${rtts.at(-1).toFixed(2)} s`, w - 2, 12);
+  ctx.fillText(`average ${avg.toFixed(2)} s, last ${rtts.at(-1).toFixed(2)} s`, w - 2, 12);
 }
 
 // ---------------- Events ----------------
@@ -212,15 +246,15 @@ function setupEvents() {
   ev.on("sim.state", (s) => {
     core.sim = s;
     core.status = s.status;
-    $("badge-time").textContent = `t = ${s.time.toFixed(1)} s`;
-    setPill("pill-sim", s.status.error ? "bad" : "ok", s.status.error ? "Sim error" : "Simulation");
+    $("badge-time").textContent = `${s.time.toFixed(1)} s`;
+    setPill("pill-sim", s.status.error ? "bad" : "ok", s.status.error ? "Simulation error" : "Simulation");
     updateControls(s.status);
   });
   ev.on("log", (d) => log(d.message, d.level, d.source));
   ev.on("run.queued", (d) => log(`Queued: ${d.label || d.task}`, "info", d.source));
   ev.on("run.started", (d) => {
-    log(`Started: ${d.task} (${d.model})${d.label ? " · " + d.label : ""}`, "info", d.source);
-    $("ri-result").textContent = "–";
+    log(`Started: ${d.task} (${d.model})${d.label ? ", " + d.label : ""}`, "info", d.source);
+    $("ri-result").textContent = "-";
     $("ri-result").className = "";
     if (!d.offline) { rtts.length = 0; drawRtt(); }
   });
@@ -228,46 +262,83 @@ function setupEvents() {
   ev.on("run.reply", (d) => { rtts.push(d.rtt_s); if (rtts.length > 60) rtts.shift(); drawRtt(); });
   ev.on("run.ended", (d) => {
     const r = d.result;
-    const success = r.success === true ? "success" : r.success === false ? "no success" : "–";
+    const success = r.success === true ? "success" : r.success === false ? "no success" : "-";
     $("ri-state").textContent = r.stop_reason;
     $("ri-steps").textContent = r.steps;
     $("ri-requests").textContent = r.requests;
-    $("ri-result").textContent = `${success} · ${r.seconds.toFixed(1)} s`;
+    $("ri-result").textContent = `${success}, ${r.seconds.toFixed(1)} s`;
     $("ri-result").className = r.success ? "good" : r.success === false ? "bad" : "";
     const level = r.stop_reason.startsWith("error") ? "error" : "info";
-    log(`Ended: ${r.stop_reason} · ${success} · ${r.steps} steps · ${r.requests} requests`, level, d.source);
+    log(`Ended: ${r.stop_reason}, ${success}, ${r.steps} steps, ${r.requests} calls`, level, d.source);
   });
 }
 
 // ---------------- Extensions ----------------
 
-async function loadExtensions(extensions) {
+// Menu names in plain words; the order here is the order in the menu. At most 6 entries.
+const MENU = [["teleop", "Control"], ["scene_inspector", "Scene"], ["robustness", "Robustness"], ["settings", "Settings"]];
+const MENU_LIMIT = 6;
+
+function settingsPanel(state) {
+  const model = h("input", { id: "model", value: state.default_model, autocomplete: "off" });
+  const seconds = h("input", { id: "seconds", type: "number", min: "5", max: "3600", step: "5", value: "60" });
+  return [
+    h("label", { class: "field" }, h("span", {}, "Model"), model),
+    h("label", { class: "field" }, h("span", {}, "Time limit per run, in seconds"), seconds),
+  ];
+}
+
+function setupFold() {
+  const layout = $("layout"), button = $("btn-fold");
+  const set = (folded) => {
+    layout.classList.toggle("folded", folded);
+    button.textContent = folded ? "Show" : "Hide";
+    try { localStorage.setItem("dream.folded", folded ? "1" : "0"); } catch {}
+  };
+  button.onclick = () => set(!layout.classList.contains("folded"));
+  let saved = null;
+  try { saved = localStorage.getItem("dream.folded"); } catch {}
+  set(saved === "1");
+  return set;
+}
+
+async function loadExtensions(extensions, state) {
   const tabs = $("ext-tabs"), panels = $("ext-panels");
   const left = extensions.filter((e) => e.slot !== "right");
   const right = extensions.filter((e) => e.slot === "right");
-  if (left.length) panels.innerHTML = "";
+  const order = (id) => { const i = MENU.findIndex(([m]) => m === id); return i < 0 ? MENU.length : i; };
+  const entries = [...left, { id: "settings", title: "Settings", core: true }].sort((a, b) => order(a.id) - order(b.id));
+  if (entries.length > MENU_LIMIT) console.warn(`The menu holds at most ${MENU_LIMIT} entries; extra tools are left out.`);
+  panels.innerHTML = "";
+  const setFolded = setupFold();
+  const startFolded = $("layout").classList.contains("folded");
 
   const activate = (id) => {
     for (const t of tabs.children) t.classList.toggle("active", t.dataset.id === id);
     for (const p of panels.children) p.hidden = p.dataset.id !== id;
+    setFolded(false);
     try { localStorage.setItem("dream.activeTab", id); } catch {}
   };
+  const label = (ext) => (MENU.find(([m]) => m === ext.id) || [])[1] || ext.title;
 
-  for (const ext of left) {
-    tabs.append(h("button", { class: "tab", "data-id": ext.id, title: ext.description, onclick: () => activate(ext.id) },
-      ext.title));
+  for (const ext of entries.slice(0, MENU_LIMIT)) {
+    tabs.append(h("button", { type: "button", class: "tab", "data-id": ext.id, title: ext.description || "",
+      onclick: () => activate(ext.id) }, label(ext)));
     const root = h("div", { class: "panel", "data-id": ext.id, hidden: true });
     panels.append(root);
-    await mountPanel(ext, root);
+    if (ext.core) root.append(...settingsPanel(state));
+    else await mountPanel(ext, root);
   }
   for (const ext of right) {
     const root = h("div");
-    $("right-slot").append(h("section", { class: "card" }, h("h3", {}, ext.title), root));
+    $("right-slot").append(h("section", {}, h("h3", {}, ext.title), root));
     await mountPanel(ext, root);
   }
   let saved = null;
   try { saved = localStorage.getItem("dream.activeTab"); } catch {}
-  if (left.length) activate(left.some((e) => e.id === saved) ? saved : left[0].id);
+  const ids = [...tabs.children].map((t) => t.dataset.id);
+  activate(ids.includes(saved) ? saved : ids[0]);
+  setFolded(startFolded);
 }
 
 async function mountPanel(ext, root) {
@@ -289,6 +360,7 @@ async function mountPanel(ext, root) {
 // ---------------- Start ----------------
 
 async function main() {
+  setupStatus();
   setupEvents();
   core.events.connect();
   const state = await request("GET", "/api/state");
@@ -300,7 +372,7 @@ async function main() {
   updateControls(state.status);
   drawRtt();
   window.addEventListener("resize", drawRtt);
-  await loadExtensions(state.extensions);
+  await loadExtensions(state.extensions, state);
 }
 
 main().catch((error) => {

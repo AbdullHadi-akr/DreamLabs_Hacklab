@@ -159,7 +159,7 @@ def create_app() -> FastAPI:
 
     @app.get("/stream/{name}.mjpg")
     async def stream(name: str):
-        if name != "main" and name not in CAMERAS:
+        if name != "main" and name.removesuffix("-large") not in CAMERAS:
             raise HTTPException(404)
 
         async def frames():

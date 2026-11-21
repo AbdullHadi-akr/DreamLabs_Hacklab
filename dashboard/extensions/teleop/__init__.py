@@ -83,7 +83,7 @@ def _horizontal(vector) -> np.ndarray:
 
 
 class Teleop(Extension):
-    title = "Teleop"
+    title = "Control"
     icon = ""
     description = "Move and turn the grippers with mouse and keyboard, open/close them, see TCP coordinates."
     slot = "left"
