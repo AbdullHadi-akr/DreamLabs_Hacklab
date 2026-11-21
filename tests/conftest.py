@@ -9,3 +9,4 @@ import os as _os
 import tempfile as _tempfile
 
 _os.environ.setdefault("DREAM_LAB_DB", _os.path.join(_tempfile.mkdtemp(), "lab.db"))
+_os.environ.setdefault("DREAM_BRAIN_DIR", _os.path.join(_tempfile.mkdtemp(), "brain"))

@@ -44,7 +44,7 @@ CREATE TABLE IF NOT EXISTS runs (
     steps         INTEGER,
     calls         INTEGER,             -- Dream-1 calls
     mean_reply_s  REAL,
-    seconds       REAL,
+    seconds       REAL,                -- simulated seconds
     cost_usd      REAL                 -- calls x price; NULL when the price is unknown
 );
 CREATE TABLE IF NOT EXISTS episodes (
@@ -78,6 +78,10 @@ CREATE TABLE IF NOT EXISTS finetunes (
     status        TEXT NOT NULL,       -- exported, uploaded, training, done, failed
     cost_usd      REAL,
     note          TEXT
+);
+CREATE TABLE IF NOT EXISTS settings (
+    key           TEXT PRIMARY KEY,    -- see dashboard/credits.py DEFAULTS
+    value         TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS episodes_task ON episodes(task, status, success);
 CREATE INDEX IF NOT EXISTS runs_model_task ON runs(model, task);
@@ -127,7 +131,8 @@ class LabDB:
         success = result.get("success")
         self.update("runs", run_id, ended_at=time.time(), stop_reason=result.get("stop_reason"),
                     success=None if success is None else int(bool(success)), steps=result.get("steps"),
-                    calls=calls, mean_reply_s=result.get("mean_rtt_s"), seconds=result.get("seconds"),
+                    calls=calls, mean_reply_s=result.get("mean_rtt_s"),
+                    seconds=result.get("sim_seconds", result.get("seconds")),
                     cost_usd=None if price is None else round(calls * price, 6))
 
     # ---------- summaries for the dashboard ----------

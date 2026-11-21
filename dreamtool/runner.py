@@ -54,7 +54,8 @@ class RunResult:
     steps: int = 0
     requests: int = 0
     rtts_s: list[float] = field(default_factory=list)
-    seconds: float = 0.0
+    seconds: float = 0.0  # wall-clock seconds, waiting for Dream-1 included
+    sim_seconds: float = 0.0  # simulated seconds: what the time limit counts
 
     @property
     def mean_rtt_s(self) -> float | None:
@@ -95,6 +96,7 @@ def run_task(
     log = print if verbose else (lambda *a, **k: None)
     policy = None
     started_at = time.monotonic()
+    sim_start = None
 
     try:
         windows = {name: deque(maxlen=sim.FRAMES) for name in sim.VIDEO_ROLES}
@@ -119,11 +121,13 @@ def run_task(
             poses = model in sim.POSE_MODELS
             policy = sim.open_policy(sim.policy_config(model, gateway, poses), key)
             sim.feed(policy, env, windows, prompt, model, steps, every=0, station=poses)
-            deadline = time.monotonic() + seconds
+            # The time limit counts SIMULATED seconds: waiting for Dream-1's replies (physics paused) and a slow
+            # laptop do not use it up, so a run gets the same robot time on every computer.
+            sim_start = env.data.time
             restarts = 0
 
             def stop_reason():
-                if time.monotonic() >= deadline:
+                if env.data.time - sim_start >= seconds:
                     return "timeout"
                 if view is not None and not view.is_running():
                     return "viewer closed"
@@ -194,6 +198,7 @@ def run_task(
             except Exception:
                 pass
         result.seconds = time.monotonic() - started_at
+        result.sim_seconds = 0.0 if sim_start is None else float(env.data.time - sim_start)
         for h in hooks:
             h.on_end(env, result)
         if own_env:

@@ -20,7 +20,7 @@ export async function mount(root, api) {
   const trialsLabel = h("span", {}, "Trials per strength");
   const seconds = h("input", { type: "number", min: 5, max: 600, value: 45 });
   const dry = h("input", { type: "checkbox", checked: true });
-  const record = h("input", { type: "checkbox", checked: true });
+  const record = h("input", { type: "checkbox" }); // off by default: videos cost disk space and time
   const estimate = h("p", { class: "muted" });
 
   const factorInputs = {};

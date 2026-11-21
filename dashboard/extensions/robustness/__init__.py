@@ -31,10 +31,11 @@ from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, Field
 from starlette.background import BackgroundTask
 
+from dashboard import brain, credits
 from dashboard.extension import Extension
 from dreamtool import scene, sim
 
-from . import analysis, data, replay
+from . import analysis, data, onefile, replay
 from .monitor import OUTCOMES, TrialMonitor
 from .perturbations import GROUPS, REGISTRY, InvalidSetup, Target, prepare, rewrite
 
@@ -51,7 +52,7 @@ class StartBody(BaseModel):
     seconds: float = Field(45, gt=1, le=600)
     model: str = sim.BETA_MODEL
     dry_run: bool = True
-    record: bool = True
+    record: bool = False  # trial videos cost disk space and time: off unless asked for
     seed: int = 0
 
 
@@ -92,6 +93,7 @@ class Campaign:
             "started": self.started, "elapsed_s": round(time.time() - self.started, 1),
             "rows": self.rows, "outcome_labels": OUTCOMES,
             "policy": "scripted blind replay (dry run)" if b.dry_run else b.model,
+            "cost": self.cost(),
         }
         if b.mode == "sweep":
             p = REGISTRY[b.perturbation]
@@ -102,6 +104,15 @@ class Campaign:
                         analysis=analysis.random_summary(b.factors, {f: REGISTRY[f].neutral for f in b.factors},
                                                          self.rows, {f: REGISTRY[f].label for f in b.factors}))
         return data
+
+    def cost(self) -> dict:
+        """Dream-1 calls and their cost over all trials (calls x price; a dry run makes no calls)."""
+        calls = sum(r.get("calls") or 0 for r in self.rows)
+        price = None if self.body.dry_run else credits.price(self.body.model)
+        if self.body.dry_run:
+            return {"calls": 0, "usd": 0.0, "price_usd": None, "note": "dry run: no Dream-1 calls"}
+        return {"calls": calls, "usd": None if price is None else round(calls * price, 6), "price_usd": price,
+                "note": "" if price is not None else "price of this model unknown"}
 
     def save(self):
         self.dir.mkdir(parents=True, exist_ok=True)
@@ -148,6 +159,10 @@ class Campaign:
         finally:
             self.current = None
             self.save()
+            try:
+                brain.campaign_ended(self.summary())  # the second brain's raw files (dashboard/brain.py)
+            except Exception as error:
+                ctx.log(f"Second brain: {error}", "warn")
             verdict = self.summary()["analysis"]["verdict"]["text"]
             ctx.log(f"Robustness {self.state}: {len(self.rows)}/{len(self.schedule)} trials. {verdict}")
             ctx.emit("progress", self.summary())
@@ -199,8 +214,11 @@ class Campaign:
             hooks=[monitor, *(h for e in effects for h in e.hooks)], source=ctx.id, label=label,
         ).result()
 
+        price = None if body.dry_run else credits.price(body.model)
         row.update(
-            stop_reason=result.stop_reason, steps=result.steps, seconds=round(result.seconds, 1),
+            calls=result.requests, cost_usd=0.0 if body.dry_run else (
+                None if price is None else round(result.requests * price, 6)),
+            stop_reason=result.stop_reason, steps=result.steps, seconds=round(result.sim_seconds, 1),
             mean_rtt_s=None if result.mean_rtt_s is None else round(result.mean_rtt_s, 2),
             info={p.id: e.info for (p, _), e in zip(env_items, effects) if e.info},
             video=video.name if video is not None and video.is_file() and monitor.frames else None,
@@ -340,6 +358,13 @@ class RobustnessLab(Extension):
         def download_csv(campaign_id: str, excel: bool = False):
             return attachment(data.to_csv(data.trial_records(results(campaign_id)), excel), f"{campaign_id}.csv",
                               "text/csv")
+
+        @r.get("/download/{campaign_id}/report.html")
+        def download_report(campaign_id: str, videos: bool = False):
+            """The whole report as ONE html file: opens without the dashboard. Videos only when asked for."""
+            folder = self.ctx.data_dir / campaign_id
+            text = onefile.render(results(campaign_id), folder, videos=videos)
+            return attachment(text, f"{campaign_id}{'-with-videos' if videos else ''}.html", "text/html")
 
         @r.get("/download/{campaign_id}/bundle.zip")
         def download_zip(campaign_id: str):

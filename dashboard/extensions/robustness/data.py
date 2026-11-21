@@ -22,7 +22,7 @@ METRICS = ("min_reach_cm", "max_lift_cm", "target_moved_cm", "final_to_container
            "time_to_success_s")
 BASE_FIELDS = ("campaign", "started", "mode", "task", "policy", "perturbation", "strength", "trial_index", "trial",
                "prompt", "outcome", "outcome_label", "counted", "success", "progress")
-TAIL_FIELDS = ("stop_reason", "seconds", "steps", "mean_rtt_s", "redraws", "note", "applied", "video")
+TAIL_FIELDS = ("stop_reason", "seconds", "calls", "cost_usd", "steps", "mean_rtt_s", "redraws", "note", "applied", "video")
 SCORED = lambda r: r.get("outcome") not in ("invalid", "aborted", None)  # noqa: E731
 
 ## Columns of the robustness map: strength as a share of the perturbation's maximum.
@@ -89,7 +89,8 @@ def trial_records(result: dict) -> list[dict]:
         metrics = r.get("metrics") or {}
         for name in METRICS:
             rec[name] = metrics.get(name)
-        rec.update(stop_reason=r.get("stop_reason", ""), seconds=r.get("seconds"), steps=r.get("steps"),
+        rec.update(stop_reason=r.get("stop_reason", ""), seconds=r.get("seconds"), calls=r.get("calls"),
+                   cost_usd=r.get("cost_usd"), steps=r.get("steps"),
                    mean_rtt_s=r.get("mean_rtt_s"), redraws=r.get("redraws"), note=r.get("note", ""),
                    applied=json.dumps(r.get("info") or {}, ensure_ascii=False), video=r.get("video") or "")
         out.append(rec)

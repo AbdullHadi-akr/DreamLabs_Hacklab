@@ -210,7 +210,10 @@ class Recorder:
         folder = f"ep-{episode_id:06d}"
         self.episode = {"id": episode_id, "task": info["task"], "folder": folder, "mode": "dream",
                         "writer": EpisodeWriter(self.root / folder, info["task"]), "dream_frames": 0,
-                        "person_frames": 0, "dream_success": None, "take_over_requested": False}
+                        "person_frames": 0, "dream_success": None, "take_over_requested": False,
+                        "check": scene.success_check(info["task"])}
+        if self.episode["check"] is not None:
+            self.episode["check"](env)  # stores the start state (lift, push, take out of compare with it)
         self.db.update("episodes", episode_id, folder=folder)
         self._steps = 0
         self.bus.log(f"Recording episode {episode_id}.")
@@ -260,7 +263,7 @@ class Recorder:
         ep, self.episode = self.episode, None
         if ep is None:
             return None
-        check = scene.success_check(ep["task"])
+        check = ep.get("check")
         success = None if check is None else int(bool(check(env)))
         frames = ep["writer"].finish()
         if frames == 0:

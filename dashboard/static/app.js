@@ -1,6 +1,8 @@
 // Core UI of the dashboard: viewer, prompt bar, status, log, and loading the extension panels.
 import { EventHub, createExtensionApi, h, request } from "./lib/api.js";
 import { episodesPanel, setupEpisodes } from "./episodes.js";
+import { creditsPanel, gateRun, setupCredits } from "./credits.js";
+import { playersPanel } from "./players.js";
 
 const $ = (id) => document.getElementById(id);
 const core = {
@@ -162,11 +164,13 @@ function setupTaskbar(state) {
   for (const task of state.tasks) $("task-list").append(h("option", { value: task }));
   $("task").value = state.tasks[0];
 
-  $("taskbar").addEventListener("submit", (e) => {
+  $("taskbar").addEventListener("submit", async (e) => {
     e.preventDefault();
     const task = core.currentTask();
     if (!task) return toast("Please enter a task.", "error");
-    action(request("POST", "/api/run", { task, model: $("model").value.trim(), seconds: Number($("seconds").value) }));
+    const body = { task, model: $("model").value.trim(), seconds: Number($("seconds").value) };
+    try { if (!(await gateRun(core, body))) return; } catch (error) { return toast(error.message, "error"); }
+    action(request("POST", "/api/run", body));
   });
   $("btn-stop").onclick = () => action(request("POST", "/api/stop"));
   $("btn-demo").onclick = () => action(request("POST", "/api/run", { task: core.currentTask() || "demo", offline: true }));
@@ -197,6 +201,7 @@ function updateControls(status) {
     $("ri-steps").textContent = r.steps ?? 0;
     $("ri-requests").textContent = r.requests ?? 0;
     $("ri-rtt").textContent = r.last_rtt_s ? `${r.last_rtt_s.toFixed(2)} s` : "-";
+    $("ri-cost").textContent = offline ? "none" : r.cost_usd != null ? `$${r.cost_usd.toFixed(4)}` : "unknown price";
   } else {
     setPill("pill-run", status.queued ? "warn" : "ok", status.queued ? `${status.queued} waiting` : "Ready");
     $("badge-run").hidden = true;
@@ -267,6 +272,7 @@ function setupEvents() {
     $("ri-state").textContent = r.stop_reason;
     $("ri-steps").textContent = r.steps;
     $("ri-requests").textContent = r.requests;
+    $("ri-cost").textContent = r.cost_usd != null ? `$${r.cost_usd.toFixed(4)}` : "-";
     $("ri-result").textContent = `${success}, ${r.seconds.toFixed(1)} s`;
     $("ri-result").className = r.success ? "good" : r.success === false ? "bad" : "";
     const level = r.stop_reason.startsWith("error") ? "error" : "info";
@@ -278,7 +284,8 @@ function setupEvents() {
 
 // Menu names in plain words; the order here is the order in the menu. At most 6 entries.
 const MENU = [["teleop", "Control"], ["scene_inspector", "Scene"], ["robustness", "Robustness"], ["episodes", "Episodes"],
-  ["settings", "Settings"]];
+  ["credits", "Credits"], ["players", "Players"]];
+const GUEST_MENU = ["teleop", "scene_inspector", "players"]; // what a guest on another laptop sees
 const MENU_LIMIT = 6;
 
 function settingsPanel(state) {
@@ -286,7 +293,7 @@ function settingsPanel(state) {
   const seconds = h("input", { id: "seconds", type: "number", min: "5", max: "3600", step: "5", value: "60" });
   return [
     h("label", { class: "field" }, h("span", {}, "Model"), model),
-    h("label", { class: "field" }, h("span", {}, "Time limit per run, in seconds"), seconds),
+    h("label", { class: "field" }, h("span", {}, "Time limit per run, in simulated seconds"), seconds),
   ];
 }
 
@@ -311,7 +318,9 @@ async function loadExtensions(extensions, state) {
   const order = (id) => { const i = MENU.findIndex(([m]) => m === id); return i < 0 ? MENU.length : i; };
   const entries = [...left, { id: "episodes", title: "Episodes", core: true,
     description: "Recorded episodes, what is ready for a fine-tune, success and cost per model" },
-    { id: "settings", title: "Settings", core: true }].sort((a, b) => order(a.id) - order(b.id));
+    { id: "credits", title: "Credits", core: true, description: "Balance, spending, limits, model and time limit" },
+    { id: "players", title: "Players", core: true, description: "Public link, access code, who holds which arm" }].sort((a, b) => order(a.id) - order(b.id));
+  if (core.me && core.me.role === "guest") entries.splice(0, entries.length, ...entries.filter((e) => GUEST_MENU.includes(e.id)));
   if (entries.length > MENU_LIMIT) console.warn(`The menu holds at most ${MENU_LIMIT} entries; extra tools are left out.`);
   panels.innerHTML = "";
   const setFolded = setupFold();
@@ -331,7 +340,8 @@ async function loadExtensions(extensions, state) {
       onclick: () => activate(ext.id) }, label(ext)));
     const root = h("div", { class: "panel", "data-id": ext.id, hidden: true });
     panels.append(root);
-    if (ext.id === "settings") root.append(...settingsPanel(state));
+    if (ext.id === "credits") creditsPanel(root, core, action, settingsPanel(state));
+    else if (ext.id === "players") playersPanel(root, core, action);
     else if (ext.id === "episodes") episodesPanel(root, core, action);
     else await mountPanel(ext, root);
   }
@@ -371,11 +381,14 @@ async function main() {
   core.events.connect();
   const state = await request("GET", "/api/state");
   core.sim = state.sim;
+  core.me = state.me;
+  if (state.me.role === "guest") document.body.classList.add("guest");
   setPill("pill-key", state.has_api_key ? "ok" : "warn", state.has_api_key ? "API key" : "No API key");
   setupViewer(state.camera);
   setupCameras(state.cameras);
   setupTaskbar(state);
   setupEpisodes(core, action, state.episode);
+  if (state.me.role !== "guest") setupCredits(core);
   updateControls(state.status);
   drawRtt();
   window.addEventListener("resize", drawRtt);

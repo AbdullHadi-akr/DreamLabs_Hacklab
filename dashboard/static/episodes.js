@@ -107,6 +107,10 @@ export function episodesPanel(root, core, action) {
           ["took_over", "Finished by", (v) => (v ? "person" : "Dream-1")],
           ["success", "Result", (v) => verdict(v)], ["finetune_id", "Exported", (v) => (v ? "yes" : "")]], data.episodes)
         : h("p", { class: "muted" }, "None yet."),
+      h("h4", {}, "Task types the success check understands"),
+      table([["example", "Example"], ["description", "Success when"]], data.rules),
+      h("p", { class: "muted" }, "Other tasks still run; their success is then unknown. New task types are added in "
+        + "dreamtool/scene.py, RULES."),
       data.finetunes.length ? h("h4", {}, "Exports") : null,
       data.finetunes.length
         ? table([["name", "Name"], ["task", "Task"], ["episodes", "Episodes"], ["status", "Status"]], data.finetunes)
