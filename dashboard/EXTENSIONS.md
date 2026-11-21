@@ -30,6 +30,8 @@ From an HTTP handler or your own thread, always go through `ctx.sim`:
 | Call | What happens |
 | --- | --- |
 | `ctx.sim.call(lambda env: ...)` | runs the function on the sim thread (between runs), returns a `Future` |
+| `ctx.sim.call(fn, hold=True)` | same, but `fn` returns new joint targets `{"left": 7 values, "right": ...}` that the arms drive to and hold (see `teleop/`) |
+| `ctx.sim.hold` | the joint targets the arms hold between runs (read on the sim thread) |
 | `ctx.sim.run_task(task, ...)` | queues a run, returns a `Future[RunResult]` (options below) |
 | `ctx.sim.stop()` / `ctx.sim.cancel_queued(ctx.id)` | stop the current run / drop your own queued runs |
 | `ctx.sim.busy`, `ctx.sim.status()` | is anything running? |
@@ -112,4 +114,6 @@ Ready-made CSS classes from `static/style.css`: `btn`, `btn primary`, `btn dange
 - `scene_inspector/`: live values from `sim.state`, a `decorate()` overlay, `ctx.sim.call()` for debug actions, a run hook.
 - `robustness/`: a background thread that queues many runs with run hooks and a `teardown`, plus a standalone report
   page (`report.html`). A new perturbation is one function decorated with `@perturbation(...)` in `perturbations.py`.
+- `teleop/`: moves the arms between runs with `ctx.sim.call(fn, hold=True)` and inverse kinematics
+  (`kinematics.py`), mouse/keyboard input in the main view, and image positions of 3D points from `decorate()`.
 - `_template/`: minimal example to copy.

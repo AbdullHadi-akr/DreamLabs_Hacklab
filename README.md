@@ -79,6 +79,11 @@ python start.py                      # or: python -m dashboard   → opens http:
 - **Center:** 3D view of the sim (drag = orbit, right/Shift = pan, wheel = zoom, double-click = reset),
   with the prompt bar and the three robot cameras below.
 - **Left:** extension tabs (Scene, Robustness, …). **Right:** current run, RTT chart, log.
+- **Teleop tab:** move the grippers yourself between runs. Drag the colored ball at a gripper (Shift = up/down),
+  or use W A S D / E Q (directions as the robot's overhead camera sees them, switchable to the 3D view);
+  Z / X or the mouse wheel on the ball rotates the gripper, R / F tilts it; Space
+  opens/closes it, 1/2 picks the arm. The tool center point coordinates, rotation and tilt are shown next to each
+  gripper; a colored line shows the direction the fingers open in. Costs no credits.
 - **Offline demo**, **Home**, **Reset** and the **dry run** in the Robustness tab cost no credits.
   The **run** button and sweeps without dry run call Dream-1.
 - The server only listens locally (127.0.0.1). Ctrl+C stops it.
