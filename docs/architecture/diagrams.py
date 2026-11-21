@@ -224,14 +224,14 @@ def deployment():
     g.node(80, 200, 1090, 970, "«execution environment» WSL 2: Ubuntu 24.04 Linux", fill="#FFFFFF")
     g.artifact(110, 290, 640, 380, "«process» Dashboard: python start.py",
                "Python 3.12 in ~/Hacklab/.venv\nWeb server (FastAPI), port 8000\nSim worker: MuJoCo, 3 cameras, "
-               "Dream-1 runs\nRecorder, credits, players, brain notes\nExtensions: Control, Scene, Robustness")
+               "Dream-1 runs\nRecorder, credits, players, brain notes\nTest Suite (with Robustness), Control, Scene")
     g.artifact(790, 290, 350, 170, "«program» cloudflared", "~/Hacklab/bin/\nstarted from Players\n"
                "forwards to port 8000")
     g.artifact(110, 720, 500, 200, "«source» dreamlabs clone", "~/Hacklab/dreamlabs\nYAM simulator, dream client")
     g.artifact(640, 720, 500, 200, "«source» dream-tool", "~/Hacklab/dream-tool: the code\nbrain/raw: notes "
                "the dashboard writes\nbrain/wiki: pages build_wiki.py makes")
     g.artifact(110, 950, 500, 190, "«files» dream-tool/out/",
-               "lab.db: SQLite database\nepisodes/, exports/: LeRobot folders\nextensions/: test reports")
+               "lab.db: SQLite database\nepisodes/, exports/: LeRobot folders\nextensions/: Test Suite reports")
     g.artifact(640, 950, 500, 190, "«file» API key", "~/.dreamlabs/credentials\nonly on this laptop, never in git")
     g.artifact(1210, 480, 360, 150, "«program» Web browser", "Opens http://localhost:8000")
     g.artifact(1210, 700, 360, 160, "«program» AI agent", "Planned: Claude Code or Codex", planned=True)
@@ -272,8 +272,8 @@ def context():
     g.person(1720, 110, 560, 340, "Remote operator or judge", "Uses another laptop and a public link. Controls "
              "one arm.")
     g.box(820, 520, 760, 330, "Dream-1 Lab", "Software system",
-          "Runs the YAM robot simulation. Lets Dream-1 try tasks, lets people take over, records episodes, counts "
-          "credits.", style=SYSTEM)
+          "Runs the YAM robot simulation. Lets Dream-1 try tasks, tests it (Test Suite), lets people take over, "
+          "records episodes, counts credits.", style=SYSTEM)
     g.box(120, 560, 560, 250, "AI agent", "External system, planned", "Claude Code or Codex. Later: summarizes "
           "notes, answers questions.", style=EXTERNAL, planned=True)
     g.box(1720, 560, 560, 250, "Cloudflare", "External system", "A public link to the host laptop. No account "
@@ -305,13 +305,14 @@ def containers():
     g.person(1760, 80, 520, 230, "Remote operator or judge", None)
     g.boundary(60, 380, 1560, 950, "Dream-1 Lab [software system, on the host laptop]")
     g.box(120, 420, 640, 230, "Web page", "Container: HTML, CSS, JavaScript",
-          "View, cameras, Take over, menu panels. Guests: join page, fewer panels.")
+          "View, cameras, Take over, menu panels, Test Suite workspace. Guests: join page, fewer panels.")
     g.box(120, 760, 640, 360, "Dashboard application", "Container: Python 3.12, FastAPI, MuJoCo",
-          "Web server with access check, simulation thread, recorder, credits, players, extensions. One process.")
+          "Web server with access check, simulation thread, recorder, credits, players, Test Suite, extensions. One "
+          "process.")
     g.cylinder(900, 420, 660, 220, "Lab database", "Container: SQLite file out/lab.db",
                "Runs, episodes, exports, settings.")
-    g.cylinder(900, 680, 660, 200, "Episode store", "Container: out/episodes, out/exports",
-               "LeRobot v2.1 folders.")
+    g.cylinder(900, 680, 660, 200, "Episodes and test reports", "Container: folders in out/",
+               "LeRobot folders; Test Suite reports.")
     g.cylinder(900, 960, 660, 200, "Second brain", "Container: Markdown folder brain/, in git",
                "raw/: notes. wiki/: pages from build_wiki.py.")
     g.box(1760, 400, 520, 190, "Cloudflare", "External system", "Public link", style=EXTERNAL)
@@ -353,7 +354,7 @@ def components():
     comp(2, 0, "Credits", "credits.py", "Estimate, ask, monthly limit, balance")
     comp(3, 0, "Web app", "app.py, FastAPI", "Routes, video, /ws; access check for guests")
     comp(0, 1, "Recorder", "episodes.py", "Take over, LeRobot folders, export")
-    comp(1, 1, "Extensions", "extension.py, extensions/", "Control, Scene, Robustness")
+    comp(1, 1, "Test Suite and extensions", "extensions/", "Test Suite with Robustness; Control, Scene")
     comp(2, 1, "Sim worker", "simulation.py", "One thread owns MuJoCo and does the jobs")
     comp(3, 1, "Players", "multiplayer.py", "Access code, arm owners, public link")
     comp(0, 2, "Success check", "dreamtool/scene.py", "Task rules: on, in, next to, lift, push ...")
@@ -362,7 +363,7 @@ def components():
     comp(3, 2, "Run loop", "dreamtool/runner.py", "Dream-1 calls, 20 steps per second")
 
     g.cylinder(40, 150, 330, 260, "Lab database", "SQLite", "out/lab.db")
-    g.cylinder(40, 520, 330, 260, "Episode store", "LeRobot folders", "out/episodes")
+    g.cylinder(40, 520, 330, 260, "Episode store", "LeRobot folders", "out/episodes, out/extensions")
     g.cylinder(40, 900, 330, 250, "Second brain", "Markdown", "brain/raw, brain/wiki")
     g.box(2030, 160, 330, 250, "Web page", "Container", "Sends requests; gets video and events")
     g.box(2030, 530, 330, 250, "Cloudflare", "External system", "Tunnel made by cloudflared", style=EXTERNAL)
@@ -417,7 +418,8 @@ def layers():
     row(265, 120, [("Core page", "index.html, app.js", COMPONENT),
                    ("Join page", "join.html: code and name", COMPONENT),
                    ("Menu panels", "Episodes, Credits, Players", COMPONENT),
-                   ("Extension panels", "Control, Scene, Robustness", COMPONENT)])
+                   ("Extension panels", "Control, Scene", COMPONENT),
+                   ("Test Suite workspace", "builder, report, monitor", COMPONENT)])
     row(410, 120, [("HTTP JSON API", "/api/run, /api/credits ...", COMPONENT),
                    ("Access check", "guests: code, routes, own arm", COMPONENT),
                    ("Video streams", "smaller for guests", COMPONENT),
@@ -428,13 +430,13 @@ def layers():
                    ("Credits", "estimate, limit, balance", COMPONENT),
                    ("Players", "access code, arm owners", COMPONENT),
                    ("Brain notes", "raw notes, then the wiki script", COMPONENT),
-                   ("Extensions", "teleop, robustness tests", COMPONENT)], gap=16)
+                   ("Test Suite", "test campaigns, robustness", COMPONENT)], gap=16)
     row(782, 116, [("YAM simulator: MuJoCo physics", "two arms, 3 cameras at 640 x 360, fruit, bowl, plate",
                     CONTAINER),
                    ("Success check", "task rules decide success, time counted in simulated seconds", CONTAINER)])
     row(930, 130, [("lab.db (SQLite)", "runs, episodes, exports, settings", CONTAINER),
                    ("episodes/ and exports/", "LeRobot v2.1 folders", CONTAINER),
-                   ("extensions/ results", "robustness reports, one-file report", CONTAINER),
+                   ("extensions/ results", "Test Suite and robustness reports", CONTAINER),
                    ("brain/", "raw/ and wiki/, in git", CONTAINER)])
     row(1095, 140, [("Dream-1 API (Dream Labs)", "frames + arm state in, arm moves out", EXTERNAL),
                     ("Dream Labs fine-tuning", "upload, train, new model id", EXTERNAL, True),
@@ -488,7 +490,53 @@ def teaching_loop():
     g.save("6-teaching-loop.png")
 
 
+# =====================================================================================================
+# 7. Architecture: the Test Suite (teammates' extension, dashboard/extensions/test_suite)
+# =====================================================================================================
+def test_suite():
+    g = Diagram("Architecture: the Test Suite, how a test campaign runs")
+    y1, y2, w, h = 190, 700, 470, 360
+    xs = [60, 640, 1220, 1800]
+
+    def step(i, x, y, title, body, style=CONTAINER):
+        g.box(x, y, w, h, f"{i}. {title}", None, body, style=style)
+
+    step(1, xs[0], y1, "Choose a test", "Menu Test Suite. Quick Test, Repeated Runs, Parameter Sweep, Safety Stress "
+         "Test, A/B Comparison, Failure Reproduction; Robustness: Sweep, Breaking Point, Perturbation Mix.",
+         style=PERSON)
+    step(2, xs[1], y1, "Plan the cases", "scenarios.py: repetitions or combinations of object offset, camera tilt, "
+         "light and seed. The start state is saved, so a case can be replayed exactly.")
+    step(3, xs[2], y1, "Run each case", "On the shared sim worker, as a managed run: a limit of Dream-1 calls per case "
+         "and a deadline in clock time. Calls are counted in Credits.")
+    step(4, xs[3], y1, "Collect evidence", "metrics.py, telemetry.py: contacts, joint limits, the two arms touching, "
+         "distance to the target, lifted, released, actions.", style=COMPONENT)
+    step(5, xs[3], y2, "Judge the case", "evaluation.py: success from poses and contacts (placed, supported, stable "
+         "for 0.4 s), a failure category, safety pass or violation.", style=COMPONENT)
+    step(6, xs[2], y2, "Save the report", "One folder per campaign in the folder test_suite inside out/extensions: report "
+         "file, progress, actions, videos and snapshots. Export as a file.")
+    step(7, xs[1], y2, "Read the results", "Test report under the camera view, test execution next to Current run; "
+         "compare runs, replay a failed run.", style=PERSON)
+    step(8, xs[0], y2, "Breaking Point only", "adaptive.py: after each result it picks the next strength that tells "
+         "the most about where Dream-1 breaks, and stops early when it knows enough.")
+
+    mid1, mid2 = y1 + h / 2, y2 + h / 2
+    g.arrow([(xs[0] + w, mid1), (xs[1], mid1)])
+    g.arrow([(xs[1] + w, mid1), (xs[2], mid1)])
+    g.arrow([(xs[2] + w, mid1), (xs[3], mid1)], "every step", at=(xs[2] + w + 55, mid1 - 40), lw=110)
+    g.arrow([(xs[3] + w / 2, y1 + h), (xs[3] + w / 2, y2)], "case ends", at=(xs[3] + w / 2, (y1 + h + y2) / 2),
+            lw=200)
+    g.arrow([(xs[3], mid2), (xs[2] + w, mid2)])
+    g.arrow([(xs[2], mid2), (xs[1] + w, mid2)])
+    g.arrow([(xs[2] + w / 2, y2), (xs[2] + w / 2, 620), (xs[0] + w / 2, 620), (xs[0] + w / 2, y2)],
+            "Breaking Point: result of the case", at=(xs[1] + w / 2, 620), lw=420)
+    g.arrow([(xs[0], mid2), (30, mid2), (30, 590), (xs[2] + w / 2 + 60, 590), (xs[2] + w / 2 + 60, y1 + h)])
+    g.label((xs[1] + 60, 590), "next strength", 200)
+    g.d.text((60, 1120), "The Robustness tests (Sweep, Breaking Point, Perturbation Mix) are shown as tiles inside the "
+             "Test Suite and keep their own report.", font=F_BODY, fill="#333333")
+    g.save("7-test-suite.png")
+
+
 if __name__ == "__main__":
     OUT.mkdir(parents=True, exist_ok=True)
-    for fn in (deployment, context, containers, components, layers, teaching_loop):
+    for fn in (deployment, context, containers, components, layers, teaching_loop, test_suite):
         fn()

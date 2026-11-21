@@ -123,6 +123,7 @@ table(["Part", "Diagram", "The question it answers"], [
     ["2.3", "C4 level 3: components", "Which code parts are inside the dashboard application, and who calls whom?"],
     ["3.1", "Architecture: layers", "Which layers does the system have, and what sits in each layer?"],
     ["3.2", "Architecture: teaching loop", "How does an episode move from a Dream-1 try to a fine-tune?"],
+    ["3.3", "Architecture: Test Suite", "How does a test campaign run, and where do its results go?"],
     ["4", "Built and planned", "Which parts work today, and which parts are planned?"],
 ], [600, 3200, 10000])
 
@@ -221,11 +222,16 @@ table(["Component", "File", "Job"], [
      "the 3 cameras."],
     ["Success check", "dreamtool/scene.py", "Reads object positions and decides if a task is done. Task types: put "
      "on or in, take out of, next to, stack, push left/right/forward/back, lift, stand upright, all fruit in the "
-     "bowl, and two tasks joined by 'then'. A new type is one entry in the list RULES."],
+     "bowl, and two tasks joined by 'then'. Placing tasks are read first by the teammates' sentence reading, so "
+     "natural sentences and German work too. A new type is one entry in the list RULES."],
     ["Recorder", "dashboard/episodes.py", "Records episodes, handles Take over, Save and Discard, writes the LeRobot "
      "folders, makes exports."],
     ["Lab database access", "dashboard/lab_db.py", "Writes and reads the rows in lab.db (runs, episodes, exports, "
      "settings) and computes the summary."],
+    ["Test Suite", "dashboard/extensions/test_suite/", "The teammates' testing workspace (menu Test Suite): plans "
+     "test cases, runs each one on the sim worker with a limit of Dream-1 calls and a deadline, collects evidence "
+     "(contacts, joint limits, distance to the target), judges success, failure category and safety, and saves a "
+     "report in out/extensions/test_suite/. The Robustness tests appear in it as tiles."],
     ["Extensions", "dashboard/extension.py, dashboard/extensions/",
      "Loads the tools: Control (move the arms by hand, with inverse kinematics), Scene, Robustness tests. The "
      "robustness report shows Dream-1 calls and cost per trial and downloads as one HTML file."],
@@ -243,8 +249,17 @@ h2("3.2 The teaching loop", page_break=True)
 image("6-teaching-loop.png", "Teaching loop: task, Dream-1 tries, take over, person finishes, save, export, "
       "fine-tune, compare")
 p("Steps 1 to 6 and step 8 work today. Step 7, the upload and the fine-tune at Dream Labs, waits for the answers "
-  "to three questions to Dream Labs: is simulated data accepted, what does one training job cost, and should "
-  "training use the whole episode or only the part after the take-over.")
+  "to four questions to Dream Labs: is simulated data accepted, what does one training job cost, should "
+  "training use the whole episode or only the part after the take-over, and is recording at 10 frames per second "
+  "right.")
+
+h2("3.3 The Test Suite", page_break=True)
+image("7-test-suite.png", "Test Suite: choose a test, plan the cases, run each case, collect evidence, judge, save "
+      "the report, read the results; Breaking Point picks the next strength")
+p("The Test Suite was built by teammates and joined into this branch on 21 November 2026. Its runs use the same "
+  "simulation thread as the dashboard, so they wait while another run is going, and their Dream-1 calls appear in "
+  "the lab database and in Credits. Unlike normal runs, a Test Suite case stops at a deadline in clock time and at "
+  "a limit of Dream-1 calls.")
 
 # ---------------- 4 status ----------------
 h1("4. Built and planned")
@@ -264,7 +279,12 @@ table(["Part", "Status", "Where"], [
     ["More success rules (lift, push, next to, stack, ...)", "Built", "dreamtool/scene.py"],
     ["Report additions: cost per trial, one-file report", "Built", "dashboard/extensions/robustness/"],
     ["Time limit in simulated seconds", "Built", "dreamtool/runner.py"],
-    ["Upload of exports and fine-tuning at Dream Labs", "Planned", "waits for 3 answers from Dream Labs"],
+    ["Test Suite: quick test, repeated runs, sweeps, safety, A/B, failure reproduction (teammates)", "Built",
+     "dashboard/extensions/test_suite/"],
+    ["Robustness: breaking-point search, inside the Test Suite (teammates)", "Built",
+     "dashboard/extensions/robustness/adaptive.py"],
+    ["Task recognition for natural sentences and German (teammates)", "Built", "dreamtool/scene.py"],
+    ["Upload of exports and fine-tuning at Dream Labs", "Planned", "waits for 4 answers from Dream Labs"],
 ], [7800, 1600, 4400])
 
 # =====================================================================================================

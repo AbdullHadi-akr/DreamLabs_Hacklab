@@ -255,7 +255,8 @@ RULES: list[Rule] = [
          r"(?:take|get|remove) " + OBJ + r" (?:out of|from) " + OBJ, _take_out),
     Rule("stack", "stack the orange on the apple", "the object rests on top of the other one",
          r"(?:stack|place) " + OBJ + r" (?:on top of|onto|on) " + OBJ, _stack),
-    Rule("put_in", "put the banana on the plate", "the object is in or on the container",
+    Rule("put_in", "put the banana on the plate", "the object is in or on the container (natural sentences and "
+         "German work too, for example 'Leg den Apfel in die Schüssel')",
          r"(?:put|place) " + OBJ + r" (?:into|in|onto|on) " + OBJ, _put_in),
     Rule("next_to", "put the apple next to the bowl", "3 to 15 cm apart, not in it, on the table",
          r"(?:put|place|move) " + OBJ + r" (?:next to|beside|near) " + OBJ, _next_to),
@@ -330,6 +331,7 @@ def parse_task(task: str) -> tuple[str, str] | None:
 
     Returns None when the goal cannot be measured: negated tasks ("Do not place the apple in the bowl") and tasks
     that act again after placing ("Put the banana on the plate and then remove it").
+    The success check uses it first for "put / place X in or on Y" tasks; the other task types go to RULES.
     """
     tokens = _tokens(task.replace("n't", " not").replace("n’t", " not"))
     if _NEGATION & set(tokens):
