@@ -188,7 +188,7 @@ class TrialMonitor(Hooks):
             outcome = "invalid"
         elif success:
             outcome = "success"
-        elif reason == "stopped" or reason.startswith("error") or not self.started:
+        elif reason in ("stopped", "wall_timeout") or reason.startswith("error") or not self.started:
             outcome = "aborted"
         elif self.off_table:
             outcome = "off_table"

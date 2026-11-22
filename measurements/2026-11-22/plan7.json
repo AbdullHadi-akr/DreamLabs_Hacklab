@@ -1,0 +1,11 @@
+[
+ {"task": "put the apple into the bowl", "mode": "compare", "seconds": 40, "dry_run": false, "record": false,
+  "strategies": ["chunk", "crossfade-30"], "perturbation": "light_dim", "strength": 50,
+  "trials": 8, "seed": 111, "latency": "paused"},
+ {"task": "put the apple into the bowl", "mode": "compare", "seconds": 40, "dry_run": false, "record": false,
+  "strategies": ["chunk", "crossfade-30"], "perturbation": "container_shift", "strength": 3,
+  "trials": 8, "seed": 121, "latency": "paused"},
+ {"task": "put the banana on the plate", "mode": "compare", "seconds": 40, "dry_run": false, "record": false,
+  "strategies": ["chunk", "crossfade-30"], "perturbation": "target_shift", "strength": 2,
+  "trials": 8, "seed": 101, "latency": "paused"}
+]

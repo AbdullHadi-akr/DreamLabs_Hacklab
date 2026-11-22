@@ -1,0 +1,1031 @@
+{
+  "id": "20261122-053534-compare",
+  "state": "done",
+  "mode": "compare",
+  "config": {
+    "task": "put the banana on the plate",
+    "mode": "compare",
+    "perturbation": "target_shift",
+    "strength": 2.0,
+    "strategy": "chunk",
+    "strategies": [
+      "chunk",
+      "crossfade-30"
+    ],
+    "values": [],
+    "factors": {},
+    "trials": 8,
+    "max_strength": null,
+    "measure": "success",
+    "baseline_trials": 3,
+    "seconds": 40.0,
+    "model": "dreamlabs/dream-1-beta",
+    "dry_run": false,
+    "record": false,
+    "seed": 101,
+    "latency": "paused",
+    "budget": "sim"
+  },
+  "target": {
+    "object": "banana",
+    "container": "plate"
+  },
+  "done": 16,
+  "total": 16,
+  "current": null,
+  "started": 1795322134.8386574,
+  "elapsed_s": 5952.8,
+  "rows": [
+    {
+      "index": 1,
+      "trial": 1,
+      "params": {
+        "target_shift": 2.0
+      },
+      "prompt": "put the banana on the plate",
+      "info": {
+        "target_shift": {
+          "offset": "-1.8, -0.9 cm"
+        }
+      },
+      "stop_reason": "timeout",
+      "steps": 800,
+      "seconds": 52.1,
+      "mean_rtt_s": 0.6,
+      "redraws": 0,
+      "video": null,
+      "strategy": "chunk",
+      "requests": 17,
+      "commands": {
+        "rows": 800,
+        "executions": 17,
+        "seams": 16,
+        "seam_jump_rad": 0.0238,
+        "max_seam_jump_rad": 0.037,
+        "typical_step_rad": 0.0094,
+        "seam_ratio": 2.53,
+        "command_speed": 0.1161,
+        "command_jerk": 71.21,
+        "command_jitter": 0.816
+      },
+      "value": 2.0,
+      "outcome": "carry_failed",
+      "progress": 0.5,
+      "success": false,
+      "metrics": {
+        "min_reach_cm": 2.5,
+        "max_lift_cm": 12.3,
+        "target_moved_cm": 15.9,
+        "final_to_container_cm": 21.5,
+        "others_moved_cm": 0.0,
+        "time_to_success_s": null,
+        "joint_speed": 0.0805,
+        "joint_jerk": 18.73,
+        "joint_jitter": 0.477,
+        "drops": 1,
+        "drop": {
+          "t_s": 14.55,
+          "side": "right",
+          "opening_held": 0.333,
+          "opening_at_drop": 0.339,
+          "cause": "slipped",
+          "to_container_cm": 12.4
+        }
+      }
+    },
+    {
+      "index": 2,
+      "trial": 1,
+      "params": {
+        "target_shift": 2.0
+      },
+      "prompt": "put the banana on the plate",
+      "info": {
+        "target_shift": {
+          "offset": "-1.8, -0.9 cm"
+        }
+      },
+      "stop_reason": "timeout",
+      "steps": 800,
+      "seconds": 57.3,
+      "mean_rtt_s": 0.56,
+      "redraws": 0,
+      "video": null,
+      "strategy": "crossfade-30",
+      "requests": 27,
+      "commands": {
+        "rows": 800,
+        "executions": 27,
+        "seams": 26,
+        "seam_jump_rad": 0.0117,
+        "max_seam_jump_rad": 0.0276,
+        "typical_step_rad": 0.0099,
+        "seam_ratio": 1.19,
+        "command_speed": 0.1824,
+        "command_jerk": 131.02,
+        "command_jitter": 0.813
+      },
+      "value": 2.0,
+      "outcome": "carry_failed",
+      "progress": 0.5,
+      "success": false,
+      "metrics": {
+        "min_reach_cm": 3.1,
+        "max_lift_cm": 12.9,
+        "target_moved_cm": 16.7,
+        "final_to_container_cm": 20.6,
+        "others_moved_cm": 0.0,
+        "time_to_success_s": null,
+        "joint_speed": 0.1232,
+        "joint_jerk": 32.14,
+        "joint_jitter": 0.465,
+        "drops": 0,
+        "drop": null
+      }
+    },
+    {
+      "index": 3,
+      "trial": 2,
+      "params": {
+        "target_shift": 2.0
+      },
+      "prompt": "put the banana on the plate",
+      "info": {
+        "target_shift": {
+          "offset": "+1.9, -0.7 cm"
+        }
+      },
+      "stop_reason": "timeout",
+      "steps": 800,
+      "seconds": 51.7,
+      "mean_rtt_s": 0.59,
+      "redraws": 0,
+      "video": null,
+      "strategy": "chunk",
+      "requests": 17,
+      "commands": {
+        "rows": 800,
+        "executions": 17,
+        "seams": 16,
+        "seam_jump_rad": 0.0271,
+        "max_seam_jump_rad": 0.0616,
+        "typical_step_rad": 0.0097,
+        "seam_ratio": 2.81,
+        "command_speed": 0.1224,
+        "command_jerk": 71.62,
+        "command_jitter": 0.791
+      },
+      "value": 2.0,
+      "outcome": "carry_failed",
+      "progress": 0.5,
+      "success": false,
+      "metrics": {
+        "min_reach_cm": 3.1,
+        "max_lift_cm": 7.2,
+        "target_moved_cm": 4.5,
+        "final_to_container_cm": 15.6,
+        "others_moved_cm": 0.0,
+        "time_to_success_s": null,
+        "joint_speed": 0.0876,
+        "joint_jerk": 18.59,
+        "joint_jitter": 0.453,
+        "drops": 2,
+        "drop": {
+          "t_s": 19.35,
+          "side": "right",
+          "opening_held": 0.286,
+          "opening_at_drop": 0.284,
+          "cause": "slipped",
+          "to_container_cm": 17.3
+        }
+      }
+    },
+    {
+      "index": 4,
+      "trial": 2,
+      "params": {
+        "target_shift": 2.0
+      },
+      "prompt": "put the banana on the plate",
+      "info": {
+        "target_shift": {
+          "offset": "+1.9, -0.7 cm"
+        }
+      },
+      "stop_reason": "timeout",
+      "steps": 800,
+      "seconds": 56.7,
+      "mean_rtt_s": 0.54,
+      "redraws": 0,
+      "video": null,
+      "strategy": "crossfade-30",
+      "requests": 27,
+      "commands": {
+        "rows": 800,
+        "executions": 27,
+        "seams": 26,
+        "seam_jump_rad": 0.0112,
+        "max_seam_jump_rad": 0.0252,
+        "typical_step_rad": 0.0088,
+        "seam_ratio": 1.27,
+        "command_speed": 0.1492,
+        "command_jerk": 104.77,
+        "command_jitter": 0.828
+      },
+      "value": 2.0,
+      "outcome": "carry_failed",
+      "progress": 0.5,
+      "success": false,
+      "metrics": {
+        "min_reach_cm": 2.7,
+        "max_lift_cm": 16.2,
+        "target_moved_cm": 13.6,
+        "final_to_container_cm": 21.2,
+        "others_moved_cm": 0.0,
+        "time_to_success_s": null,
+        "joint_speed": 0.1001,
+        "joint_jerk": 26.02,
+        "joint_jitter": 0.481,
+        "drops": 0,
+        "drop": null
+      }
+    },
+    {
+      "index": 5,
+      "trial": 3,
+      "params": {
+        "target_shift": 2.0
+      },
+      "prompt": "put the banana on the plate",
+      "info": {
+        "target_shift": {
+          "offset": "-1.7, +1.0 cm"
+        }
+      },
+      "stop_reason": "timeout",
+      "steps": 800,
+      "seconds": 51.3,
+      "mean_rtt_s": 0.57,
+      "redraws": 0,
+      "video": null,
+      "strategy": "chunk",
+      "requests": 17,
+      "commands": {
+        "rows": 800,
+        "executions": 17,
+        "seams": 16,
+        "seam_jump_rad": 0.0253,
+        "max_seam_jump_rad": 0.0461,
+        "typical_step_rad": 0.0094,
+        "seam_ratio": 2.71,
+        "command_speed": 0.1171,
+        "command_jerk": 70.75,
+        "command_jitter": 0.805
+      },
+      "value": 2.0,
+      "outcome": "carry_failed",
+      "progress": 0.5,
+      "success": false,
+      "metrics": {
+        "min_reach_cm": 2.6,
+        "max_lift_cm": 10.9,
+        "target_moved_cm": 9.4,
+        "final_to_container_cm": 13.7,
+        "others_moved_cm": 0.0,
+        "time_to_success_s": null,
+        "joint_speed": 0.0825,
+        "joint_jerk": 18.47,
+        "joint_jitter": 0.461,
+        "drops": 1,
+        "drop": {
+          "t_s": 16.95,
+          "side": "right",
+          "opening_held": 0.319,
+          "opening_at_drop": 0.33,
+          "cause": "slipped",
+          "to_container_cm": 14.6
+        }
+      }
+    },
+    {
+      "index": 6,
+      "trial": 3,
+      "params": {
+        "target_shift": 2.0
+      },
+      "prompt": "put the banana on the plate",
+      "info": {
+        "target_shift": {
+          "offset": "-1.7, +1.0 cm"
+        }
+      },
+      "stop_reason": "timeout",
+      "steps": 800,
+      "seconds": 57.8,
+      "mean_rtt_s": 0.57,
+      "redraws": 0,
+      "video": null,
+      "strategy": "crossfade-30",
+      "requests": 27,
+      "commands": {
+        "rows": 800,
+        "executions": 27,
+        "seams": 26,
+        "seam_jump_rad": 0.011,
+        "max_seam_jump_rad": 0.02,
+        "typical_step_rad": 0.0093,
+        "seam_ratio": 1.18,
+        "command_speed": 0.1616,
+        "command_jerk": 114.94,
+        "command_jitter": 0.81
+      },
+      "value": 2.0,
+      "outcome": "carry_failed",
+      "progress": 0.5,
+      "success": false,
+      "metrics": {
+        "min_reach_cm": 2.5,
+        "max_lift_cm": 15.7,
+        "target_moved_cm": 26.7,
+        "final_to_container_cm": 28.4,
+        "others_moved_cm": 0.0,
+        "time_to_success_s": null,
+        "joint_speed": 0.1103,
+        "joint_jerk": 27.99,
+        "joint_jitter": 0.46,
+        "drops": 0,
+        "drop": null
+      }
+    },
+    {
+      "index": 7,
+      "trial": 4,
+      "params": {
+        "target_shift": 2.0
+      },
+      "prompt": "put the banana on the plate",
+      "info": {
+        "target_shift": {
+          "offset": "-1.7, -1.0 cm"
+        }
+      },
+      "stop_reason": "timeout",
+      "steps": 800,
+      "seconds": 51.8,
+      "mean_rtt_s": 0.53,
+      "redraws": 0,
+      "video": null,
+      "strategy": "chunk",
+      "requests": 17,
+      "commands": {
+        "rows": 800,
+        "executions": 17,
+        "seams": 16,
+        "seam_jump_rad": 0.0269,
+        "max_seam_jump_rad": 0.0394,
+        "typical_step_rad": 0.0094,
+        "seam_ratio": 2.86,
+        "command_speed": 0.1225,
+        "command_jerk": 75.42,
+        "command_jitter": 0.786
+      },
+      "value": 2.0,
+      "outcome": "carry_failed",
+      "progress": 0.5,
+      "success": false,
+      "metrics": {
+        "min_reach_cm": 2.4,
+        "max_lift_cm": 14.4,
+        "target_moved_cm": 4.2,
+        "final_to_container_cm": 16.5,
+        "others_moved_cm": 0.0,
+        "time_to_success_s": null,
+        "joint_speed": 0.0865,
+        "joint_jerk": 19.02,
+        "joint_jitter": 0.447,
+        "drops": 0,
+        "drop": null
+      }
+    },
+    {
+      "index": 8,
+      "trial": 4,
+      "params": {
+        "target_shift": 2.0
+      },
+      "prompt": "put the banana on the plate",
+      "info": {
+        "target_shift": {
+          "offset": "-1.7, -1.0 cm"
+        }
+      },
+      "stop_reason": "timeout",
+      "steps": 800,
+      "seconds": 57.3,
+      "mean_rtt_s": 0.52,
+      "redraws": 0,
+      "video": null,
+      "strategy": "crossfade-30",
+      "requests": 27,
+      "commands": {
+        "rows": 800,
+        "executions": 27,
+        "seams": 26,
+        "seam_jump_rad": 0.0099,
+        "max_seam_jump_rad": 0.0165,
+        "typical_step_rad": 0.008,
+        "seam_ratio": 1.24,
+        "command_speed": 0.1343,
+        "command_jerk": 100.1,
+        "command_jitter": 0.866
+      },
+      "value": 2.0,
+      "outcome": "carry_failed",
+      "progress": 0.5,
+      "success": false,
+      "metrics": {
+        "min_reach_cm": 2.8,
+        "max_lift_cm": 12.6,
+        "target_moved_cm": 17.0,
+        "final_to_container_cm": 21.9,
+        "others_moved_cm": 0.0,
+        "time_to_success_s": null,
+        "joint_speed": 0.0842,
+        "joint_jerk": 24.74,
+        "joint_jitter": 0.533,
+        "drops": 0,
+        "drop": null
+      }
+    },
+    {
+      "index": 9,
+      "trial": 5,
+      "params": {
+        "target_shift": 2.0
+      },
+      "prompt": "put the banana on the plate",
+      "info": {
+        "target_shift": {
+          "offset": "-1.9, -0.6 cm"
+        }
+      },
+      "stop_reason": "timeout",
+      "steps": 800,
+      "seconds": 51.3,
+      "mean_rtt_s": 0.52,
+      "redraws": 0,
+      "video": null,
+      "strategy": "chunk",
+      "requests": 17,
+      "commands": {
+        "rows": 800,
+        "executions": 17,
+        "seams": 16,
+        "seam_jump_rad": 0.029,
+        "max_seam_jump_rad": 0.0516,
+        "typical_step_rad": 0.0092,
+        "seam_ratio": 3.14,
+        "command_speed": 0.1177,
+        "command_jerk": 74.47,
+        "command_jitter": 0.823
+      },
+      "value": 2.0,
+      "outcome": "carry_failed",
+      "progress": 0.5,
+      "success": false,
+      "metrics": {
+        "min_reach_cm": 3.3,
+        "max_lift_cm": 12.0,
+        "target_moved_cm": 7.0,
+        "final_to_container_cm": 14.7,
+        "others_moved_cm": 0.0,
+        "time_to_success_s": null,
+        "joint_speed": 0.0805,
+        "joint_jerk": 19.23,
+        "joint_jitter": 0.486,
+        "drops": 1,
+        "drop": {
+          "t_s": 16.95,
+          "side": "right",
+          "opening_held": 0.312,
+          "opening_at_drop": 0.322,
+          "cause": "slipped",
+          "to_container_cm": 15.2
+        }
+      }
+    },
+    {
+      "index": 10,
+      "trial": 5,
+      "params": {
+        "target_shift": 2.0
+      },
+      "prompt": "put the banana on the plate",
+      "info": {
+        "target_shift": {
+          "offset": "-1.9, -0.6 cm"
+        }
+      },
+      "stop_reason": "success",
+      "steps": 677,
+      "seconds": 49.4,
+      "mean_rtt_s": 0.5,
+      "redraws": 0,
+      "video": null,
+      "strategy": "crossfade-30",
+      "requests": 23,
+      "commands": {
+        "rows": 677,
+        "executions": 23,
+        "seams": 22,
+        "seam_jump_rad": 0.0101,
+        "max_seam_jump_rad": 0.016,
+        "typical_step_rad": 0.0083,
+        "seam_ratio": 1.22,
+        "command_speed": 0.1398,
+        "command_jerk": 100.58,
+        "command_jitter": 0.854
+      },
+      "value": 2.0,
+      "outcome": "success",
+      "progress": 1.0,
+      "success": true,
+      "metrics": {
+        "min_reach_cm": 0.8,
+        "max_lift_cm": 13.6,
+        "target_moved_cm": 18.5,
+        "final_to_container_cm": 2.9,
+        "others_moved_cm": 0.0,
+        "time_to_success_s": 33.8,
+        "joint_speed": 0.0904,
+        "joint_jerk": 25.28,
+        "joint_jitter": 0.523,
+        "drops": 0,
+        "drop": null
+      }
+    },
+    {
+      "index": 11,
+      "trial": 6,
+      "params": {
+        "target_shift": 2.0
+      },
+      "prompt": "put the banana on the plate",
+      "info": {
+        "target_shift": {
+          "offset": "+1.9, -0.5 cm"
+        }
+      },
+      "stop_reason": "timeout",
+      "steps": 240,
+      "seconds": 5142.2,
+      "mean_rtt_s": 853.73,
+      "redraws": 0,
+      "video": null,
+      "strategy": "chunk",
+      "requests": 6,
+      "commands": {
+        "rows": 240,
+        "executions": 5,
+        "seams": 4,
+        "seam_jump_rad": 0.0296,
+        "max_seam_jump_rad": 0.0497,
+        "typical_step_rad": 0.0098,
+        "seam_ratio": 3.01,
+        "command_speed": 0.146,
+        "command_jerk": 71.62,
+        "command_jitter": 0.674
+      },
+      "value": 2.0,
+      "outcome": "no_grasp",
+      "progress": 0.25,
+      "success": false,
+      "metrics": {
+        "min_reach_cm": 3.0,
+        "max_lift_cm": 0.0,
+        "target_moved_cm": 0.1,
+        "final_to_container_cm": 17.6,
+        "others_moved_cm": 0.0,
+        "time_to_success_s": null,
+        "joint_speed": 0.1155,
+        "joint_jerk": 19.56,
+        "joint_jitter": 0.352,
+        "drops": 0,
+        "drop": null
+      }
+    },
+    {
+      "index": 12,
+      "trial": 6,
+      "params": {
+        "target_shift": 2.0
+      },
+      "prompt": "put the banana on the plate",
+      "info": {
+        "target_shift": {
+          "offset": "+1.9, -0.5 cm"
+        }
+      },
+      "stop_reason": "timeout",
+      "steps": 800,
+      "seconds": 69.6,
+      "mean_rtt_s": 0.61,
+      "redraws": 0,
+      "video": null,
+      "strategy": "crossfade-30",
+      "requests": 27,
+      "commands": {
+        "rows": 800,
+        "executions": 27,
+        "seams": 26,
+        "seam_jump_rad": 0.0115,
+        "max_seam_jump_rad": 0.0185,
+        "typical_step_rad": 0.0101,
+        "seam_ratio": 1.14,
+        "command_speed": 0.1926,
+        "command_jerk": 144.5,
+        "command_jitter": 0.817
+      },
+      "value": 2.0,
+      "outcome": "carry_failed",
+      "progress": 0.5,
+      "success": false,
+      "metrics": {
+        "min_reach_cm": 3.1,
+        "max_lift_cm": 12.0,
+        "target_moved_cm": 13.0,
+        "final_to_container_cm": 19.3,
+        "others_moved_cm": 0.0,
+        "time_to_success_s": null,
+        "joint_speed": 0.1283,
+        "joint_jerk": 35.22,
+        "joint_jitter": 0.469,
+        "drops": 1,
+        "drop": {
+          "t_s": 14.65,
+          "side": "right",
+          "opening_held": 0.272,
+          "opening_at_drop": 0.274,
+          "cause": "slipped",
+          "to_container_cm": 18.1
+        }
+      }
+    },
+    {
+      "index": 13,
+      "trial": 7,
+      "params": {
+        "target_shift": 2.0
+      },
+      "prompt": "put the banana on the plate",
+      "info": {
+        "target_shift": {
+          "offset": "+1.4, -1.4 cm"
+        }
+      },
+      "stop_reason": "timeout",
+      "steps": 800,
+      "seconds": 57.3,
+      "mean_rtt_s": 0.62,
+      "redraws": 0,
+      "video": null,
+      "strategy": "chunk",
+      "requests": 17,
+      "commands": {
+        "rows": 800,
+        "executions": 17,
+        "seams": 16,
+        "seam_jump_rad": 0.0229,
+        "max_seam_jump_rad": 0.0402,
+        "typical_step_rad": 0.0088,
+        "seam_ratio": 2.59,
+        "command_speed": 0.1162,
+        "command_jerk": 70.79,
+        "command_jitter": 0.82
+      },
+      "value": 2.0,
+      "outcome": "carry_failed",
+      "progress": 0.5,
+      "success": false,
+      "metrics": {
+        "min_reach_cm": 2.5,
+        "max_lift_cm": 13.0,
+        "target_moved_cm": 13.6,
+        "final_to_container_cm": 20.5,
+        "others_moved_cm": 0.0,
+        "time_to_success_s": null,
+        "joint_speed": 0.0804,
+        "joint_jerk": 18.63,
+        "joint_jitter": 0.482,
+        "drops": 0,
+        "drop": null
+      }
+    },
+    {
+      "index": 14,
+      "trial": 7,
+      "params": {
+        "target_shift": 2.0
+      },
+      "prompt": "put the banana on the plate",
+      "info": {
+        "target_shift": {
+          "offset": "+1.4, -1.4 cm"
+        }
+      },
+      "stop_reason": "success",
+      "steps": 497,
+      "seconds": 39.0,
+      "mean_rtt_s": 0.55,
+      "redraws": 0,
+      "video": null,
+      "strategy": "crossfade-30",
+      "requests": 17,
+      "commands": {
+        "rows": 497,
+        "executions": 17,
+        "seams": 16,
+        "seam_jump_rad": 0.0113,
+        "max_seam_jump_rad": 0.0189,
+        "typical_step_rad": 0.0089,
+        "seam_ratio": 1.27,
+        "command_speed": 0.1462,
+        "command_jerk": 103.01,
+        "command_jitter": 0.832
+      },
+      "value": 2.0,
+      "outcome": "success",
+      "progress": 1.0,
+      "success": true,
+      "metrics": {
+        "min_reach_cm": 2.3,
+        "max_lift_cm": 12.3,
+        "target_moved_cm": 12.9,
+        "final_to_container_cm": 5.3,
+        "others_moved_cm": 0.0,
+        "time_to_success_s": 24.8,
+        "joint_speed": 0.0976,
+        "joint_jerk": 25.61,
+        "joint_jitter": 0.494,
+        "drops": 1,
+        "drop": {
+          "t_s": 13.65,
+          "side": "right",
+          "opening_held": 0.358,
+          "opening_at_drop": 0.359,
+          "cause": "slipped",
+          "to_container_cm": 16.7
+        }
+      }
+    },
+    {
+      "index": 15,
+      "trial": 8,
+      "params": {
+        "target_shift": 2.0
+      },
+      "prompt": "put the banana on the plate",
+      "info": {
+        "target_shift": {
+          "offset": "-0.1, -2.0 cm"
+        }
+      },
+      "stop_reason": "timeout",
+      "steps": 800,
+      "seconds": 55.4,
+      "mean_rtt_s": 0.57,
+      "redraws": 0,
+      "video": null,
+      "strategy": "chunk",
+      "requests": 17,
+      "commands": {
+        "rows": 800,
+        "executions": 17,
+        "seams": 16,
+        "seam_jump_rad": 0.032,
+        "max_seam_jump_rad": 0.0774,
+        "typical_step_rad": 0.0091,
+        "seam_ratio": 3.51,
+        "command_speed": 0.1182,
+        "command_jerk": 74.08,
+        "command_jitter": 0.817
+      },
+      "value": 2.0,
+      "outcome": "pushed",
+      "progress": 0.25,
+      "success": false,
+      "metrics": {
+        "min_reach_cm": 3.2,
+        "max_lift_cm": 0.7,
+        "target_moved_cm": 17.4,
+        "final_to_container_cm": 17.7,
+        "others_moved_cm": 0.0,
+        "time_to_success_s": null,
+        "joint_speed": 0.0865,
+        "joint_jerk": 20.01,
+        "joint_jitter": 0.486,
+        "drops": 0,
+        "drop": null
+      }
+    },
+    {
+      "index": 16,
+      "trial": 8,
+      "params": {
+        "target_shift": 2.0
+      },
+      "prompt": "put the banana on the plate",
+      "info": {
+        "target_shift": {
+          "offset": "-0.1, -2.0 cm"
+        }
+      },
+      "stop_reason": "success",
+      "steps": 630,
+      "seconds": 48.7,
+      "mean_rtt_s": 0.57,
+      "redraws": 0,
+      "video": null,
+      "strategy": "crossfade-30",
+      "requests": 21,
+      "commands": {
+        "rows": 630,
+        "executions": 21,
+        "seams": 20,
+        "seam_jump_rad": 0.0107,
+        "max_seam_jump_rad": 0.0193,
+        "typical_step_rad": 0.0082,
+        "seam_ratio": 1.31,
+        "command_speed": 0.1405,
+        "command_jerk": 102.76,
+        "command_jitter": 0.857
+      },
+      "value": 2.0,
+      "outcome": "success",
+      "progress": 1.0,
+      "success": true,
+      "metrics": {
+        "min_reach_cm": 2.1,
+        "max_lift_cm": 11.8,
+        "target_moved_cm": 10.3,
+        "final_to_container_cm": 5.3,
+        "others_moved_cm": 0.0,
+        "time_to_success_s": 31.5,
+        "joint_speed": 0.0898,
+        "joint_jerk": 25.5,
+        "joint_jitter": 0.525,
+        "drops": 0,
+        "drop": null
+      }
+    }
+  ],
+  "outcome_labels": {
+    "success": "Success",
+    "missed_container": "Placed next to container",
+    "carry_failed": "Lifted, lost on the way",
+    "no_grasp": "Reached, no grasp",
+    "pushed": "Pushed target away",
+    "wrong_object": "Went for wrong object",
+    "no_reach": "Never reached target",
+    "off_table": "Knocked off table",
+    "aborted": "Aborted",
+    "invalid": "Not counted (unfair setup / sim glitch)"
+  },
+  "policy": "dreamlabs/dream-1-beta",
+  "strategy": null,
+  "perturbation": {
+    "id": "target_shift",
+    "label": "Move target object",
+    "unit": "cm",
+    "group": "scene",
+    "group_label": "Scene layout",
+    "defaults": [
+      0,
+      2,
+      4,
+      6,
+      8
+    ],
+    "max": 8.0,
+    "neutral": 0.0,
+    "discrete": false,
+    "description": "Moves the object to pick up by value cm in a random direction on the table. The core generalization test: does Dream-1 look where the object is, or replay a memorized motion?",
+    "kind": "env",
+    "strength": 2.0
+  },
+  "strategies": [
+    {
+      "id": "chunk",
+      "label": "Full chunk (48)",
+      "description": "Executes all 48 planned steps (2.4 s) before asking Dream-1 again. Default behaviour.",
+      "execute": 48,
+      "blend": "none",
+      "requests_factor": 1.0,
+      "gripper": "newest plan"
+    },
+    {
+      "id": "crossfade-30",
+      "label": "Crossfade (30)",
+      "description": "Asks every 30 steps (1.5 s) and fades the arm joints from the previous plan to the new one over those steps (the gripper follows the new plan). No seam jumps, fully on the new plan after 1.5 s. ~2\u00d7 the requests.",
+      "execute": 30,
+      "blend": "crossfade",
+      "requests_factor": 1.6,
+      "gripper": "newest plan"
+    }
+  ],
+  "analysis": {
+    "per_strategy": [
+      {
+        "id": "chunk",
+        "label": "Full chunk (48)",
+        "n": 8,
+        "done": 8,
+        "successes": 0,
+        "rate": 0.0,
+        "ci": [
+          0.0,
+          0.3244156195108769
+        ],
+        "progress": 0.438,
+        "outcomes": {
+          "carry_failed": 6,
+          "no_grasp": 1,
+          "pushed": 1
+        },
+        "min_reach_cm": 2.825,
+        "max_lift_cm": 8.812,
+        "time_to_success_s": null,
+        "requests": 15.625,
+        "seam_jump_rad": 0.027,
+        "seam_ratio": 2.895,
+        "command_jerk": 72.495,
+        "command_jitter": 0.792,
+        "joint_speed": 0.087,
+        "joint_jerk": 19.03,
+        "joint_jitter": 0.456,
+        "sim_seconds": 36.5,
+        "wall_seconds": 689.137
+      },
+      {
+        "id": "crossfade-30",
+        "label": "Crossfade (30)",
+        "n": 8,
+        "done": 8,
+        "successes": 3,
+        "rate": 0.375,
+        "ci": [
+          0.13684175946152105,
+          0.6942621454161981
+        ],
+        "progress": 0.688,
+        "outcomes": {
+          "success": 3,
+          "carry_failed": 5
+        },
+        "min_reach_cm": 2.425,
+        "max_lift_cm": 13.387,
+        "time_to_success_s": 30.033,
+        "requests": 24.5,
+        "seam_jump_rad": 0.011,
+        "seam_ratio": 1.228,
+        "command_jerk": 112.71,
+        "command_jitter": 0.835,
+        "joint_speed": 0.103,
+        "joint_jerk": 27.812,
+        "joint_jitter": 0.494,
+        "sim_seconds": 36.275,
+        "wall_seconds": 54.475
+      }
+    ],
+    "baseline": "chunk",
+    "pairs": [
+      {
+        "id": "crossfade-30",
+        "label": "Crossfade (30)",
+        "n": 8,
+        "only_baseline": 0,
+        "only_this": 3,
+        "both": 0,
+        "p_value": 0.25,
+        "success_diff": 0.375,
+        "progress_diff": 0.25,
+        "progress_ci": [
+          0.062,
+          0.438
+        ],
+        "seam_change": -0.576,
+        "jitter_change": 0.083,
+        "speed_change": 0.184,
+        "command_jerk_change": 0.555,
+        "joint_jerk_change": 0.461,
+        "requests_factor": 1.6
+      }
+    ],
+    "verdict": {
+      "best": "crossfade-30",
+      "significant": false,
+      "smoothest": null,
+      "text": "Crossfade (30) wins: 3/8 successes vs 0/8 with the default \u2014 not significant yet (paired McNemar p = 0.25, 3 of 8 pairs disagree) \u00b7 seams 58% smaller, arms 18% faster, 1.6\u00d7 the API requests"
+    }
+  }
+}

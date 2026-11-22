@@ -146,7 +146,7 @@ class FakeEnv:
         return {"left": np.zeros(7), "right": np.zeros(7)}
 
 
-def run_fake(monkeypatch, strategy, max_steps=48):
+def run_fake(monkeypatch, strategy, max_steps=48, seconds=60):
     """run_task against a policy whose n-th reply is a chunk filled with n."""
     replies = []
 
@@ -163,7 +163,7 @@ def run_fake(monkeypatch, strategy, max_steps=48):
     monkeypatch.setattr(runner.sim, "capture", lambda *a, **k: {})
     monkeypatch.setattr(runner.sim, "validate_chunk", lambda env, reply, limit, **k: (reply["q_l_chunk"][:limit], reply["q_r_chunk"][:limit]))
     env = FakeEnv()
-    result = runner.run_task("wave the arms", env=env, api_key="test", seconds=60, verbose=False,
+    result = runner.run_task("wave the arms", env=env, api_key="test", seconds=seconds, verbose=False,
                              strategy=strategy, max_steps=max_steps)
     return result, env
 
@@ -276,3 +276,12 @@ def test_paused_physics_keeps_the_new_plan_from_row_0(monkeypatch):
     with pytest.raises(RuntimeError):
         runner.run_task("wave the arms", env=FakeEnv(), api_key="test", verbose=False, latency="client")
     assert "action_hz" not in seen or seen["action_hz"] == 20
+
+
+def test_wall_clock_cut_is_not_a_used_up_budget(monkeypatch):
+    """Measured 22.11.2026: requests hung while the machine slept, the wall clock ended a trial after 240 of 800 steps
+    and it was scored as a model failure. Under a simulated budget that is `wall_timeout`, which is never scored."""
+    result, _ = run_fake(monkeypatch, "chunk", max_steps=48, seconds=1e-9)
+    assert result.stop_reason == "wall_timeout" and result.steps < 48
+    result, _ = run_fake(monkeypatch, "chunk", max_steps=None, seconds=1e-9)
+    assert result.stop_reason == "timeout", "without a simulated budget the wall clock is the budget"

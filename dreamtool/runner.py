@@ -210,7 +210,9 @@ def run_task(
                     if reason:
                         return reason
                 if time.monotonic() >= deadline:
-                    return "task_deadline" if managed else "timeout"
+                    # with a simulated budget, running out of wall time first means the run was cut short (a hung
+                    # request, a sleeping machine): not the same as using up the budget (measured 22.11.2026)
+                    return "task_deadline" if managed else "wall_timeout" if max_steps is not None else "timeout"
                 if max_steps is not None and result.steps >= max_steps:
                     return "timeout"
                 if view is not None and not view.is_running():

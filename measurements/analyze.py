@@ -24,7 +24,14 @@ sys.path.insert(0, str(ROOT))
 from dashboard.extensions.robustness.analysis import wilson  # noqa: E402
 from dashboard.extensions.robustness.compare import bootstrap_mean, mcnemar_exact  # noqa: E402
 
-SCORED = lambda r: r.get("outcome") not in ("invalid", "aborted", None)  # noqa: E731
+def cut_short(r, budget_steps=800):
+    """Ended by the wall clock before the simulated budget was used up, without success (a hung request, a sleeping
+    machine): `wall_timeout` since 22.11.2026, before that a `timeout` with fewer steps than the budget."""
+    reason = r.get("stop_reason") or ""
+    return not r.get("success") and (reason == "wall_timeout" or (reason == "timeout" and r.get("steps", budget_steps) < budget_steps))
+
+
+SCORED = lambda r: r.get("outcome") not in ("invalid", "aborted", None) and not cut_short(r)  # noqa: E731
 
 
 def load(cid):

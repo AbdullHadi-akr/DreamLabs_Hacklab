@@ -42,3 +42,13 @@ def test_released_and_slipped_are_told_apart():
     assert released["drops"] == 1 and released["drop"]["cause"] == "released"
     assert slipped["drops"] == 1 and slipped["drop"]["cause"] == "slipped"
     assert released["outcome"] == "carry_failed"
+
+
+
+def test_wall_clock_cut_trial_is_not_counted():
+    env = StubEnv()
+    m = TrialMonitor("banana", "plate")
+    m.on_start(env, "put the banana on the plate", "x")
+    m.on_step(env, 1, {})
+    m.on_end(env, SimpleNamespace(success=False, stop_reason="wall_timeout"))
+    assert m.metrics["outcome"] == "aborted", "cut short by the wall clock: not a failure of the model"
