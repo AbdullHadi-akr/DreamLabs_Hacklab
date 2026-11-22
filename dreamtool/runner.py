@@ -77,6 +77,7 @@ class RunResult:
     success: bool | None = None  # None = no success check known for this task
     steps: int = 0
     requests: int = 0
+    scripted_requests: int | None = None
     strategy: str = "chunk"
     latency: str = "paused"
     retries: int = 0  # retryable refusals (Dream-1 at capacity) that were waited out
@@ -126,6 +127,7 @@ def run_task(
     strategy: "str | inference.Strategy" = "chunk",
     max_steps: int | None = None,
     latency: str = "paused",
+    experiment=None,
 ) -> RunResult:
     """Runs a task with Dream-1 in the simulator. Needs an API key (see README).
 
@@ -139,7 +141,8 @@ def run_task(
     hooks = hooks if isinstance(hooks, list) else [hooks] if hooks else []
     config = sim.settings()
     key = api_key or config.get("DREAM_API_KEY", "")
-    if not key:
+    scripted = experiment is not None and experiment.scripted
+    if not key and not scripted:
         raise RuntimeError("No API key: set DREAM_API_KEY or write ~/.dreamlabs/credentials (see README).")
     gateway = config.get("DREAM_GATEWAY_URL", "https://api.dreamlabs.ai")
 
@@ -150,6 +153,8 @@ def run_task(
     prompt = prompt or task
     strategy = inference.parse(strategy)
     executor = inference.ChunkExecutor(strategy, actions_per_reply)
+    if experiment is not None and (strategy.id != "chunk" or latency != "paused" or viewer or not managed):
+        raise ValueError("Checkpoint experiments require managed full-chunk execution with paused latency.")
     stats = inference.CommandStats()
     if latency not in LATENCY_MODES:
         raise ValueError(f"latency must be one of {LATENCY_MODES}")
@@ -161,6 +166,8 @@ def run_task(
     deadline = started_at + seconds
 
     def open_policy(poses):
+        if scripted:
+            return experiment.policy()
         options = sim.policy_config(model, gateway, poses)
         if latency == "paused":
             options["action_hz"] = PAUSED_ACTION_HZ
@@ -180,8 +187,8 @@ def run_task(
         if managed:
             for h in hooks:
                 h.on_start(env, task, model)
-        windows = {name: deque(maxlen=sim.FRAMES) for name in sim.VIDEO_ROLES}
-        steps = 0
+        restored = experiment.restore_inputs(env) if experiment is not None else None
+        windows, steps = restored or ({name: deque(maxlen=sim.FRAMES) for name in sim.VIDEO_ROLES}, 0)
         while any(len(w) < sim.FRAMES for w in windows.values()):
             if managed:
                 reason = next((reason for h in hooks if (reason := h.should_stop(env))), None)
@@ -193,6 +200,8 @@ def run_task(
             sim.capture(env, windows, keep=steps % sim.FRAME_EVERY_STEPS == 0)
             steps += 1
 
+        if experiment is not None:
+            sim_start = _sim_time(env)
         viewer_ctx = nullcontext(None)
         if viewer:
             import mujoco.viewer
@@ -207,18 +216,22 @@ def run_task(
                     h.on_start(env, task, model)
             poses = model in sim.POSE_MODELS
             policy = open_policy(poses)
-            sim.feed(policy, env, windows, prompt, model, steps, every=0, station=poses)
+            sim.feed(policy, env, windows, prompt, model, steps - int(restored is not None), every=0, station=poses)
             if not managed:
                 deadline = time.monotonic() + seconds
             # Outside the Test Suite the time limit counts SIMULATED seconds: waiting for Dream-1's replies (physics
             # paused) and a slow laptop do not use it up, so a run gets the same robot time on every computer.
             # The Test Suite (managed) keeps its wall-clock task deadline.
-            sim_start = None if managed else _sim_time(env)
+            if not managed:
+                sim_start = _sim_time(env)
             restarts = 0
             waited = 0.0  # seconds spent waiting on retryable refusals
+            observation_offset = 0
 
             def stop_reason():
                 if managed:
+                    if experiment is not None and max_steps is not None and result.steps >= max_steps:
+                        return "task_finished"
                     reason = next((reason for h in hooks if (reason := h.should_stop(env))), None)
                     if reason:
                         return reason
@@ -247,9 +260,12 @@ def run_task(
                 return None
 
             while (reason := stop_reason()) is None:
-                if managed and result.requests >= max_requests:
-                    reason = "request_budget"
+                request_limit = experiment.request_limit(max_requests) if experiment is not None else max_requests
+                if managed and result.requests >= request_limit:
+                    reason = "task_finished" if scripted else "request_budget"
                     break
+                if experiment is not None:
+                    experiment.boundary(env, windows, steps, result, deadline, poses)
                 future = pool.submit(_get_action, policy)
                 pending_stop = None
                 while not future.done():  # physics paused, viewer stays responsive
@@ -264,8 +280,9 @@ def run_task(
                 if managed:
                     result.requests += 1
                     result.rtts_s.append(rtt)
-                    for h in hooks:
-                        h.on_request(error, rtt)
+                    if not scripted:
+                        for h in hooks:
+                            h.on_request(error, rtt)
                     # A reply can finish after the deadline between two render polls.
                     if pending_stop is None and finished >= deadline:
                         pending_stop, ended_at = "task_deadline", deadline
@@ -274,8 +291,13 @@ def run_task(
                         if error is None:
                             for h in hooks:
                                 h.on_reply(env, reply, rtt)
+                        elif experiment is not None:
+                            experiment.request_error(env, error)
                         break
                 if error is not None:
+                    if experiment is not None and experiment.is_branch:
+                        experiment.request_error(env, error)
+                        raise error
                     if type(error).__name__ == "DreamSessionExpired" and restarts < 3:
                         restarts += 1
                         continue
@@ -296,6 +318,8 @@ def run_task(
                     sim.feed(policy, env, windows, prompt, model, steps, every=0, station=poses)
                     continue
                 restarts = 0
+                if experiment is not None:
+                    experiment.reply(env)
                 if not managed:
                     result.requests += 1
                     result.rtts_s.append(rtt)
@@ -305,16 +329,23 @@ def run_task(
 
                 left, right = sim.validate_chunk(env, reply, inference.CHUNK, verbose=False)
                 left, right = executor.plan(result.steps, left, right)
+                intervention = None
                 for row, (l_row, r_row) in enumerate(zip(left, right)):
                     if stop_reason() is not None:
                         break
+                    if experiment is not None:
+                        intervention = experiment.before_step(env, l_row, r_row)
+                        if intervention:
+                            break
                     tick = time.monotonic()
                     env.step(l_row, r_row)
+                    if experiment is not None:
+                        experiment.command_applied(l_row, r_row)
                     stats.add(l_row, r_row, seam=row == 0)
                     kept = steps % sim.FRAME_EVERY_STEPS == 0
                     images = sim.capture(env, windows, keep=kept) if kept or capture_each_step else {}
                     if kept:
-                        sim.feed(policy, env, windows, prompt, model, steps, station=poses)
+                        sim.feed(policy, env, windows, prompt, model, steps + observation_offset, station=poses)
                     steps += 1
                     result.steps += 1
                     for h in hooks:
@@ -323,7 +354,19 @@ def run_task(
                         break
                     if view is not None:
                         view.sync()
-                    time.sleep(max(0.0, 0.05 - (time.monotonic() - tick)))
+                    if not scripted:
+                        time.sleep(max(0.0, 0.05 - (time.monotonic() - tick)))
+                if intervention == "replan":
+                    # Rebuild the observation history with the current frame, without executing the rejected row.
+                    # The arm is still holding the last applied command while waiting for the new plan.
+                    sim.capture(env, windows, keep=True)
+                    # Advance the SDK sampling clock by a camera tick so it retains the intervention frame.
+                    # Neither simulation time nor the remaining step budget advances here.
+                    observation_offset += sim.FRAME_EVERY_STEPS
+                    sim.feed(policy, env, windows, prompt, model, steps + observation_offset, station=poses)
+                elif intervention:
+                    reason = intervention
+                    break
             result.stop_reason = reason
             if managed and reason in ("success", "task_completed"):
                 result.success = True

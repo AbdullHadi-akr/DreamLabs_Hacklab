@@ -52,7 +52,7 @@ def solve_ik(env, side, target, seed, weight=GRASP_WEIGHT):
     raise ValueError(f"IK found no pose for {side} arm at {np.round(target, 3)}")
 
 
-def plan(env, obj: str, container: str) -> list:
+def plan(env, obj: str, container: str, *, release_height: float = .11) -> list:
     """Plans pick-and-place of `obj` into `container` on a freshly reset scene. Returns (left, right) targets."""
     env.reset()
     home = sim.HOME
@@ -78,7 +78,7 @@ def plan(env, obj: str, container: str) -> list:
     grip(1, 0, 15)
     move(p + [0, 0, 0.15], 0, 30)
     move(c + [0, 0, 0.17], 0, 40, PLACE_WEIGHT)
-    move(c + [0, 0, 0.11], 0, 15, PLACE_WEIGHT)
+    move(c + [0, 0, release_height], 0, 15, PLACE_WEIGHT)
     grip(0, 1, 10)
     move(c + [0, 0, 0.18], 1, 15, PLACE_WEIGHT)
     rows.extend([rows[-1]] * 20)  # let the object settle before the success check

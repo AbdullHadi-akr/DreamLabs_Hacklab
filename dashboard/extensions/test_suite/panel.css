@@ -1,5 +1,4 @@
 .workspace-nav { white-space: nowrap; }
-@media (min-width: 1181px) { .test-suite-layout .col-left { overflow-y: auto; } }
 .test-suite-layout [hidden], .workspace-nav [hidden] { display: none !important; }
 .suite-form, .suite-form fieldset { display: grid; gap: 10px; min-width: 0; }
 .suite-form label { display: grid; gap: 4px; font-size: .83rem; }
@@ -24,7 +23,7 @@
 @media print {
   .topbar, .suite-view-nav, .campaign-notices, .report-tools, .toasts, .test-suite-layout > .col-left, .test-suite-layout > .col-right,
   .test-suite-layout .col-center > :not(#test-suite-results), .suite-no-print { display: none !important; }
-  html, body { height: auto; }
+  html, body { height: auto; min-height: 0; }
   .suite-report-trials { max-height: none !important; }
   .layout.test-suite-layout, .test-suite-layout .col-center { display: block; overflow: visible; height: auto; }
 }
@@ -105,3 +104,6 @@
 }
 .suite-mode-select:hover { border-color: var(--ink); }
 .suite-mode-hint { color: var(--ink-3); }
+.suite-fork { margin: 12px 0; }
+.suite-fork-branches { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); gap: 12px; }
+.suite-fork-branches article { overflow-wrap: anywhere; }

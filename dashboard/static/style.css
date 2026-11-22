@@ -59,8 +59,10 @@
 
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
-html, body { margin: 0; height: 100%; }
+html, body { margin: 0; }
 body {
+  min-height: 100vh;
+  min-height: 100dvh;
   background: #f8f7f5;
   color: var(--ink);
   font: 15px/1.45 var(--font-sans);
@@ -102,7 +104,7 @@ code { font-family: var(--font-mono); font-size: .9em; background: var(--grey-2)
 
 /* ---------- Layout ---------- */
 .layout {
-  flex: 1; min-height: 0;
+  flex: 1; align-items: start;
   --left: minmax(230px, 280px); --right: minmax(220px, 270px);
   display: grid; grid-template-columns: var(--left) minmax(0, 1fr) var(--right);
   gap: 16px; padding: 16px 24px;
@@ -128,9 +130,7 @@ code { font-family: var(--font-mono); font-size: .9em; background: var(--grey-2)
 .fold-btn:hover { color: var(--ink); }
 .col { min-height: 0; min-width: 0; display: flex; flex-direction: column; gap: 14px; }
 .col > * { flex-shrink: 0; }
-.col-left { overflow: hidden; }
-.col-right, .col-center { overflow-y: auto; }
-.col-center { padding: 0 2px 6px; scrollbar-gutter: stable; }
+.col-center { padding: 0 2px 6px; }
 
 .section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .section-head h2 { margin: 0; font-size: 16px; color: var(--ink); }
@@ -165,7 +165,7 @@ code { font-family: var(--font-mono); font-size: .9em; background: var(--grey-2)
 }
 .tab:hover { border-color: var(--ink); color: var(--ink); }
 .tab.active { background: var(--creamsicle-wash); border-color: var(--focus); color: var(--ink); }
-.col-left .panels { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 16px; }
+.col-left .panels { padding: 16px; }
 .panel[hidden] { display: none; }
 .panel h4 { font-weight: 600; font-size: 14px; margin: 18px 0 6px; }
 .panel-error { color: var(--error); white-space: pre-wrap; font-family: var(--font-mono); font-size: 12px; }
@@ -180,10 +180,11 @@ code { font-family: var(--font-mono); font-size: .9em; background: var(--grey-2)
 .viewer {
   position: relative; background: var(--stage-bg, #c8c4bd); border-radius: 13px;
   overflow: hidden; aspect-ratio: 16 / 9; width: 100%; cursor: grab; user-select: none;
-  touch-action: none;
+  touch-action: pan-y pinch-zoom;
 }
 .viewer.dragging { cursor: grabbing; }
-.viewer img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.viewer img, .viewer .interactive-view { width: 100%; height: 100%; object-fit: contain; display: block; }
+.viewer:has(.interactive-view[hidden]) :is(.teleop-layer, .objects-layer) { display: none; }
 .viewer-badges { position: absolute; top: 12px; left: 12px; display: flex; gap: 6px; }
 .chip-dark {
   display: inline-flex; align-items: center; gap: 6px;
@@ -329,8 +330,7 @@ summary { cursor: pointer; }
   .layout, .layout.test-suite-layout { --left: minmax(260px, 330px); --right: minmax(205px, 235px); grid-template-columns: var(--left) minmax(0, 1fr); }
   .layout.left-collapsed { --left: 34px; }
   .layout.suite-report-view { grid-template-columns: minmax(0, 1fr) var(--right); }
-  .layout { grid-auto-rows: max-content; align-content: start; overflow-y: auto; padding: 14px 16px; }
-  .col-left, .col-center, .col-right { overflow: visible; }
+  .layout { align-content: start; padding: 14px 16px; }
   .layout:not(.suite-report-view) > .col-right { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 215px), 1fr)); align-items: start; }
   .layout.test-suite-layout:not(.suite-report-view) > .col-right { display: contents; }
   .test-suite-layout:not(.suite-report-view) #test-suite-monitor { grid-column: 1 / -1; }
@@ -359,9 +359,9 @@ summary { cursor: pointer; }
 .orientation-portrait .layout, .orientation-portrait .layout.right-collapsed, .orientation-portrait .layout.left-collapsed { grid-template-columns: minmax(0, 1fr); }
 .orientation-portrait .right-collapsed > .right-rail, .orientation-portrait .left-collapsed > .left-rail { writing-mode: horizontal-tb; transform: none; padding: 8px 12px; }
 .orientation-portrait .col-left, .orientation-portrait .col-right { order: initial; }
-.orientation-portrait .col-right { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
-body:fullscreen { overflow: auto; }
-body:fullscreen .topbar { position: sticky; top: 0; z-index: 20; }
+.orientation-portrait .col-right { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); }
+:root:fullscreen { overflow-y: auto; }
+:root:fullscreen .topbar { position: sticky; top: 0; z-index: 20; }
 @media (max-width: 480px) {
   .cam-label { font-size: 11px; }
   .scene-actions { border: none; padding-inline-start: 0; }

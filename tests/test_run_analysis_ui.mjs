@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { Script } from "node:vm";
 
 const files = ["dashboard/static/lib/api.js", "dashboard/static/lib/log_panel.js",
+  "dashboard/extensions/test_suite/fork_panel.js",
   "dashboard/extensions/test_suite/run_analysis.js", "dashboard/extensions/test_suite/panel.js"];
 const sources = await Promise.all(files.map((file) => readFile(new URL("../" + file, import.meta.url), "utf8")));
 const css = await readFile(new URL("../dashboard/extensions/test_suite/panel.css", import.meta.url), "utf8");
@@ -140,8 +141,10 @@ const api={ui:{h,toast(){}},on(name,fn){(suiteEvents[name]||=[]).push(fn);},onCo
   const notice=document.getElementById("campaign-notices").children[0];
   assert(notice.textContent.includes("campaign-historic"),"completion banner names the completed campaign");
   buildTab.events.click();
-  const mix=find(document.getElementById("config"),(node)=>node.attrs["aria-label"]==="Perturbation Mix: Scripted");
-  mix.events.click();
+  const modeSelect=find(document.getElementById("config"),(node)=>node.attrs["aria-label"]==="Test type");
+  assert(find(modeSelect,(node)=>node.tag==="option"&&node.attrs.value==="robustness:random"),"Perturbation Mix remains available");
+  modeSelect.value="robustness:random";
+  modeSelect.onchange();
   Object.assign(robustness,{mode:"random",done:2,total:4});
   robustnessRoot.events["suite-campaign-started"]({detail:robustness});
   reportTab.events.click();

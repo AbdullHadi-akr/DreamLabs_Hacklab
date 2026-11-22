@@ -19,7 +19,7 @@ export async function mount(root, api) {
   const prompt = h("input", { value: api.core.task() || "put the banana on the plate" });
   const freeze = h("button", { class: "btn small", onclick: freezeScene }, "Freeze current scene");
   const list = h("select", { class: "xr-list" });
-  list.onchange = () => select(list.value);
+  list.onchange = () => select(list.value, true);
   const snapCard = h("div", { class: "xr-snap" });
   const fakeNote = h("p", { class: "warn", hidden: !status.fake },
     "Simulated stand-in instead of Dream-1 (DREAM_XRAY_FAKE=1): numbers show how the tool works, not the model.");
@@ -48,7 +48,7 @@ export async function mount(root, api) {
     try {
       const r = await api.post("/snapshot", { prompt: prompt.value.trim() });
       status = r.status;
-      await select(r.id);
+      await select(r.id, true);
       api.ui.toast("Scene frozen.", "good");
     } catch (e) { api.ui.toast(e.message, "error"); }
     freeze.disabled = false;
@@ -58,7 +58,7 @@ export async function mount(root, api) {
     try {
       const r = await api.post(`/moments/${index}/keep`);
       status = r.status;
-      await select(r.id);
+      await select(r.id, true);
     } catch (e) { api.ui.toast(e.message, "error"); }
   }
 
@@ -72,10 +72,12 @@ export async function mount(root, api) {
     } catch (e) { api.ui.toast(e.message, "error"); }
   }
 
-  async function select(id) {
+  async function select(id, pin = false) {
     selected = id;
-    detail = id ? await api.get(`/snapshots/${id}`).catch(() => null) : null;
-    if (overlay.checked) api.post("/overlay", { enabled: true, snapshot: selected });
+    const next = id ? await api.get(`/snapshots/${id}`).catch(() => null) : null;
+    if (selected !== id) return;
+    detail = next;
+    if (pin && overlay.checked) api.post("/overlay", { enabled: true, snapshot: selected });
     render();
   }
 
@@ -114,7 +116,7 @@ export async function mount(root, api) {
         h("dt", {}, "Noise"), h("dd", { title: "Mean distance between the paths of repeated, identical questions" },
           r.noise_cm == null ? "–" : `${r.noise_cm} cm`),
         ...(r.recorded_change_cm != null ? [h("dt", {}, "Vs. the run"), h("dd", { title: "Re-asked plan vs. the plan Dream-1 sent during the run" }, `${r.recorded_change_cm} cm`)] : [])),
-      h("p", { class: "muted" }, "Orange line in the 3D view: the planned path of the acting arm; red dot: where the gripper closes; yellow: the target."));
+      h("p", { class: "muted" }, "Orange line: the planned path. Red dot: the planned grasp. Yellow sphere: the inferred target when it agrees with the prompt."));
   }
 
   function heatCanvas(cam, r) {

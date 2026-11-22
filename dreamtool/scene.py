@@ -95,6 +95,15 @@ def _tokens(task: str) -> list[str]:
     return re.findall(r"->|→|[a-zäöüß]+", text)
 
 
+def named_objects(task: str) -> set[str]:
+    """Scene objects explicitly named in the prompt. Ignore colors used as adjectives."""
+    tokens = _tokens(task)
+    return {OBJECT_WORDS[word] for word, following in zip(tokens, [*tokens[1:], ""])
+            if word in OBJECT_WORDS and following not in CONTAINER_WORDS
+            and (word != "orange" or following not in OBJECT_WORDS)
+            and (word != "water" or following in ("bottle", "bottles"))}
+
+
 ## Words that negate the task ("do not put ...", "don't", "never", German "nicht"/"kein").
 _NEGATION = {"not", "never", "dont", "nicht", "kein", "keine", "niemals"}
 ## Actions after the goal change the final state ("... and then remove it"): no single goal to measure.

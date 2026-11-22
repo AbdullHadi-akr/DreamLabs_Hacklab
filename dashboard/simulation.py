@@ -17,7 +17,9 @@ import queue
 import threading
 import time
 import traceback
+from collections import Counter
 from concurrent.futures import Future
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Callable
 
@@ -109,6 +111,7 @@ class RunRequest:
     strategy: str = "chunk"  # how action chunks are executed (dreamtool/inference.py)
     max_steps: int | None = None  # budget in simulated control steps (20 per second), besides the wall-clock `seconds`
     latency: str = "paused"  # see dreamtool.runner.LATENCY_MODES
+    experiment: object | None = None
     source: str = "core"  # who started the run (core or an extension id)
     label: str = ""
     id: int = 0
@@ -135,6 +138,8 @@ class _CoreHook(Hooks):
         self.worker, self.request = worker, request
 
     def on_reply(self, env, reply, rtt_s):
+        if self.request.offline:
+            return
         self.worker.run_stats["requests"] += 1
         self.worker.run_stats["last_rtt_s"] = rtt_s
         self.worker.run_stats["rtts_s"] = [*self.worker.run_stats["rtts_s"][-59:], rtt_s]
@@ -163,6 +168,14 @@ class _CoreHook(Hooks):
         return None
 
 
+class SimulatorReserved(RuntimeError):
+    """An exclusive experiment currently owns the simulator."""
+
+
+class ExpiredView(RuntimeError):
+    """A pointer event references a frame outside the retained view history."""
+
+
 class SimWorker(threading.Thread):
     def __init__(self, bus, extensions: list | None = None, db=None, recorder=None):
         super().__init__(name="sim-worker", daemon=True)
@@ -175,35 +188,62 @@ class SimWorker(threading.Thread):
         self.ready = threading.Event()
         self.stop_event = threading.Event()
         self.shutdown_event = threading.Event()
-        self.frames: dict[str, tuple[int, bytes]] = {}
-        self.teleop_viewers = 0  # Updated by MJPEG subscriptions on the dashboard event loop.
+        self.frames = {}
+        self._viewers = Counter()
+        self._viewers_lock = threading.Lock()
+        self.interaction_views = {}
         self.state_snapshot: dict = {}
         self.current: RunRequest | None = None
         self.run_stats: dict = {}
         self.error: str | None = None
         self._run_ids = 0
         self._run_lock = threading.Lock()
+        self.controls_lock = threading.RLock()
         self._outstanding_runs: set[Future] = set()
-        self._last = {"main": 0.0, "cams": 0.0, "state": 0.0}
+        self.exclusive = False
+        self._last = {"main": 0.0, "state": 0.0}
+        self._camera_preview_times = dict.fromkeys(CAMERAS, 0.0)
         self._seq = 0
         self.env = None
-        self.low_viewers = 0  # guests watching the main view (the app counts them); 0 = no low-quality frames
 
     # ---------- public, thread-safe API ----------
 
-    def call(self, fn: Callable, *, hold: bool = False) -> Future:
+    def call(self, fn: Callable, *, hold: bool = False, exclusive: bool = False) -> Future:
         """Run fn(env) on the sim thread (between runs). Result/exception arrives through the Future.
 
         Afterwards the arms hold the pose they are in. With hold=True, fn instead returns new step() targets,
         {"left": 7 values, "right": 7 values} (either side may be missing), which the arms then drive to and hold
         between runs (e.g. teleoperation). Such a call does not force an extra frame."""
         future: Future = Future()
-        self.jobs.put(("call", fn, future, hold))
+        with self._run_lock:
+            if self.exclusive or (exclusive and (self.current is not None or self._outstanding_runs)):
+                raise SimulatorReserved("The simulator is already in use.")
+            self.exclusive = exclusive
+            self.jobs.put(("call", fn, future, hold))
+        if exclusive:
+            future.add_done_callback(self._release_exclusive)
         return future
+
+    def _release_exclusive(self, future):
+        with self._run_lock:
+            self.exclusive = False
+
+    def run_reserved(self, task, **options):
+        """Execute one attributed run inside an exclusive simulation-thread job."""
+        if threading.current_thread() is not self or not self.exclusive:
+            raise RuntimeError("A reserved run requires an exclusive simulator job.")
+        with self._run_lock:
+            self._run_ids += 1
+            request = RunRequest(task=task, id=self._run_ids, **options)
+        future = Future()
+        self._execute_run(request, future)
+        return future.result()
 
     def run_task(self, task: str, **options) -> Future:
         """Queue a run. Options: see RunRequest. Returns Future[RunResult]."""
         with self._run_lock:
+            if self.exclusive:
+                raise SimulatorReserved("A Fork Here comparison owns the simulator.")
             self._run_ids += 1
             request = RunRequest(task=task, id=self._run_ids, **options)
             future: Future = Future()
@@ -219,7 +259,7 @@ class SimWorker(threading.Thread):
 
     def stop(self) -> None:
         """Stop the current run (with Dream-1: after the pending reply)."""
-        if self.current is not None:
+        if self.current is not None and not self.exclusive:
             self.stop_event.set()
 
     def cancel_queued(self, source: str | None = None) -> int:
@@ -244,7 +284,7 @@ class SimWorker(threading.Thread):
     @property
     def busy(self) -> bool:
         with self._run_lock:
-            return self.current is not None or any(not future.done() for future in self._outstanding_runs)
+            return self.exclusive or self.current is not None or any(not future.done() for future in self._outstanding_runs)
 
     def status(self) -> dict:
         run = None
@@ -347,7 +387,7 @@ class SimWorker(threading.Thread):
             if self.db is not None:
                 run_id = self.db.run_started(task=request.task, prompt=info["prompt"], model=info["model"],
                                              source=request.source, label=request.label)
-            if self.recorder is not None:
+            if self.recorder is not None and not (request.experiment and request.experiment.is_branch):
                 self.recorder.run_started(info, run_id, env)
         except Exception:
             self.bus.log(f"Recording failed to start:\n{traceback.format_exc()}", "error")
@@ -373,7 +413,7 @@ class SimWorker(threading.Thread):
         try:
             if request.setup:
                 request.setup(env)
-            if request.offline:
+            if request.offline and request.experiment is None:
                 targets = request.targets(env) if callable(request.targets) else request.targets
                 targets = targets if targets is not None else demo_motion(env)
                 check = scene.success_check(request.task)
@@ -396,6 +436,7 @@ class SimWorker(threading.Thread):
                     max_requests=request.max_requests, strategy=request.strategy, max_steps=request.max_steps,
                     latency=request.latency,
                     capture_each_step=request.capture_each_step,
+                    **({"experiment": request.experiment} if request.experiment is not None else {}),
                 )
         except Exception as error:
             result.stop_reason = f"error: {type(error).__name__}: {error}"
@@ -412,6 +453,11 @@ class SimWorker(threading.Thread):
         episode = self.recorder.episode if self.recorder is not None else None
         if episode and episode["take_over_requested"] and result.stop_reason == "stopped":
             result.stop_reason = "take over"
+        if request.offline and request.experiment is not None:
+            result.scripted_requests = result.requests
+            result.requests = 0
+            result.rtts_s = []
+            result.model = "offline"
         data = result_dict(result)
         price = None if request.offline else credits.price(info["model"])
         data["cost_usd"] = None if price is None else round(result.requests * price, 6)
@@ -421,7 +467,7 @@ class SimWorker(threading.Thread):
             if self.db is not None and not request.offline:  # the second brain's raw files (dashboard/brain.py)
                 brain.run_ended(info, data, run_id)
                 brain.daily_summary(self.db, credits.summary(self.db))
-            if self.recorder is not None:
+            if self.recorder is not None and not (request.experiment and request.experiment.is_branch):
                 self.recorder.run_ended(data, env)
         except Exception:
             self.bus.log(f"Recording failed at the end of the run:\n{traceback.format_exc()}", "error")
@@ -431,12 +477,34 @@ class SimWorker(threading.Thread):
 
     # ---------- rendering & status ----------
 
+    @contextmanager
+    def watch_frames(self, name):
+        """Keep a frame variant active for the lifetime of a stream or single-frame request."""
+        with self._viewers_lock:
+            self._viewers[name] += 1
+        try:
+            yield
+        finally:
+            with self._viewers_lock:
+                self._viewers[name] -= 1
+                if self._viewers[name] == 0:
+                    del self._viewers[name]
+
     def publish(self, images: dict | None = None, force: bool = False) -> None:
         """Renders (throttled) the main view + cameras and sends the sim state. Sim thread only."""
         now = time.monotonic()
+        with self._viewers_lock:
+            wanted = set(self._viewers)
         if force or now - self._last["main"] >= 1 / MAIN_FPS:
             self._last["main"] = now
             self.camera.apply(self.main_cam)
+            for ext in self.extensions:
+                prepare = getattr(ext, "prepare_view", None)
+                if prepare:
+                    try:
+                        prepare(self.env)
+                    except Exception as error:
+                        self.bus.log(f"prepare_view of {ext.id}: {error}", "error", ext.id)
             self.main_renderer.update_scene(self.env.data, camera=self.main_cam)
             _stage_floor(self.env.model, self.main_renderer.scene)
             for ext in self.extensions:
@@ -444,11 +512,16 @@ class SimWorker(threading.Thread):
                     ext.decorate(self.env, self.main_renderer.scene)
                 except Exception as error:
                     self.bus.log(f"decorate of {ext.id}: {error}", "error", ext.id)
-            frame = self.main_renderer.render()
-            self._store("main", frame)
-            if self.low_viewers > 0:
-                self._store("main-low", cv2.resize(frame, LOW_SIZE, interpolation=cv2.INTER_AREA), LOW_QUALITY)
-            if self.teleop_viewers:
+            interaction = {ext.id: (ext.info, ext.view) for ext in self.extensions
+                           if ext.id in ("teleop", "objects") and ext.view is not None}
+            if wanted & {"main", "main-low"}:
+                frame = self.main_renderer.render()
+                if "main" in wanted:
+                    self._store("main", frame, interaction=interaction)
+                if "main-low" in wanted:
+                    self._store("main-low", cv2.resize(frame, LOW_SIZE, interpolation=cv2.INTER_AREA), LOW_QUALITY,
+                                interaction=interaction)
+            if "main-teleop" in wanted:
                 for ext in self.extensions:
                     decorate = getattr(ext, "decorate_teleop", None)
                     if decorate:
@@ -456,15 +529,8 @@ class SimWorker(threading.Thread):
                             decorate(self.env, self.main_renderer.scene)
                         except Exception as error:
                             self.bus.log(f"decorate_teleop of {ext.id}: {error}", "error", ext.id)
-                self._store("main-teleop", self.main_renderer.render())
-        if force or now - self._last["cams"] >= 1 / CAM_FPS:
-            self._last["cams"] = now
-            images = images or self.env.images()
-            for name in CAMERAS:
-                self._store(name, cv2.resize(images[name], CAM_SIZE, interpolation=cv2.INTER_AREA))
-                # The same picture at the camera's own size, for when a viewer makes this camera the large view.
-                # No extra rendering: only one more JPEG encoding of a picture that is already drawn.
-                self._store(f"{name}-large", images[name])
+                self._store("main-teleop", self.main_renderer.render(), interaction=interaction)
+        self._publish_camera_previews(wanted, images or {}, now)
         if force or now - self._last["state"] >= 1 / STATE_HZ:
             self._last["state"] = now
             state = self.env.state()
@@ -476,11 +542,47 @@ class SimWorker(threading.Thread):
             }
             self.bus.emit("sim.state", self.state_snapshot, keep=False)
 
-    def _store(self, name: str, rgb: np.ndarray, quality: int = JPEG_QUALITY) -> None:
+    def _publish_camera_previews(self, wanted, images, now):
+        due = [camera for camera, last in self._camera_preview_times.items()
+               if now - last >= 1 / CAM_FPS and (camera in wanted or f"{camera}-large" in wanted)]
+        ready = {camera: images[camera] for camera in due if camera in images}
+        missing = [camera for camera in due if camera not in ready]
+        if missing:
+            # Interleave preview renders so a set of three cameras cannot stall a control tick.
+            camera = min(missing, key=self._camera_preview_times.get)
+            ready[camera] = self._render_preview(camera)
+        for camera, frame in ready.items():
+            self._camera_preview_times[camera] = now
+            if camera in wanted:
+                self._store(camera, cv2.resize(frame, CAM_SIZE, interpolation=cv2.INTER_AREA))
+            if f"{camera}-large" in wanted:
+                self._store(f"{camera}-large", frame)
+
+    def _render_preview(self, camera):
+        # Reuse YamEnv's camera renderer and station crop. Inference still calls env.images().
+        if self.env.renderer is None:
+            self.env.renderer = mujoco.Renderer(self.env.model, height=480, width=640)
+        self.env.renderer.update_scene(self.env.data, camera=camera)
+        return self.env.renderer.render()[60:420]
+
+    def _store(self, name: str, rgb: np.ndarray, quality: int = JPEG_QUALITY, interaction=None) -> None:
         ok, jpeg = cv2.imencode(".jpg", cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR), [cv2.IMWRITE_JPEG_QUALITY, quality])
         if ok:
             self._seq += 1
-            self.frames[name] = (self._seq, jpeg.tobytes())
+            if interaction:
+                self.interaction_views[self._seq] = {tool: view for tool, (_, view) in interaction.items()}
+                if len(self.interaction_views) > MAIN_FPS * 18:
+                    self.interaction_views.pop(next(iter(self.interaction_views)))
+            self.frames[name] = (self._seq, jpeg.tobytes(), interaction)
+
+    def interaction_view(self, frame, tool, fallback):
+        """Unproject against the frame the user clicked, even if the camera has since moved."""
+        if frame is None:  # older clients may omit a frame
+            return fallback
+        view = self.interaction_views.get(frame, {}).get(tool)
+        if view is None:
+            raise ExpiredView("The displayed frame expired. Wait for the live view and try again.")
+        return view
 
 
 def _hold_targets(result) -> dict:

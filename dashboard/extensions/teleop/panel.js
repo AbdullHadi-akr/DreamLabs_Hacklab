@@ -1,5 +1,6 @@
 // Teleop panel: live TCP coordinates, arm selection, gripper buttons, key legend.
 // In the 3D view: coordinate labels at the grippers, dragging the colored balls with the mouse, keyboard control.
+import { onImage, overlayViewer, toImage, toPixels } from "/static/lib/viewer-overlay.js";
 
 const SIDES = ["left", "right"];
 const NAMES = { left: "Left arm", right: "Right arm" };
@@ -16,12 +17,11 @@ const SLOW_FACTOR = 0.25; // with Shift held
 const TICK_MS = 50;
 const HANDLE_PX = 24; // grab radius around a TCP in the view
 const MAX_STEP = 0.05; // m per request (server limit)
-const RENDER = [960, 540]; // size of the rendered main view (simulation.MAIN_SIZE)
 
 export async function mount(root, api) {
   const { h, toast } = api.ui;
   const viewer = document.getElementById("viewer");
-  const img = document.getElementById("main-view");
+  const view = overlayViewer(viewer);
   const isActive = () => root.isConnected && !root.closest("[hidden]");
   let savedFrame = null;
   try { savedFrame = localStorage.getItem("dream.teleop.frame"); } catch {}
@@ -79,7 +79,7 @@ export async function mount(root, api) {
     ["W A S D", h("span", {}, "forward / left / back / right, as seen from ", seenFrom)],
     ["E / Q", "up / down"],
     ["Z / X", "rotate the gripper about its axis (left / right)"],
-    ["Wheel on ball", "rotate the gripper"],
+    ["Alt + scroll on ball", "rotate the gripper"],
     ["R / F", "tilt the fingertips forward / back"],
     ["Shift (held)", "slow"],
     ["Space", "open / close the gripper"],
@@ -128,27 +128,14 @@ export async function mount(root, api) {
   const teleopHint = h("span", {}, " · Ball: move gripper");
   if (hint) hint.append(teleopHint);
 
-  // Match the main viewer's object-fit: contain when mapping image coordinates.
-  function imageBox() {
-    const rect = viewer.getBoundingClientRect();
-    const iw = img.naturalWidth || RENDER[0], ih = img.naturalHeight || RENDER[1];
-    const scale = Math.min(rect.width / iw, rect.height / ih);
-    const w = iw * scale, hh = ih * scale;
-    return { rect, w, h: hh, x: (rect.width - w) / 2, y: (rect.height - hh) / 2 };
-  }
-  const toPixels = (box, [u, v]) => [box.x + u * box.w, box.y + v * box.h];
-  const toImage = (e) => {
-    const box = imageBox();
-    const clamp = (value) => Math.max(-0.5, Math.min(1.5, value));
-    return [clamp((e.clientX - box.rect.left - box.x) / box.w), clamp((e.clientY - box.rect.top - box.y) / box.h)];
-  };
-
   const degrees = (value) => (value === null ? "–" : `${Math.round(value)}°`);
 
-  api.on("tcp", (info) => {
+  view.onFrame("teleop", (info) => {
+    if (!isActive()) return;
     state.info = info;
+    layer.hidden = false;
     if (document.activeElement !== orientSelect) orientSelect.value = info.orientation;
-    const box = imageBox();
+    const box = view.box();
     for (const side of SIDES) {
       const arm = info.arms[side], c = cells[side];
       ["x", "y", "z"].forEach((axis, i) => (c[axis].textContent = arm.pos[i].toFixed(3)));
@@ -162,7 +149,7 @@ export async function mount(root, api) {
 
       const label = labels[side];
       const [x, y] = arm.screen ? toPixels(box, arm.screen) : [-1, -1];
-      const inside = arm.screen && x >= 0 && y >= 0 && x <= box.rect.width && y <= box.rect.height;
+      const inside = arm.screen && onImage(arm.screen);
       label.style.display = inside ? "" : "none";
       if (!inside) continue;
       label.style.left = `${x}px`;
@@ -178,13 +165,14 @@ export async function mount(root, api) {
   // ---------- 3D view: drag the TCP balls ----------
 
   function handleAt(e) {
-    if (!isActive() || !state.info) return null;
-    const box = imageBox();
+    if (!isActive() || view.frame("teleop") === null || !state.info) return null;
+    const box = view.box();
+    if (!onImage(toImage(box, e.clientX, e.clientY))) return null;
     const mx = e.clientX - box.rect.left, my = e.clientY - box.rect.top;
     let best = null, bestDistance = HANDLE_PX;
     for (const side of SIDES) {
       const screen = state.info.arms[side].screen;
-      if (!screen) continue;
+      if (!screen || !onImage(screen)) continue;
       const [x, y] = toPixels(box, screen);
       const distance = Math.hypot(x - mx, y - my);
       if (distance < bestDistance) [best, bestDistance] = [side, distance];
@@ -194,8 +182,10 @@ export async function mount(root, api) {
 
   let drag = null, dragNext = null, dragSending = false;
   function queueDrag(e) {
-    const [u, v] = toImage(e);
-    dragNext = { side: drag.side, u, v, mode: e.shiftKey ? "vertical" : "horizontal",
+    const frame = view.frame("teleop");
+    if (frame === null) return;
+    const [u, v] = toImage(view.box(), e.clientX, e.clientY);
+    dragNext = { side: drag.side, u, v, frame, mode: e.shiftKey ? "vertical" : "horizontal",
       start: drag.start || Boolean(dragNext?.start) };
     drag.start = false;
     flushDrag();
@@ -241,6 +231,7 @@ export async function mount(root, api) {
 
   // Mouse wheel on a ball rotates that gripper instead of zooming.
   viewer.addEventListener("wheel", (e) => {
+    if (!e.altKey || e.ctrlKey || e.metaKey) return;
     const side = handleAt(e);
     if (!side) return;
     e.stopPropagation();
@@ -295,14 +286,11 @@ export async function mount(root, api) {
   }
   window.addEventListener("blur", resetInput);
 
-  let wasActive = false;
   function syncVisibility() {
     const active = isActive();
-    if (active !== wasActive) {
-      img.src = active ? "/stream/main-teleop.mjpg" : "/stream/main.mjpg";
-      wasActive = active;
-    }
-    layer.hidden = teleopHint.hidden = !active;
+    view.activate("teleop", active);
+    layer.hidden = !active || view.frame("teleop") === null;
+    teleopHint.hidden = !active;
     if (!active) resetInput();
   }
   const visibility = new MutationObserver(syncVisibility);
