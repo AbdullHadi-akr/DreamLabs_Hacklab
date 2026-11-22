@@ -100,6 +100,8 @@ class Truth:
 
 @dataclass
 class FrameMatch:
+    """How one sent frame matched the rendered truth: which camera, orientation, step and lag."""
+
     index: int  # position in the window, 0 = oldest
     ok_image: bool
     camera: str | None = None  # what it really shows

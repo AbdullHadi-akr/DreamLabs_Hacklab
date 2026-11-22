@@ -76,6 +76,9 @@ class StartBody(BaseModel):
 
 
 class Campaign:
+    """One robustness campaign: plans the trials (sweep, adaptive, random mix, strategy A/B), queues them as runs,
+    classifies each outcome and keeps the summary the report shows (out/extensions/robustness/<id>/)."""
+
     def __init__(self, ext: "RobustnessLab", body: StartBody):
         self.ext, self.body = ext, body
         self.target = Target(*scene.parse_task(body.task))
@@ -375,11 +378,13 @@ def _describe(p):
 
 
 class RobustnessLab(Extension):
+    """Robustness tests in the Test Suite: perturb scene, vision, physics or prompt; find where Dream-1 breaks."""
+
     title = "Robustness"
     icon = ""
     description = "Perturb the scene and see how and when Dream-1 fails"
     order = 20
-    slot = "suite"  # three tiles in the Test Suite builder (a normal tab when there is no Test Suite)
+    slot = "suite"  # four test types in the Test Suite builder's menu (a normal tool when there is no Test Suite)
     suite_modes = [
         {"id": "sweep", "title": "Robustness Sweep", "subtitle": "Failure curve", "icon": "⫶"},
         {"id": "adaptive", "title": "Breaking Point", "subtitle": "Adaptive search", "icon": "◎"},

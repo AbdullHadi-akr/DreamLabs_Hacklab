@@ -39,6 +39,8 @@ class ModelUseBody(BaseModel):
 
 
 class CameraHook(Hooks):
+    """Feeds one run into the camera check: the rendered truth at every step and every frame sent to Dream-1."""
+
     def __init__(self, ext, watch: camcheck.CameraWatch, run: dict):
         self.ext, self.watch, self.run = ext, watch, run
 
@@ -62,6 +64,8 @@ def _compact(trip: dict) -> dict:
 
 
 class CameraCheck(Extension):
+    """Tool "Cameras": checks the frames Dream-1 was sent against the simulation; self-test; camera reliance."""
+
     title = "Cameras"
     icon = ""
     description = "Do the camera images reach Dream-1 correctly? Checked against the simulation's own renders"

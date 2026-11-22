@@ -28,15 +28,18 @@ MODELS = [{"id": model, "price_usd": price} for model, price in PRICE_PER_CALL_U
 
 
 def price(model: str) -> float | None:
+    """US dollars per Dream-1 call for this model, or None when the price is unknown (a fine-tune)."""
     return PRICE_PER_CALL_USD.get(model)
 
 
 def settings(db) -> dict:
+    """The current credit settings (DEFAULTS, overridden by what a person saved)."""
     stored = {row["key"]: row["value"] for row in db.query("SELECT key, value FROM settings")}
     return {key: float(stored.get(key, default)) for key, default in DEFAULTS.items()}
 
 
 def save_settings(db, **values) -> dict:
+    """Stores the given settings (None = unchanged); refuses negative amounts. Returns all settings."""
     for key, value in values.items():
         if key in DEFAULTS and value is not None:
             if value < 0:
@@ -61,6 +64,7 @@ def _month_start(now=None) -> float:
 
 
 def spent_month(db) -> float:
+    """US dollars counted for runs since the first of this month (local time)."""
     return _since(db, _month_start())
 
 
@@ -98,6 +102,7 @@ def check_run(db, model: str, seconds: float) -> dict:
 
 
 def summary(db) -> dict:
+    """Everything the Credits panel shows: balance, spending today / this month / per day, prices, limits."""
     s = settings(db)
     total = db.query("SELECT COALESCE(SUM(cost_usd), 0) AS v, COUNT(*) AS n FROM runs WHERE cost_usd IS NOT NULL")[0]
     last = db.query("SELECT id, task, model, calls, cost_usd, success, started_at FROM runs "

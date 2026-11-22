@@ -31,6 +31,8 @@ class LiftTracker(Hooks):
 
 
 class SceneInspector(Extension):
+    """Tool "Scene": object positions, success zones in the 3D view, placing an object to test the success check."""
+
     title = "Scene"
     icon = ""
     description = "Object positions, success zones, debug actions"

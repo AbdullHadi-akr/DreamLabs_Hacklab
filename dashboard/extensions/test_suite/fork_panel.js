@@ -1,3 +1,5 @@
+// Fork Here panel in a run's analysis: the saved checkpoint after pickup, and the baseline vs. release-guard
+// comparison started from it (docs/fork-here.md).
 export function forkPanel({h, api, button, base, run}) {
   const point = run.checkpoint;
   if (!point) return h("p", {class: "muted"}, run.checkpoint_unavailable ||

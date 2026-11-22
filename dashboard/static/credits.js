@@ -27,20 +27,23 @@ async function refreshTop() {
 
 // Before a run: estimate, refuse over the limit, ask for a second click above "confirm above".
 let pending = null;
+let buttonLabel = null;  // the Run button's own text and tooltip, restored after the confirm step
 export async function gateRun(core, body) {
   const button = $("btn-run");
+  buttonLabel ??= { text: button.textContent, title: button.title };
+  const restore = () => { pending = null; button.textContent = buttonLabel.text; button.title = buttonLabel.title; };
   const est = await request("GET", `/api/credits/estimate?model=${encodeURIComponent(body.model)}&seconds=${body.seconds}`);
   if (est.refusal) { core.toast(est.refusal, "error", 8000); return false; }
   if (!est.needs_confirm) return true;
   const key = `${body.task}|${body.model}|${body.seconds}`;
   if (pending && pending.key === key && Date.now() - pending.time < 10000) {
-    pending = null; button.textContent = "Run"; return true;
+    restore(); return true;
   }
   pending = { key, time: Date.now() };
   button.textContent = `Run: about ${usd(est.usd, 2)}?`;
   button.title = `About ${est.calls} calls (${est.basis}). At most ${usd(est.most_usd, 2)}. Click again within 10 seconds to start.`;
   core.toast(`This run costs about ${usd(est.usd, 2)} (at most ${usd(est.most_usd, 2)}). Click Run again to start.`, "info", 6000);
-  setTimeout(() => { if (pending && pending.key === key) { pending = null; button.textContent = "Run"; } }, 10000);
+  setTimeout(() => { if (pending && pending.key === key) restore(); }, 10000);
   return false;
 }
 

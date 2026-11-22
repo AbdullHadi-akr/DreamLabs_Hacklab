@@ -1,3 +1,5 @@
+"""Run admission: repeated and concurrent Run / Home / Stop / Reset requests never start two runs at once."""
+
 from concurrent.futures import ThreadPoolExecutor
 from threading import RLock
 from types import SimpleNamespace

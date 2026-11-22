@@ -4,18 +4,25 @@ Fork Here compares two simulator continuations for **banana to plate**. The base
 
 ## Run the offline demo
 
-From the feature worktree, point `DREAM_SIM_DIR` at the documented YAM simulator example and use the project's Python environment. The following command reuses the dependencies from the original checkout on this Mac:
+The demo is part of the normal dashboard: start it as usual (`python start.py`) and skip to step 1. To keep the
+demo's records apart from the lab's, give it its own database and second brain, and a port of its own:
 
-```sh
-cd /private/tmp/dream1-fork-here
-project=/Users/moritz/Documents/DreamLabs_Hacklab
-DREAM_SIM_DIR="$project/dreamlabs/dream_library/examples/yam_mujoco" \
-DREAM_LAB_DB="$PWD/out/fork-demo-v2.db" \
-DREAM_BRAIN_DIR="$PWD/out/fork-brain" \
-"$project/.venv/bin/python" start.py --port 8012 --no-browser
+```powershell
+# Windows, from dream-tool\
+$env:DREAM_LAB_DB = "$PWD\out\fork-demo.db"; $env:DREAM_BRAIN_DIR = "$PWD\out\fork-brain"
+..\.venv\Scripts\python.exe start.py --port 8012 --no-browser
 ```
 
-1. Open `http://localhost:8012/` and choose **Test Suite → Build → Run Fork Here demo (offline)**. This resets the demo scene and opens its campaign report.
+```sh
+# macOS / Linux, from dream-tool/
+DREAM_LAB_DB="$PWD/out/fork-demo.db" DREAM_BRAIN_DIR="$PWD/out/fork-brain" \
+../.venv/bin/python start.py --port 8012 --no-browser
+```
+
+The simulator is found next to `dream-tool/` (`../dreamlabs/...`); set `DREAM_SIM_DIR` to
+`.../dream_library/examples/yam_mujoco` when it lives elsewhere.
+
+1. Open `http://localhost:8012/` (or `:8000` for a normal start) and choose **Test Suite → Build → Run Fork Here demo (offline)**. This resets the demo scene and opens its campaign report.
 2. Wait for the report to record Run 1. In **Individual run analysis**, the snapshot timeline shows visual evidence of pickup. Open **Fork here**.
 3. Check that the pair's API request limit and cost are both zero. Select **Start comparison** and wait for Baseline and Release guard.
 4. Compare the two cards. Both should verify the same saved start. The baseline drops the banana outside the plate. The guard blocks that command, requests one scripted replan, and places and releases the banana on the plate.

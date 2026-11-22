@@ -357,6 +357,8 @@ def cut_episode(source: Path, target: Path, start: int, fps: int = FPS) -> int:
                 picture = av.VideoFrame.from_ndarray(frame.to_ndarray(format="rgb24"), format="rgb24")
                 for packet in stream.encode(picture):
                     writer.mux(packet)
+            if stream is None:  # the video is shorter than the table: nothing after the take-over to keep
+                raise ValueError(f"{source.name}: {key} has no frames after frame {start}")
             for packet in stream.encode():
                 writer.mux(packet)
 
@@ -395,22 +397,28 @@ def export(db, task: str, name: str, *, validate: bool = True) -> dict:
         raise ValueError(f"No unused successful episodes for {task!r}{short}.")
     target.mkdir(parents=True)
     frames, cut = 0, 0
-    for row in rows:
-        source = EPISODES_DIR / row["folder"]
-        if row["took_over"] and row["dream_frames"]:
-            frames += cut_episode(source, target / row["folder"], int(row["dream_frames"]))
-            cut += 1
-        else:
-            shutil.copytree(source, target / row["folder"])
-            frames += int(round(row["seconds"] * FPS))
-    report = None
-    if validate:
-        from dream import datasets  # Dream Labs' own checks, the ones upload_dataset() runs; nothing is sent
+    try:
+        for row in rows:
+            source = EPISODES_DIR / row["folder"]
+            if row["took_over"] and row["dream_frames"]:
+                frames += cut_episode(source, target / row["folder"], int(row["dream_frames"]))
+                cut += 1
+            else:
+                shutil.copytree(source, target / row["folder"])
+                frames += int(round(row["seconds"] * FPS))
+        report = None
+        if validate:
+            from dream import datasets  # Dream Labs' own checks, the ones upload_dataset() runs; nothing is sent
 
-        report = datasets.validate_dataset(target, YAM_CONFIG)
-        if not report.ok:
-            shutil.rmtree(target, ignore_errors=True)
-            raise ValueError(f"Dream Labs' dataset check refused the export: {report.error}")
+            report = datasets.validate_dataset(target, YAM_CONFIG)
+            if not report.ok:
+                raise ValueError(f"Dream Labs' dataset check refused the export: {report.error}")
+    except Exception as error:
+        # a half-written folder would block this name for good ("exists already"): remove it
+        shutil.rmtree(target, ignore_errors=True)
+        if isinstance(error, ValueError):
+            raise
+        raise ValueError(f"The export failed: {type(error).__name__}: {error}") from error
     finetune_id = db.execute(
         "INSERT INTO finetunes (created_at, name, task, folder, episodes, frames, status) "
         "VALUES (?, ?, ?, ?, ?, ?, 'exported')", (time.time(), name, task, name, len(rows), frames))

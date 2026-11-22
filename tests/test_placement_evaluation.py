@@ -1,3 +1,6 @@
+"""Placement evaluation of the Test Suite: which goal a wording names, and the contact / release / stability
+evidence that decides an outcome."""
+
 import mujoco
 import pytest
 

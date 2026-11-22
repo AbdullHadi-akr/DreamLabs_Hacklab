@@ -1,7 +1,7 @@
-"""Builds Dream-1-Lab-architecture.docx from the diagram PNGs (standard library only).
+"""Builds DreamLab-Rat-architecture.docx from the diagram PNGs (standard library only).
 
 Run from the repository root, after diagrams.py:
-python docs/architecture/make_docx.py docs/architecture/png docs/architecture/Dream-1-Lab-architecture.docx
+python docs/architecture/make_docx.py docs/architecture/png docs/architecture/DreamLab-Rat-architecture.docx
 """
 import sys
 import zipfile
@@ -110,7 +110,7 @@ def table(header, rows, widths, new_page=False):
 # =====================================================================================================
 # Content
 # =====================================================================================================
-p("Dream-1 Lab: architecture diagrams", style="Title")
+p("DreamLab-Rat: architecture diagrams", style="Title")
 p(run("State on 22 November 2026. Code: branch main, commit b8aa2ff (with the teammates' execution strategies, "
       "Strategy A/B, Model X-Ray, camera check, Objects tool, one run at a time and the lean layout), plus two "
       "branches that are not merged yet: design/camera-row (pull request #5: the camera row under the view, click a "
@@ -120,8 +120,8 @@ p(run("State on 22 November 2026. Code: branch main, commit b8aa2ff (with the te
 h2("What this document holds")
 table(["Part", "Diagram", "The question it answers"], [
     ["1", "Deployment diagram", "On which computer and in which program does each part run, and how are they connected?"],
-    ["2.1", "C4 level 1: system context", "Who uses Dream-1 Lab, and which outside systems does it talk to?"],
-    ["2.2", "C4 level 2: containers", "Which separate parts make up Dream-1 Lab: page, application, database, files?"],
+    ["2.1", "C4 level 1: system context", "Who uses DreamLab-Rat, and which outside systems does it talk to?"],
+    ["2.2", "C4 level 2: containers", "Which separate parts make up DreamLab-Rat: page, application, database, files?"],
     ["2.3", "C4 level 3: components", "Which code parts are inside the dashboard application, and who calls whom?"],
     ["3.1", "Architecture: layers", "Which layers does the system have, and what sits in each layer?"],
     ["3.2", "Architecture: teaching loop", "How does an episode move from a Dream-1 try to a fine-tune?"],
@@ -135,8 +135,8 @@ table(["Mark", "Meaning"], [
     ["Solid line, filled box", "Built. It works today in the branch."],
     ["Dashed line, white box with dashed border", "Planned. It is not built yet."],
     ["Dark blue box", "A person."],
-    ["Blue boxes", "Parts of Dream-1 Lab. A darker blue is a larger part; a lighter blue is a code part."],
-    ["Grey box", "A system outside Dream-1 Lab: Dream Labs, GitHub, Cloudflare, the AI agent."],
+    ["Blue boxes", "Parts of DreamLab-Rat. A darker blue is a larger part; a lighter blue is a code part."],
+    ["Grey box", "A system outside DreamLab-Rat: Dream Labs, GitHub, Cloudflare, the AI agent."],
     ["Cylinder", "A place where data is stored: the database, the episode folders, the second brain folder."],
     ["Arrow", "Points from the part that starts the exchange to the part that answers. Two heads: both directions."],
 ], [4400, 9400])
@@ -174,7 +174,7 @@ p("The C4 model shows a software system at four zoom levels, like a map: level 1
   "code itself. This document shows levels 1 to 3. Level 4 is the source code in the repository.")
 
 h2("2.1 Level 1: system context", page_break=False)
-image("2-c4-context.png", "C4 system context: operator, remote operator, Dream-1 Lab, AI agent, Cloudflare, "
+image("2-c4-context.png", "C4 system context: operator, remote operator, DreamLab-Rat, AI agent, Cloudflare, "
       "Dream Labs, GitHub")
 
 h2("2.2 Level 2: containers", page_break=True)
@@ -393,7 +393,7 @@ core = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties"
  xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/"
  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
-<dc:title>Dream-1 Lab: architecture diagrams</dc:title>
+<dc:title>DreamLab-Rat: architecture diagrams</dc:title>
 <dcterms:created xsi:type="dcterms:W3CDTF">2026-11-21T00:00:00Z</dcterms:created>
 </cp:coreProperties>"""
 

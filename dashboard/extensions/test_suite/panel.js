@@ -1,3 +1,5 @@
+// Test Suite workspace: the Test builder (test type, task, settings, start), the Test execution monitor and the
+// Report view (campaigns, run analysis, exports). Robustness adds its test types through api.workspace.
 import { logPanel } from "/static/lib/log_panel.js";
 import { request } from "/static/lib/api.js";
 import { forkPanel } from "./fork_panel.js";

@@ -15,7 +15,7 @@ def write_raw(root: Path):
     (root / "raw" / "runs").mkdir(parents=True)
     (root / "raw" / "notes").mkdir(parents=True)
     (root / "wiki").mkdir(parents=True)
-    (root / "wiki" / "overview.md").write_text("# Overview\n\nThis page explains Dream-1 Lab.\n", encoding="utf-8")
+    (root / "wiki" / "overview.md").write_text("# Overview\n\nThis page explains DreamLab-Rat.\n", encoding="utf-8")
     (root / "wiki" / "log.md").write_text("# Log\n\nWhat was read and changed.\n", encoding="utf-8")
     head = ("# Dream-1 runs on 2026-11-22\n\n| Time | Run | Task | Prompt | Model | Source | Result | Stop reason | "
             "Calls | Cost (USD) | Seconds |\n|---|---|---|---|---|---|---|---|---|---|---|\n")
@@ -41,7 +41,7 @@ def test_pages_counts_index_and_decisions(tmp_path):
     assert "train only on the part after the take-over" in decisions and "ask about the price first" in decisions
     assert "No decision here" not in decisions
     index = (wiki / "index.md").read_text(encoding="utf-8")
-    assert "[[overview]]: This page explains Dream-1 Lab." in index and "[[tasks/lift-the-apple]]" in index
+    assert "[[overview]]: This page explains DreamLab-Rat." in index and "[[tasks/lift-the-apple]]" in index
     assert "Meeting with Dream Labs" in (wiki / "notes.md").read_text(encoding="utf-8")
     assert "raw/runs/2026-11-22.md" in result["raw_read"]
     assert (wiki / "overview.md").read_text(encoding="utf-8").startswith("# Overview")  # a page it did not make

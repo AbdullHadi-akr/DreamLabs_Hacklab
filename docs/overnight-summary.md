@@ -1,5 +1,7 @@
 # Dream‑1 Lab engineering handoff
 
+> **Snapshot** of the overnight stabilisation sprint (21.–22.11.2026), kept as it was written. Several points are outdated since: the dashboard now has credit limits that stop runs, the Take over → Save episode → Discard workflow with LeRobot recording, and a guided tutorial. The current state is in the [README](../README.md) and [known-limitations.md](known-limitations.md).
+
 ## Executive summary
 
 Dashboard execution now has a single admission decision for concurrent Run, Home, Stop and Reset requests. A run stays busy during the queue-to-worker handoff. The demo workflow continues to use the existing renderer, Test Suite and saved reports.

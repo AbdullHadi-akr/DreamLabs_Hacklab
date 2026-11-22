@@ -1,6 +1,6 @@
 # Second brain
 
-The team's shared memory for Dream-1 Lab: what we tried, what worked, what it cost, and what we decided.
+The team's shared memory for DreamLab-Rat: what we tried, what worked, what it cost, and what we decided.
 
 ## How it works
 

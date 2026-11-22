@@ -15,6 +15,8 @@ TURN = {"apple": 0.35, "banana": -0.35, "orange": 0.15, "bottle": 0.55}  # joint
 
 
 class FakeDream:
+    """A scripted stand-in for the Dream client (DREAM_XRAY_FAKE=1): same calls, no API, no credits."""
+
     def __init__(self):
         self.frames, self.obs = {}, {}
 
@@ -49,4 +51,5 @@ class FakeDream:
 
 
 def open_fake(model):
+    """Drop-in for sim.open_policy(): returns (client, poses)."""
     return FakeDream(), True

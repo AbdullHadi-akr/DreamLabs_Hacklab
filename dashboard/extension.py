@@ -110,6 +110,7 @@ def load_extensions(sim, bus) -> list[Extension]:
 
 
 def describe(ext: Extension) -> dict:
+    """What the browser needs to show an extension: id, title, slot, test modes, whether it has a panel."""
     return {
         "id": ext.id, "title": ext.title, "icon": ext.icon, "description": ext.description, "slot": ext.slot,
         "suite_modes": ext.suite_modes,
@@ -133,6 +134,7 @@ def _add_geom(scene: mujoco.MjvScene, kind, size, pos, rgba, mat=_IDENTITY) -> N
 
 
 def overlay_sphere(scene, pos, radius=0.01, rgba=(1, 0.3, 0.2, 0.8)):
+    """A sphere marker at `pos` (world coordinates, metres) in the main view."""
     _add_geom(scene, mujoco.mjtGeom.mjGEOM_SPHERE, (radius, 0, 0), pos, rgba)
 
 
@@ -142,6 +144,7 @@ def overlay_disk(scene, pos, radius=0.05, height=0.002, rgba=(0.2, 0.8, 0.4, 0.3
 
 
 def overlay_line(scene, start, end, width=3.0, rgba=(0.3, 0.6, 1, 0.9)):
+    """A line from `start` to `end` (world coordinates, metres) in the main view."""
     if scene.ngeom >= scene.maxgeom:
         return
     geom = scene.geoms[scene.ngeom]

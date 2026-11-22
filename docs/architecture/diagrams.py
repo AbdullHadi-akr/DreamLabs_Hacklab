@@ -1,7 +1,7 @@
-"""Draws the eight architecture diagrams of Dream-1 Lab as PNG files (needs only Pillow).
+"""Draws the eight architecture diagrams of DreamLab-Rat as PNG files (needs only Pillow).
 
 Run from the repository root:  python docs/architecture/diagrams.py docs/architecture/png
-Then build the Word file:     python docs/architecture/make_docx.py docs/architecture/png docs/architecture/Dream-1-Lab-architecture.docx
+Then build the Word file:     python docs/architecture/make_docx.py docs/architecture/png docs/architecture/DreamLab-Rat-architecture.docx
 
 Solid lines and filled boxes: built. Dashed lines and white boxes: planned.
 """
@@ -266,12 +266,12 @@ def deployment():
 # 2. C4 level 1: system context
 # =====================================================================================================
 def context():
-    g = Diagram("C4 level 1, system context: who and what uses Dream-1 Lab")
+    g = Diagram("C4 level 1, system context: who and what uses DreamLab-Rat")
     g.person(120, 110, 560, 340, "Operator", "A team member at the host laptop. Gives Dream-1 tasks, takes over, "
              "saves episodes.")
     g.person(1720, 110, 560, 340, "Remote operator or judge", "Uses another laptop and a public link. Controls "
              "one arm.")
-    g.box(820, 520, 760, 330, "Dream-1 Lab", "Software system",
+    g.box(820, 520, 760, 330, "DreamLab-Rat", "Software system",
           "Runs the YAM robot simulation. Lets Dream-1 try tasks, tests it (Test Suite) and explains it (X-Ray), lets "
           "people take over, records episodes, counts credits, shows the second brain.", style=SYSTEM)
     g.box(120, 560, 560, 250, "AI agent", "External system, planned", "Claude Code or Codex. Later: summarizes "
@@ -300,10 +300,10 @@ def context():
 # 3. C4 level 2: containers
 # =====================================================================================================
 def containers():
-    g = Diagram("C4 level 2, containers: the parts inside Dream-1 Lab")
+    g = Diagram("C4 level 2, containers: the parts inside DreamLab-Rat")
     g.person(160, 80, 480, 230, "Operator", None)
     g.person(1760, 80, 520, 230, "Remote operator or judge", None)
-    g.boundary(60, 380, 1560, 950, "Dream-1 Lab [software system, on the host laptop]")
+    g.boundary(60, 380, 1560, 950, "DreamLab-Rat [software system, on the host laptop]")
     g.box(120, 420, 640, 230, "Web page", "Container: HTML, CSS, JavaScript",
           "View and camera row, Take over, tool menu, Test Suite workspace, Brain view. Guests: join page, fewer tools.")
     g.box(120, 760, 640, 360, "Dashboard application", "Container: Python 3.12, FastAPI, MuJoCo",

@@ -71,6 +71,8 @@ class Hooks:
 
 @dataclass
 class RunResult:
+    """What run_task() reports: outcome, why it stopped, steps, Dream-1 requests and timing."""
+
     task: str
     model: str
     stop_reason: str = "timeout"

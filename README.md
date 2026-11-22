@@ -18,11 +18,23 @@ Hacklab/
     │   ├── app.py          HTTP API, MJPEG streams, WebSocket events
     │   ├── simulation.py   sim thread: owns physics + rendering, executes runs
     │   ├── extension.py    Extension base class + loader + 3D overlay helpers
+    │   ├── events.py       event bus: any thread → every open browser tab
+    │   ├── episodes.py     teaching loop: records runs as LeRobot episodes, export for a fine-tune
+    │   ├── credits.py      cost per run, balance, monthly limit   lab_db.py  the SQLite records (out/lab.db)
+    │   ├── multiplayer.py  guests on a second laptop (public link, access code, one arm each)
+    │   ├── brain.py        writes runs, campaigns and exports into brain/raw/
     │   ├── extensions/     ← new features go HERE (one folder each)
-    │   │   ├── scene_inspector/   object positions, success zones, debug placement
-    │   │   ├── robustness/        robustness test: perturb scene/vision/physics/prompt, find where Dream-1 breaks
+    │   │   ├── scene_inspector/   tool "Scene": object positions, success zones, debug placement
+    │   │   ├── teleop/            tool "Control": move the grippers with mouse and keyboard (inverse kinematics)
+    │   │   ├── objects/           tool "Objects": drag, lift and turn the objects
+    │   │   ├── camera_check/      tool "Cameras": do the images reach Dream-1 correctly?
+    │   │   ├── xray/              tool "X-Ray": why Dream-1 does what it does
+    │   │   ├── brain/             tool "Brain": the second brain as a 3D view
+    │   │   ├── test_suite/        the Test Suite workspace: campaigns, evaluation, reports, Fork Here
+    │   │   ├── robustness/        robustness tests in the Test Suite: perturb scene/vision/physics/prompt
     │   │   └── _template/         template to copy
-    │   ├── static/         core UI (index.html, app.js, style.css, lib/api.js)
+    │   ├── static/         core UI: index.html, app.js, style.css, tutorial.js (guided tours),
+    │   │                   credits.js, episodes.js, players.js, join.html/js (guests), lib/ (api, log, overlay)
     │   └── EXTENSIONS.md   guide: writing your own extension
     ├── start.py          starts the dashboard
     ├── dreamtool/
@@ -31,8 +43,12 @@ Hacklab/
     │   ├── inference.py  inference strategies: how Dream-1's action chunks are executed (chunk/receding/ensemble/crossfade)
     │   ├── camcheck.py   camera check: sent frames vs. rendered truth, fault injection, does the model use them
     │   ├── xray.py       Model X-Ray: planned gripper paths, RISE heatmaps, language probe on a frozen moment
-    │   ├── scene.py      object positions + simple success detection ("apple in bowl")
+    │   ├── xray_fake.py  scripted stand-in for Dream-1 (DREAM_XRAY_FAKE=1): try X-Ray without credits
+    │   ├── scene.py      object positions + success detection for many task types ("apple in bowl", "lift the apple" …)
     │   └── recorder.py   MP4 recording of the 3 cameras (for the demo)
+    ├── brain/            the second brain: raw/ (written by the dashboard) → wiki/ (build_wiki.py)
+    ├── docs/             architecture diagrams, Fork Here, demo checklist, limitations (see Documentation)
+    ├── measurements/     scripts and results of the measurement night (22.11.2026)
     ├── run.py            CLI: run a task, optionally record it
     ├── check_setup.py    checks that everything works
     ├── tests/            offline tests (no API key needed)
@@ -79,17 +95,41 @@ Every Dream-1 run uses credits on the account.
 python start.py                      # or: python -m dashboard   → opens http://localhost:8000
 ```
 
-- **Center:** 3D view of the sim (drag = orbit, right/Shift = pan, wheel = zoom, double-click = reset),
-  with the prompt bar and the three robot cameras below.
-- **Left:** extension tabs (Scene, Robustness, …). **Right:** current run, RTT chart, log.
-- **Teleop tab:** move the grippers yourself between runs. Drag the colored ball at a gripper (Shift = up/down),
+- **Center:** 3D view of the sim (drag = orbit, right-drag or Shift-drag = pan, Alt + wheel = zoom,
+  double-click = reset), the three robot cameras below it (click one to show it on the big screen), and the prompt
+  bar with **Settings** (model, duration, execution strategy).
+- **Left:** the **Tools** menu: Scene, Control, Objects, Cameras, X-Ray, Brain, Episodes, Credits, Players.
+  **Right:** the last run, the response-time chart and the application log. Both side panels fold away (‹ / ›).
+- **Top bar:** **Dashboard** / **Test Suite** workspaces, **Tutorial** (guided tours, see below), Fullscreen, Rotate.
+- **Control tool:** move the grippers yourself between runs. Drag the colored ball at a gripper (Shift = up/down),
   or use W A S D / E Q (directions as the robot's overhead camera sees them, switchable to the 3D view);
-  Z / X or the mouse wheel on the ball rotates the gripper, R / F tilts it; Space
+  Z / X or Alt + wheel on the ball rotates the gripper, R / F tilts it; Space
   opens/closes it, 1/2 picks the arm. The tool center point coordinates, rotation and tilt are shown next to each
   gripper; a colored line shows the direction the fingers open in. Costs no credits.
 - **Offline demo**, **Home**, **Reset** and the **dry run** of the robustness tests cost no credits.
   The **run** button and sweeps without dry run call Dream-1.
 - The server only listens locally (127.0.0.1); other laptops reach it only through the public link (see Multiplayer). Ctrl+C stops it.
+
+### Tutorial (guided tours)
+
+**Tutorial** in the top bar opens a list of short tours; pick one and it walks you through that part of the page step
+by step: each step highlights one element and explains it in a small card (**Next** / **Back**, the arrow keys,
+**Esc** to close). Tours only switch views and point at things: they never start a run, move an arm or spend credits.
+
+| Tour | Steps | What it shows |
+| --- | --- | --- |
+| Dashboard basics | 9 | 3D view, robot cameras, prompt bar, free scene controls, Tools, run panel |
+| Your first run with Dream-1 | 7 | writing a task, Settings, Offline demo, Run and its cost check, the result, Credits |
+| Move the arms yourself | 4 | the Control tool: dragging the grippers, arm cards, keyboard |
+| Teach Dream-1: episodes | 4 | recording, Take over, Save / Discard, exporting for a fine-tune |
+| Test Suite and robustness | 7 | test types, task and settings, dry run, Test execution, Reports |
+| Look inside Dream-1 | 4 | Camera check, Model X-Ray, live intent, the second brain |
+
+On the first visit a small "New here?" note under the button offers the basics tour. A tour can also be opened by
+address, handy for a demo: `http://localhost:8000/?tour=basics` (ids: `basics`, `first-run`, `control`, `teach`,
+`test-suite`, `insight`). Guests on a second laptop see only the tours that apply to them. The tours live in
+`dashboard/static/tutorial.js`; a new tour is one entry in `TOURS` (a step names a CSS selector, a title, a text and
+optionally what to open first).
 
 ### Validation Test Suite
 
@@ -99,9 +139,9 @@ Placement outcomes use simulated contact, release, and stability evidence. Repor
 
 ### Robustness test
 
-**Test Suite → Robustness** (four tiles in the Test Builder: Robustness Sweep, Breaking Point, Perturbation Mix,
+**Test Suite → Build → Test type**, group Robustness (Robustness Sweep, Breaking Point, Perturbation Mix,
 Strategy A/B):
-change the world on purpose and see how and when Dream-1 fails. The full report appears in the Test Report area.
+change the world on purpose and see how and when Dream-1 fails. The full report appears under **Report**.
 
 - **Sweep:** one perturbation at increasing strength (e.g. move the apple 0/2/4/6/8 cm) → success rate with a 95 %
   interval per strength, progress score, and the **breaking point** (first strength at half the baseline or below).
@@ -145,7 +185,7 @@ change the world on purpose and see how and when Dream-1 fails. The full report 
 
 ### Camera check (do the images reach Dream-1 correctly?)
 
-Tab **Cameras**. Dream Labs' own tools show the frames to a person who types "yes" (`python -m dream.check`,
+Tool **Cameras**. Dream Labs' own tools show the frames to a person who types "yes" (`python -m dream.check`,
 `dream.DebugView`); the only automatic check there is the frame rate. Here every frame Dream-1 was **actually sent**
 (`DreamClient.on_round_trip`: the request as it left) is compared with the truth: the simulation renders every camera on
 its own at every step. Each sent frame is matched (normalised correlation, 80 × 44 pixels) against every camera, the last
@@ -167,7 +207,7 @@ size, blank, duplicates, frozen) still are.
 
 ### Model X-Ray (why Dream-1 does what it does)
 
-Tab **X-Ray**. The robustness test shows *when* the model fails; the X-Ray shows *why*. It freezes one moment (the
+Tool **X-Ray**. The robustness test shows *when* the model fails; the X-Ray shows *why*. It freezes one moment (the
 camera windows Dream-1 sees, the joint state, the MuJoCo state) and asks Dream-1 about that same moment again, each time
 with one thing changed. The simulation does not move meanwhile; what is measured is how the planned motion changes.
 
@@ -235,7 +275,7 @@ fine-tune: 3 camera videos at 640 x 360, 10 frames per second, arm values right 
 1. Run a task. If Dream-1 fails, or while it works, press **Take over**: Dream-1 stops, the scene stays as it is.
 2. Finish the task with **Control**. Recording continues.
 3. **Save episode**: the success check marks it. **Discard** deletes it.
-4. Tab **Episodes**: what is ready for a fine-tune, success and cost per model, where a person took over.
+4. Tool **Episodes**: what is ready for a fine-tune, success and cost per model, where a person took over.
    **Export** copies all unused successful episodes of one task into `out/exports/<name>/` and runs Dream Labs' own
    dataset check. Nothing is uploaded.
 
@@ -248,7 +288,7 @@ Records live in `out/lab.db` (SQLite: one file, no server; not in git) and `out/
 
 ### Credits
 
-The top bar shows the balance left; tab **Credits** shows today, this month, the last run, a chart of the last 30
+When the money or the monthly limit is used up, the top bar shows it; tool **Credits** shows today, this month, the last run, a chart of the last 30
 days, the price per call and the limits (model and time limit stay in the prompt bar). The Dream Labs API does not report the balance, so the
 dashboard counts calls x price from a starting balance typed in by a person (default $150).
 
@@ -261,7 +301,16 @@ dashboard counts calls x price from a starting balance typed in by a person (def
 
 One laptop, the host, runs everything; the other person only needs a web browser.
 
-Setup on the host laptop (once):
+Setup on the host laptop (once): install Cloudflare's `cloudflared`. The dashboard looks for it in `$CLOUDFLARED`,
+on the PATH, and in `~/Hacklab/bin/` (`cloudflared.exe` on Windows).
+
+```powershell
+winget install --id Cloudflare.cloudflared
+```
+
+On Windows without winget, download `cloudflared-windows-amd64.exe` from
+<https://github.com/cloudflare/cloudflared/releases/latest> and save it as `%USERPROFILE%\Hacklab\bin\cloudflared.exe`.
+On Linux:
 
 ```bash
 mkdir -p ~/Hacklab/bin && cd ~/Hacklab/bin
@@ -272,13 +321,14 @@ chmod +x cloudflared
 Each session:
 
 1. Start the dashboard on the host laptop.
-2. Tab **Players** → **Open a public link**. After a few seconds a link like
+2. Tool **Players** → **Open a public link**. After a few seconds a link like
    `https://<words>.trycloudflare.com` appears, with the **access code** (new at every start of the dashboard).
 3. Send both to the other person. They open the link, type the code and a name, take an arm in **Players**, and move
    it in **Control**.
 
 What a guest can do: watch (the main view smaller, 12 pictures per second, to save bandwidth), and move the one arm
-they took. Run, Stop, Reset, robustness, episodes and credits stay with the host. The host can move every arm no
+they took. Run, Stop, Home, Reset, Take over, the Test Suite, episodes and credits stay with the host (a guest does not
+see those buttons). The host can move every arm no
 guest holds, and can free an arm. A quick link needs no Cloudflare account; it changes every time it opens.
 
 ### Second brain
@@ -291,24 +341,45 @@ An AI agent (rules in `brain/AGENTS.md`) is planned for later. See [brain/README
 
 ### Architecture diagrams
 
-[docs/architecture/Dream-1-Lab-architecture.docx](docs/architecture/Dream-1-Lab-architecture.docx) (Word) holds the
+[docs/architecture/DreamLab-Rat-architecture.docx](docs/architecture/DreamLab-Rat-architecture.docx) (Word) holds the
 deployment diagram, the C4 diagrams (levels 1 to 3), the layers and the teaching loop, with a table for each. The
 pictures are also in [docs/architecture/png/](docs/architecture/png/). After a change to the system, update
 `docs/architecture/diagrams.py` and `make_docx.py` and run:
 
 ```bash
 python docs/architecture/diagrams.py docs/architecture/png
-python docs/architecture/make_docx.py docs/architecture/png docs/architecture/Dream-1-Lab-architecture.docx
+python docs/architecture/make_docx.py docs/architecture/png docs/architecture/DreamLab-Rat-architecture.docx
 ```
 
 **Building a new feature:** copy `dashboard/extensions/_template` → see
 [dashboard/EXTENSIONS.md](dashboard/EXTENSIONS.md).
 
+## Documentation
+
+| Document | What it covers |
+| --- | --- |
+| This README | setup, every dashboard feature, CLI, hooks |
+| Tutorial button in the dashboard | guided tours of the page (see Tutorial above) |
+| [dashboard/EXTENSIONS.md](dashboard/EXTENSIONS.md) | writing your own extension (backend, panel, test types) |
+| [BRIEFING.md](BRIEFING.md) | technical briefing for the presentation: model I/O, strategies, cameras, results |
+| [NIGHTLY_REPORT.md](NIGHTLY_REPORT.md) | the measurement night of 22.11.2026: what was measured and fixed |
+| [TEST_OVERVIEW.md](TEST_OVERVIEW.md) / [test-overview.html](test-overview.html) | what the automated tests and measurements cover |
+| [docs/architecture/](docs/architecture/) | deployment, C4 and layer diagrams (Word + PNG) |
+| [docs/fork-here.md](docs/fork-here.md) | Fork Here: replaying a run from a checkpoint with a release guard |
+| [docs/demo-checklist.md](docs/demo-checklist.md) | a credit-free demo, step by step |
+| [docs/overlay-alignment.md](docs/overlay-alignment.md) | which overlay is drawn where (MuJoCo vs. browser) |
+| [docs/known-limitations.md](docs/known-limitations.md) / [docs/training-readiness.md](docs/training-readiness.md) | what is not covered yet |
+| [brain/README.md](brain/README.md) | the second brain (team wiki) |
+| `docs/overnight-*.md` | the stabilisation sprint of 21.–22.11. (a snapshot of that time) |
+
+Every Python module starts with a docstring that explains its part; the JavaScript files start with a comment.
+
 ## Getting started (CLI)
 
 ```powershell
 python check_setup.py --online       # all green? (--online checks the key against the API)
-python -m pytest -q                  # offline tests
+python -m pytest -q                  # offline tests (Python, about 2 minutes)
+node tests/test_tutorial_ui.mjs      # browser-side checks (also test_run_analysis_ui.mjs, test_viewer_overlay_ui.mjs)
 python run.py --offline --record out/offline.mp4   # sim without the API, video as proof
 python run.py "put apple into the bowl"            # Dream-1 drives the arms, 3D viewer opens
 python run.py "put banana on the plate" --headless --record out/banana.mp4 --seconds 90

@@ -49,6 +49,8 @@ _PATTERN = re.compile(r"^(receding|ensemble|crossfade)-(\d{1,2})$")
 
 @dataclass(frozen=True)
 class Strategy:
+    """How action chunks are executed: rows per request and how consecutive plans are blended (see module)."""
+
     id: str = "chunk"
     execute: int = CHUNK  # rows executed per request
     blend: str = "none"  # none | ensemble | crossfade
@@ -106,6 +108,7 @@ def parse(value: "str | Strategy | None") -> Strategy:
 
 
 def is_valid(value: str) -> bool:
+    """Whether `value` names a strategy parse() understands (chunk, receding-N, ensemble-N, crossfade-N)."""
     try:
         parse(value)
         return True

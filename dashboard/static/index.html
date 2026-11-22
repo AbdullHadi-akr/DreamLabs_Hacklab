@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Lab Rat</title>
+  <title>DreamLab-Rat</title>
   <link rel="icon" href="/static/lab-rat-mark.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -14,7 +14,7 @@
   <header class="topbar">
     <div class="brand">
       <span class="brand-mark" aria-hidden="true"></span>
-      <span>Lab Rat</span>
+      <span>DreamLab-Rat</span>
       <span class="brand-sub pixel">Sim Dashboard</span>
     </div>
     <nav class="tabs workspace-nav" aria-label="Workspace">
@@ -29,6 +29,7 @@
     </div>
     <a href="#" class="credit-left" id="credit-left" title="Open Credits" hidden></a>
     <div class="viewport-actions" role="group" aria-label="Viewport controls">
+      <button class="btn btn-outline btn-sm" id="btn-tutorial" type="button" title="Pick a short guided tour of the dashboard" aria-haspopup="dialog">Tutorial</button>
       <button class="btn btn-outline btn-sm" id="btn-fullscreen" type="button" title="Use the dashboard in fullscreen">Fullscreen</button>
       <button class="btn btn-outline btn-sm" id="btn-orientation" type="button" title="Switch dashboard orientation">Rotate</button>
     </div>
@@ -129,7 +130,7 @@
         <button type="button" class="btn btn-outline btn-sm" id="right-collapse" title="Hide the run panel (more room for the simulation)" aria-controls="col-right" aria-expanded="true">Hide panel ›</button>
       </div>
       <section class="card" id="test-suite-monitor" hidden></section>
-      <section class="card">
+      <section class="card" id="run-card">
         <div class="section-head"><h2 class="pixel" id="run-heading">Last run</h2></div>
         <dl class="kv" id="run-info">
           <dt>Outcome</dt><dd id="ri-result">–</dd>

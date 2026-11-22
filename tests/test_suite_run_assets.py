@@ -1,3 +1,5 @@
+"""Test Suite run assets: telemetry from observed frames only, and asset routes that keep trials apart."""
+
 import json
 from types import SimpleNamespace
 from uuid import uuid4

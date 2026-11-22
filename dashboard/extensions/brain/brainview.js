@@ -1,4 +1,4 @@
-// The Brain view: Dream-1 Lab and its second brain drawn as one see-through 3D brain (three.js).
+// The Brain view: DreamLab-Rat and its second brain drawn as one see-through 3D brain (three.js).
 // Used by panel.js (the "Brain" tool in the left column) and brain.html (the full page).
 //
 // Each brain part stands for a part of the project and lights up when that part works:

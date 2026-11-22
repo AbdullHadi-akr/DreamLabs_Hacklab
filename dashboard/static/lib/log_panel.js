@@ -1,3 +1,4 @@
+// A foldable log list with a level filter, Copy and (optionally) Clear: the Application log and campaign logs.
 import { h } from "./api.js";
 
 const levels = { info: "Info", warn: "Warning", error: "Error" };

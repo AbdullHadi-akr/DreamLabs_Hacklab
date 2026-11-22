@@ -84,6 +84,8 @@ def _horizontal(vector) -> np.ndarray:
 
 
 class Teleop(Extension):
+    """Tool "Control": moves the grippers between runs (mouse, keyboard) through inverse kinematics (see module)."""
+
     title = "Control"
     icon = ""
     description = "Move and turn the grippers with mouse and keyboard, open/close them, see TCP coordinates."

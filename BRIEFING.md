@@ -1,4 +1,4 @@
-# Technical briefing: Dream-1 Lab
+# Technical briefing: DreamLab-Rat
 
 Presentation prep: model output and execution strategies, how Dream-1 uses the cameras, how the robustness tests
 work, and the measured results. Sources: [NIGHTLY_REPORT.md](NIGHTLY_REPORT.md), [TEST_OVERVIEW.md](TEST_OVERVIEW.md),

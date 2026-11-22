@@ -95,6 +95,8 @@ class OrbitCamera:
 
 @dataclass
 class RunRequest:
+    """One queued run: what SimWorker.run_task() was asked to do (Dream-1 or offline, hooks, budgets, labels)."""
+
     task: str
     model: str = sim.BETA_MODEL
     seconds: float = 60.0
@@ -118,6 +120,7 @@ class RunRequest:
 
 
 def result_dict(result: RunResult) -> dict:
+    """A RunResult as plain JSON-ready data, with the mean response time added."""
     data = dataclasses.asdict(result)
     data["mean_rtt_s"] = result.mean_rtt_s
     return data
@@ -177,6 +180,8 @@ class ExpiredView(RuntimeError):
 
 
 class SimWorker(threading.Thread):
+    """The one thread that owns the simulation: runs, jobs from other threads, rendering, status (see module)."""
+
     def __init__(self, bus, extensions: list | None = None, db=None, recorder=None):
         super().__init__(name="sim-worker", daemon=True)
         self.bus = bus
@@ -334,25 +339,39 @@ class SimWorker(threading.Thread):
             self.bus.log(f"Simulation failed to start: {self.error}", "error")
             return
 
+        last_report = 0.0
         while not self.shutdown_event.is_set():
+            job = None
             try:
-                job = self.jobs.get(timeout=0.0)
-            except queue.Empty:
-                job = None
-            if job is not None:
-                if job[0] == "call":
-                    self._execute_call(*job[1:])
-                elif job[2].set_running_or_notify_cancel():
-                    self._execute_run(job[1], job[2])
-                continue
-            tick = time.monotonic()
-            self.env.step(self.hold["left"], self.hold["right"])
-            images = None
-            if self.recorder is not None and self.recorder.recording_idle:  # a person moves the arms: record
-                images = self.env.images() if self.recorder.frame_due() else None
-                self.recorder.on_step(self.env, images)
-            self.publish(images)
-            time.sleep(max(0.0, 0.05 - (time.monotonic() - tick)))
+                try:
+                    job = self.jobs.get(timeout=0.0)
+                except queue.Empty:
+                    job = None
+                if job is not None:
+                    if job[0] == "call":
+                        self._execute_call(*job[1:])
+                    elif job[2].set_running_or_notify_cancel():
+                        self._execute_run(job[1], job[2])
+                    continue
+                tick = time.monotonic()
+                self.env.step(self.hold["left"], self.hold["right"])
+                images = None
+                if self.recorder is not None and self.recorder.recording_idle:  # a person moves the arms: record
+                    images = self.env.images() if self.recorder.frame_due() else None
+                    self.recorder.on_step(self.env, images)
+                self.publish(images)
+                time.sleep(max(0.0, 0.05 - (time.monotonic() - tick)))
+            except Exception as error:
+                # This thread is the only one that touches the simulation: if it died, the dashboard would freeze
+                # without a word and every later request would wait forever. Log the error and keep going instead.
+                if job is not None and not job[2].done():
+                    job[2].set_exception(error)
+                self.current = None
+                if time.monotonic() - last_report > 5:  # a fault that repeats every tick is logged every 5 s
+                    last_report = time.monotonic()
+                    self.bus.log(f"Simulation loop error (the simulation keeps running):\n{traceback.format_exc()}",
+                                 "error")
+                time.sleep(0.05)
 
         self.env.close()
         self.main_renderer.close()

@@ -1,5 +1,7 @@
 # Overnight test results
 
+> **Snapshot** of the overnight stabilisation sprint (21.–22.11.2026), kept as it was written. Several points are outdated since: the dashboard now has credit limits that stop runs, the Take over → Save episode → Discard workflow with LeRobot recording, and a guided tutorial. The current state is in the [README](../README.md) and [known-limitations.md](known-limitations.md).
+
 | Check | Result |
 | --- | --- |
 | Baseline full Python suite | 127 passed before the sprint changes, including both offline Robustness integrations. |

@@ -1,3 +1,6 @@
+"""Shared test setup: the project on sys.path, and a throwaway lab database and second brain for every test
+session (tests never write into out/lab.db or brain/)."""
+
 import sys
 from pathlib import Path
 

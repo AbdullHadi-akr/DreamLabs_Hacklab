@@ -46,7 +46,7 @@ def test_state_and_extensions(client):
 
 
 def test_static_files_have_js_mime(client):
-    for url in ("/static/app.js", "/static/lib/api.js", "/ext/robustness/panel.js"):
+    for url in ("/static/app.js", "/static/lib/api.js", "/static/tutorial.js", "/ext/robustness/panel.js"):
         response = client.get(url)
         assert response.status_code == 200
         assert "javascript" in response.headers["content-type"]

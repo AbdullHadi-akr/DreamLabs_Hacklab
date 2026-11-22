@@ -46,6 +46,7 @@ HOST_ONLY_GETS = ("/api/players/tunnel",)
 
 
 def new_code() -> str:
+    """A fresh access code, for example "K7QM-2XPA" (no 0/O or 1/I: easy to read aloud)."""
     raw = "".join(secrets.choice(CODE_ALPHABET) for _ in range(8))
     return f"{raw[:4]}-{raw[4:]}"
 
@@ -56,12 +57,16 @@ def is_remote(headers) -> bool:
 
 
 class PlayerError(Exception):
+    """A refused player action; `status` is the HTTP status the API answers with."""
+
     def __init__(self, status: int, message: str):
         super().__init__(message)
         self.status = status
 
 
 class Players:
+    """Who is connected (host or guest), the access code, who holds which arm, and the public link (Tunnel)."""
+
     def __init__(self, bus, code: str | None = None):
         self.bus = bus
         self.code = code or os.environ.get("DREAM_ACCESS_CODE") or new_code()
@@ -182,8 +187,10 @@ class Tunnel:
 
     @staticmethod
     def binary() -> str | None:
+        """Where cloudflared is: $CLOUDFLARED, the PATH, or ~/Hacklab/bin/ (cloudflared.exe on Windows)."""
+        folder = Path.home() / "Hacklab" / "bin"
         for candidate in (os.environ.get("CLOUDFLARED"), shutil.which("cloudflared"),
-                          str(Path.home() / "Hacklab" / "bin" / "cloudflared")):
+                          str(folder / "cloudflared.exe"), str(folder / "cloudflared")):
             if candidate and Path(candidate).is_file() and os.access(candidate, os.X_OK):
                 return candidate
         return None

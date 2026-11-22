@@ -100,6 +100,9 @@ class ForkConfirmation(BaseModel):
 
 
 class TestSuite(Extension):
+    """The Test Suite workspace: campaigns of many runs (quick, repeated, sweep, safety, A/B, reproduction),
+    their evaluation and reports, and Fork Here comparisons."""
+
     id = "test_suite"
     title = "Test Suite"
     slot = "workspace"

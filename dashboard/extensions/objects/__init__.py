@@ -70,6 +70,8 @@ def _yaw(mat) -> float:
 
 
 class Objects(Extension):
+    """Tool "Objects": drag, lift, turn and drop the scene's objects (bowl and plate too) between runs."""
+
     title = "Objects"
     icon = "✋"
     description = "Move the scene's objects with the mouse: drag, lift, turn, drop. Bowl and plate too."

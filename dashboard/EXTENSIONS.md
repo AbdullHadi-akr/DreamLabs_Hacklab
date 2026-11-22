@@ -10,8 +10,10 @@ dashboard/extensions/my_tool/
 └── panel.css     optional, loaded automatically
 ```
 
-**Quick start:** copy `_template/`, name the folder without the leading `_`, restart the dashboard. The tab appears
-on the left.
+**Quick start:** copy `_template/`, name the folder without the leading `_`, restart the dashboard. The new tool
+appears in the **Tools** menu on the left, in the group "More" (the groups are `TOOL_GROUPS` in `static/app.js`).
+To explain it to new users, add a tour (or a step) to `TOURS` in `static/tutorial.js`: the panel's root is
+`.panel[data-id="<extension id>"]`, and `before: tool("<extension id>")` opens it.
 
 ## Architecture at a glance
 
@@ -54,8 +56,8 @@ from dreamtool.runner import Hooks
 class MyTool(Extension):
     title = "My tool"
     icon = ""
-    slot = "left"          # "left" = tab in the left column, "right" = card in the right column,
-                           # "suite" = tiles in the Test Suite builder (set suite_modes; see robustness/)
+    slot = "left"          # "left" = a tool in the left column's Tools menu, "right" = card in the right column,
+                           # "suite" = test types in the Test Suite builder (set suite_modes; see robustness/)
     order = 50
 
     def setup(self): ...                       # once on startup
@@ -87,8 +89,9 @@ caught and logged; a broken extension does not take the dashboard down.
 
 ### Test modes in the Test Suite (`slot = "suite"`)
 
-An extension with `slot = "suite"` and `suite_modes = [{"id", "title", "subtitle", "icon"}]` gets one tile per mode
-in the Test Suite's builder instead of a tab (without a Test Suite it falls back to a normal tab). When a tile is
+An extension with `slot = "suite"` and `suite_modes = [{"id", "title", "subtitle", "icon"}]` gets one entry per mode
+in the Test Suite builder's **Test type** menu (in a group named after the extension) instead of a tool (without a
+Test Suite it falls back to a normal tool). When such a test type is
 chosen, the Test Suite shows the extension's panel in place of its own form and fires
 `root.dispatchEvent(new CustomEvent("suite-mode", {detail: mode_id}))` on the panel's root. The report area then
 shows an element with id `<extension id>-wide-report` that the panel may fill with its full report. See `robustness/`.
@@ -129,4 +132,12 @@ Ready-made CSS classes from `static/style.css`: `btn`, `btn primary`, `btn dange
   background jobs that ask Dream-1 about a frozen moment (`dreamtool/xray.py`).
 - `teleop/`: moves the arms between runs with `ctx.sim.call(fn, hold=True)` and inverse kinematics
   (`kinematics.py`), mouse/keyboard input in the main view, and image positions of 3D points from `decorate()`.
+- `objects/`: drags and turns the scene's objects between runs (same pattern as `teleop/`).
+- `camera_check/`: an `on_round_trip` hook that sees every request exactly as it was sent, compared with the
+  simulation's own renders (`dreamtool/camcheck.py`).
+- `brain/`: a read-only panel over files on disk (`brain/`), with its own page (`brain.html`).
+- `test_suite/`: the Test Suite workspace (`slot = "workspace"`): campaigns, evaluation, reports and Fork Here.
 - `_template/`: minimal example to copy.
+
+The dashboard's own panels that are not extensions (Episodes, Credits, Players) live in `static/episodes.js`,
+`static/credits.js` and `static/players.js`.

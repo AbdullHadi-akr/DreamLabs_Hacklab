@@ -56,6 +56,8 @@ PROBE_WORDS = {"apple": "apple", "banana": "banana", "orange": "orange", "bottle
 
 @dataclass
 class Snapshot:
+    """A frozen moment: exactly what Dream-1 saw (camera windows, joint state, prompt) plus the MuJoCo state."""
+
     prompt: str
     model: str
     state: dict  # {"left": 7 values, "right": 7 values}: joints + gripper opening, as Dream-1 gets them

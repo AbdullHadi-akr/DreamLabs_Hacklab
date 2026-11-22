@@ -126,3 +126,23 @@ What was read and changed, newest at the end. The script `brain/build_wiki.py` a
 
 - Raw files new or changed: `raw/notes/2026-11-22-fine-tuning-answers.md`
 - Pages changed: `decisions/decisions.md`
+
+## 2026-11-22 15:20: build by the script
+
+- Raw files new or changed: `raw/runs/2026-11-22.md`, `raw/summaries/2026-11-22.md`
+- Pages changed: `models/dreamlabs-dream-1-beta.md`, `tasks/apple-into-the-bowl.md`
+
+## 2026-11-22 16:04: build by the script
+
+- Raw files new or changed: `raw/runs/2026-11-22.md`, `raw/summaries/2026-11-22.md`
+- Pages changed: `models/dreamlabs-dream-1-beta.md`, `tasks/apple-into-the-bowl.md`
+
+## 2026-11-22 16:05: build by the script
+
+- Raw files new or changed: `raw/runs/2026-11-22.md`, `raw/summaries/2026-11-22.md`
+- Pages changed: `models/dreamlabs-dream-1-beta.md`, `tasks/apple-into-the-bowl.md`
+
+## 2026-11-22 16:08: build by the script
+
+- Raw files new or changed: `raw/runs/2026-11-22.md`, `raw/summaries/2026-11-22.md`
+- Pages changed: `models/dreamlabs-dream-1-beta.md`, `tasks/apple-into-the-bowl.md`

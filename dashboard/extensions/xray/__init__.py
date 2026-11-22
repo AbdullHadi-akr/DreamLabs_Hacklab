@@ -100,6 +100,8 @@ class XRayHook(Hooks):
 
 
 class ModelXRay(Extension):
+    """Tool "X-Ray": live plan overlay during runs, and probes of a frozen moment (dreamtool/xray.py)."""
+
     title = "X-Ray"
     icon = ""
     description = "Why Dream-1 does what it does: planned path, where it looks, whether it follows the words"

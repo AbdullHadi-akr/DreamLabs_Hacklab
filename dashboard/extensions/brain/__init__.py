@@ -1,4 +1,4 @@
-"""Brain: the second brain and the parts of Dream-1 Lab drawn as one 3D brain (panel + full page brain.html).
+"""Brain: the second brain and the parts of DreamLab-Rat drawn as one 3D brain (panel + full page brain.html).
 
 The browser draws the brain (brainview.js). This backend only answers two questions:
   GET /api/ext/brain/graph          every page of brain/wiki/ and file of brain/raw/, the links between them,
@@ -34,6 +34,7 @@ def _title(path: Path, text: str) -> str:
 
 
 def read_graph(brain: Path = BRAIN_DIR, suite_dir: Path = DATA_DIR / "test_suite") -> dict:
+    """The second brain as a graph for the 3D view: one point per wiki/raw page, and the links between them."""
     pages, texts = [], {}
     for kind in ("wiki", "raw"):
         root = brain / kind
@@ -76,6 +77,7 @@ def _safety_failures(suite_dir: Path) -> int:
 
 
 def read_page(path: str, brain: Path = BRAIN_DIR) -> dict:
+    """The text of one .md page inside brain/ (404 for anything else, e.g. a path that leaves the folder)."""
     try:
         target = (brain / path).resolve()
         found = target.suffix == ".md" and brain.resolve() in target.parents and target.is_file()
@@ -87,9 +89,11 @@ def read_page(path: str, brain: Path = BRAIN_DIR) -> dict:
 
 
 class BrainExtension(Extension):
+    """Tool "Brain": the second brain (brain/) and the parts of DreamLab-Rat as one 3D brain view."""
+
     title = "Brain"
     icon = ""
-    description = ("The second brain and Lab Rat as one 3D brain. Regions light up when their part of the "
+    description = ("The second brain and DreamLab-Rat as one 3D brain. Regions light up when their part of the "
                    "system works; click a point to read its page.")
     order = 90
 

@@ -1,3 +1,6 @@
+"""Camera previews: only the stream variants someone watches are rendered and encoded, and a single preview
+matches the images Dream-1 gets."""
+
 import time
 from types import SimpleNamespace
 

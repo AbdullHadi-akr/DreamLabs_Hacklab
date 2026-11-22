@@ -182,7 +182,8 @@ const api={ui:{h,toast(){}},on(name,fn){(suiteEvents[name]||=[]).push(fn);},onCo
 `;
   const strip = css.match(/\.suite-run-strip\s*\{([^}]*)\}/)?.[1] || "";
   if (!/overflow-x:\s*auto/.test(strip) || !/flex-wrap:\s*nowrap/.test(strip)) throw Error("Run strip must scroll without wrapping");
-  const source = sources.map((text) => text.replace(/^import.*\n/gm, "").replace(/^export /gm, "")).join("\n");
+  // \r?: a Windows checkout (git core.autocrlf) has CRLF line endings
+  const source = sources.map((text) => text.replace(/^import.*\r?\n/gm, "").replace(/^export /gm, "")).join("\n");
   await new Script(source + "\n" + fixture).runInNewContext({setTimeout});
 }
 

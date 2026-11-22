@@ -1,3 +1,6 @@
+"""Fork Here (docs/fork-here.md): restoring a saved checkpoint, the release guard, old reports, cancelling, and
+the confirmation and accounting of a live fork. Real MuJoCo physics, a fake policy."""
+
 import gzip
 import hashlib
 import json

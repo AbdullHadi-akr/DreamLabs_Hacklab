@@ -35,6 +35,8 @@ class CountSteps(Hooks):
 
 
 class TemplateExtension(Extension):
+    """A minimal extension to copy: a small API, a run hook and a 3D marker."""
+
     title = "Template"
     icon = ""
     description = "Copy me to start a new extension."

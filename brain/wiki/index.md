@@ -4,7 +4,7 @@ Every page of the wiki, one line each. The script `brain/build_wiki.py` rewrites
 
 - [[log]]: What was read and changed, newest at the end.
 - [[notes]]: This page lists the notes team members put into `brain/raw/notes/`.
-- [[overview]]: This page explains what Dream-1 Lab is and how the team uses it.
+- [[overview]]: This page explains what DreamLab-Rat is and how the team uses it.
 
 ## decisions
 

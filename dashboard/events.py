@@ -25,6 +25,8 @@ def _jsonable(value):
 
 
 class EventBus:
+    """Sends events from any thread to every open browser tab (WebSocket /ws); keeps recent ones for new tabs."""
+
     def __init__(self, history: int = 200):
         self._loop: asyncio.AbstractEventLoop | None = None
         self._clients: set[asyncio.Queue] = set()

@@ -1,7 +1,22 @@
 # Training readiness
 
-Standard Test Suite reports contain prompt and model metadata, run timing, initial and final state, result evidence and references to optional camera MP4s. Some runs also retain action replies and timestamped milestone frames in separate files. Robustness can record composite camera video alongside trial metadata.
+Updated 22.11.2026.
 
-These artifacts support evaluation and debugging. The audited recorder does not establish a synchronized sequence of observations, measured joint states, commanded/executed actions, camera calibration, and timestamps at every control step. Saved policy reply chunks do not establish which actions actually ran after interruption, clipping, or validation.
+**Episodes for a fine-tune.** Every Dream-1 run started with **Run** on the Dashboard is recorded as an episode
+(`dashboard/episodes.py`): a LeRobot v2.1 folder with the three camera videos at 640 × 360, 10 frames per second, and
+per frame the measured joint state and the commanded action (the targets the arms were sent right after that frame),
+right arm first, as Dream Labs lays out the YAM body. A person can take over and finish the task with the Control
+tool; the recording continues. **Export** (tool Episodes) copies the successful, unused episodes of one task into
+`out/exports/<name>/` and runs Dream Labs' own dataset check (`dream.datasets.validate_dataset`). An episode with a
+take-over goes in cut, from the take-over on, so training does not learn Dream-1's mistake. Nothing is uploaded.
 
-For training, first confirm the SDK dataset schema and validate a purpose-recorded trajectory with aligned observations and executed action/state samples, task text, embodiment, timing, and recording consent. Keep the source records intact. No datasets were converted, uploaded, or used for training during this sprint.
+**Other artifacts** are review material, not training data: Test Suite reports (prompt, model, timing, initial and
+final state, evidence frames, optional MP4s, saved reply chunks) and robustness videos. A saved reply chunk does not
+say which of its rows actually ran after an interruption, clipping or validation.
+
+**Before a fine-tune:**
+
+- Recording consent and the task text per episode are the team's responsibility.
+- Episodes shorter than Dream Labs' minimum (17 frames at 10 per second, 1.7 s) are marked and left out of an export.
+- Upload and fine-tuning are separate steps (Dream Labs' client: `upload_dataset`, `finetune`); no dataset has been
+  uploaded or trained on from this tool so far.

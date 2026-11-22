@@ -32,6 +32,8 @@ class PrintProgress(Hooks):
 
 
 class RecordHook(Hooks):
+    """Writes the three camera images of every step into one MP4 (--record)."""
+
     def __init__(self, path):
         self.recorder = VideoRecorder(path)
 
@@ -49,7 +51,8 @@ def main():
     parser.add_argument("--model", type=sim.resolve_model, default=sim.BETA_MODEL)
     parser.add_argument("--seconds", type=float, default=60)
     parser.add_argument("--actions", type=int, default=48, help="rows to execute per reply (1-48)")
-    parser.add_argument("--strategy", default="chunk", help="chunk, receding-N or ensemble-N (see dreamtool/inference.py)")
+    parser.add_argument("--strategy", default="chunk",
+                        help="chunk, receding-N, ensemble-N or crossfade-N (see dreamtool/inference.py)")
     parser.add_argument("--headless", action="store_true", help="without the 3D viewer")
     parser.add_argument("--record", help="MP4 file for the three camera images")
     parser.add_argument("--offline", action="store_true", help="no API call: the arms perform a test motion")
@@ -63,7 +66,8 @@ def main():
     if args.offline:
         env = sim.YamEnv()
         wave = [np.r_[0.0, 0.6 * np.sin(t / 15), 0.5, 0.0, 0.0, 0.0, 0.5 + 0.5 * np.cos(t / 10)] for t in range(120)]
-        targets = [(row, row) for row in wave] + sim.home_path(env.state())
+        # back home from where the wave ends (not from the start pose: the arms would jump there in one step)
+        targets = [(row, row) for row in wave] + sim.home_path({"left": wave[-1], "right": wave[-1]})
         run_scripted(env, targets, hooks=hooks)
         for h in hooks:
             if isinstance(h, RecordHook):

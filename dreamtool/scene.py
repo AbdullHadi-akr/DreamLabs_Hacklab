@@ -159,6 +159,8 @@ class Check:
 
 @dataclass
 class Rule:
+    """One task type the success check understands: a wording pattern and the check it builds (see RULES)."""
+
     id: str
     example: str
     description: str

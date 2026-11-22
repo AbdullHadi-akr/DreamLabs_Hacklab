@@ -5,6 +5,7 @@ import { episodesPanel, setupEpisodes } from "./episodes.js";
 import { creditsPanel, gateRun, setupCredits } from "./credits.js";
 import { playersPanel } from "./players.js";
 import { overlayViewer, watchViewport } from "./lib/viewer-overlay.js";
+import { setupTutorial } from "./tutorial.js";
 
 const $ = (id) => document.getElementById(id);
 const core = {
@@ -498,6 +499,8 @@ async function main() {
     }
     await mountPanel(suite, $("test-suite-config"));
   }
+  // last: the tours point at the extension panels, which exist only now
+  try { setupTutorial(core); } catch (error) { log(`Tutorial: ${error.message}`, "warn", "tutorial"); }
 }
 
 window.addEventListener("dashboard:print-return", async () => {

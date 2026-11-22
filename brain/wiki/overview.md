@@ -1,8 +1,8 @@
 # Overview
 
-This page explains what Dream-1 Lab is and how the team uses it.
+This page explains what DreamLab-Rat is and how the team uses it.
 
-## What Dream-1 Lab is
+## What DreamLab-Rat is
 
 A dashboard that runs a simulated YAM robot: two arms at a table with fruit, a bowl and a plate. Dream-1, a robot
 model by Dream Labs, gets a task in words, for example "put the banana on the plate", and moves the arms. The
