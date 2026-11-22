@@ -80,7 +80,7 @@ async function render() {
     h("tbody", {}, runs.map((r) => h("tr", {},
       h("td", { class: "num" }, r.started ? new Date(r.started * 1000).toLocaleString([], { dateStyle: "short", timeStyle: "short" }) : r.id),
       h("td", {}, h("a", { href: `report.html?id=${encodeURIComponent(r.id)}` }, r.label),
-        h("div", { class: "muted" }, r.mode === "random" ? `random: ${r.factors.join(", ")}` : r.mode === "adaptive" ? "breaking-point search" : "sweep")),
+        h("div", { class: "muted" }, r.mode === "random" ? `random: ${r.factors.join(", ")}` : r.mode === "adaptive" ? "breaking-point search" : r.mode === "compare" ? "inference strategy comparison" : "sweep")),
       h("td", {}, r.task),
       h("td", {}, h("span", { class: `rp-tag ${r.dry_run ? "" : "live"}` }, r.dry_run ? "dry run" : r.policy)),
       h("td", { class: "num" }, `${r.done}/${r.total}`, r.state !== "done" ? h("div", { class: "muted" }, r.state) : null),

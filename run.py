@@ -49,6 +49,7 @@ def main():
     parser.add_argument("--model", type=sim.resolve_model, default=sim.BETA_MODEL)
     parser.add_argument("--seconds", type=float, default=60)
     parser.add_argument("--actions", type=int, default=48, help="rows to execute per reply (1-48)")
+    parser.add_argument("--strategy", default="chunk", help="chunk, receding-N or ensemble-N (see dreamtool/inference.py)")
     parser.add_argument("--headless", action="store_true", help="without the 3D viewer")
     parser.add_argument("--record", help="MP4 file for the three camera images")
     parser.add_argument("--offline", action="store_true", help="no API call: the arms perform a test motion")
@@ -76,6 +77,7 @@ def main():
         model=args.model,
         seconds=args.seconds,
         actions_per_reply=args.actions,
+        strategy=args.strategy,
         viewer=not args.headless,
         hooks=hooks,
     )

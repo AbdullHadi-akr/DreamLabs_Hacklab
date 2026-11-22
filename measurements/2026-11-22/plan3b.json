@@ -1,0 +1,18 @@
+[
+ {
+  "task": "put the orange on the plate",
+  "mode": "compare",
+  "strategies": [
+   "chunk",
+   "receding-24",
+   "receding-30",
+   "crossfade-30"
+  ],
+  "perturbation": "none",
+  "trials": 8,
+  "seconds": 40,
+  "dry_run": false,
+  "record": false,
+  "seed": 52
+ }
+]

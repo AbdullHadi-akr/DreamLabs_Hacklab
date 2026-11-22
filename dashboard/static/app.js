@@ -151,6 +151,7 @@ function setupViewportControls() {
 
 function setupTaskbar(state) {
   $("model").value = state.default_model;
+  for (const s of state.strategies || []) $("strategy").append(h("option", { value: s.id, title: s.description }, s.label));
   for (const task of state.tasks) $("task-list").append(h("option", { value: task }));
   $("task").value = state.tasks[0];
 
@@ -158,7 +159,8 @@ function setupTaskbar(state) {
     e.preventDefault();
     const task = core.currentTask();
     if (!task) return toast("Please enter a task.", "error");
-    const body = { task, model: $("model").value.trim(), seconds: Number($("seconds").value) };
+    const body = { task, model: $("model").value.trim(), seconds: Number($("seconds").value),
+      strategy: $("strategy").value || state.default_strategy };
     // credits: refuse over the monthly limit, ask for a second click above the confirm threshold
     if (!core.me || core.me.role !== "guest") {
       try { if (!(await gateRun(core, body))) return; } catch (error) { return toast(error.message, "error"); }
@@ -288,7 +290,8 @@ function setupEvents() {
   ev.on("log", (d) => log(d.message, d.level, d.source));
   ev.on("run.queued", (d) => log(`Queued: ${d.label || d.task}`, "info", d.source));
   ev.on("run.started", (d) => {
-    log(`Started: ${d.task} (${d.model})${d.label ? " · " + d.label : ""}`, "info", d.source);
+    const exec = d.strategy && d.strategy !== "chunk" ? ` · ${d.strategy}` : "";
+    log(`Started: ${d.task} (${d.model}${exec})${d.label ? " · " + d.label : ""}`, "info", d.source);
     $("ri-result").textContent = "–";
     $("ri-result").className = "";
     if (chartRun?.id !== d.id) setChartRun({...d, rtts_s: []});
@@ -310,7 +313,8 @@ function setupEvents() {
     $("ri-result").textContent = `${success}`;
     $("ri-result").className = r.success ? "good" : r.success === false ? "bad" : "";
     const level = r.stop_reason.startsWith("error") ? "error" : "info";
-    log(`Ended: ${r.stop_reason} · ${success} · ${r.steps} steps · ${r.requests} requests`, level, d.source);
+    const seams = r.commands && r.commands.seam_ratio != null ? ` · seams ${r.commands.seam_ratio}× a normal step` : "";
+    log(`Ended: ${r.stop_reason} · ${success} · ${r.steps} steps · ${r.requests} requests${seams}`, level, d.source);
   });
 }
 

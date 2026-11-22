@@ -167,7 +167,7 @@ class Evidence(Hooks):
 
 
 def execution_status(reason, success=None):
-    if reason in ("timeout", "task_deadline", "api_timeout", "agent_timeout"):
+    if reason in ("timeout", "wall_timeout", "task_deadline", "api_timeout", "agent_timeout"):
         return "timed_out"
     if reason.startswith("error"):
         return "error"

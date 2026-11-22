@@ -163,3 +163,69 @@ def test_robustness_adaptive_search(client):
     assert all(r["search"]["why"] == "most informative" for r in status["rows"][1:])
     assert status["analysis"]["stopped_because"] == "budget used up"
     assert client.get(f"/api/ext/robustness/download/{status['id']}/trials.csv").text.count("\n") == 5
+
+
+def test_robustness_strategy_comparison(client):
+    app = client.app_ref
+    wait_idle(app)
+    presets = client.get("/api/ext/robustness/strategies").json()["presets"]
+    assert [p["id"] for p in presets][:3] == ["crossfade-30", "chunk", "receding-24"]
+    body = {"task": "put apple into the bowl", "mode": "compare", "strategies": ["chunk", "ensemble-16"],
+            "perturbation": "none", "trials": 1, "seconds": 5, "dry_run": True, "record": False}
+    assert client.post("/api/ext/robustness/start", json={**body, "strategies": ["chunk"]}).status_code == 400
+    assert client.post("/api/ext/robustness/start", json={**body, "strategies": ["chunk", "blend-3"]}).status_code == 400
+    assert client.post("/api/ext/robustness/start", json=body).status_code == 200
+    end = time.time() + 60
+    while client.get("/api/ext/robustness/status").json()["state"] == "running" and time.time() < end:
+        time.sleep(0.2)
+    status = client.get("/api/ext/robustness/status").json()
+    assert status["state"] == "done" and status["done"] == 2, [(r["stop_reason"], r.get("note")) for r in status["rows"]]
+    assert [r["strategy"] for r in status["rows"]] == ["chunk", "ensemble-16"]
+    assert all(r["trial"] == 1 for r in status["rows"]), "both strategies run the same pair"
+    assert status["rows"][1]["requests"] > status["rows"][0]["requests"]
+    assert status["rows"][1]["commands"]["seams"] > 0
+    assert [p["id"] for p in status["analysis"]["per_strategy"]] == ["chunk", "ensemble-16"]
+    assert status["analysis"]["pairs"][0]["n"] in (0, 1)
+    csv_text = client.get(f"/api/ext/robustness/download/{status['id']}/trials.csv").text
+    assert "strategy" in csv_text.splitlines()[0] and "ensemble-16" in csv_text
+    state = client.get("/api/state").json()
+    assert state["strategies"][0]["id"] == state["default_strategy"] == "crossfade-30"
+    assert client.post("/api/run", json={"task": "x y", "strategy": "nope"}).status_code in (400, 409)
+
+
+def test_xray_freeze_and_ask(client):
+    app = client.app_ref
+    wait_idle(app)
+    xr = next(e for e in app.state.extensions if e.id == "xray")
+    xr.fake = True  # scripted stand-in instead of Dream-1
+    assert client.post("/api/ext/xray/run", json={"snapshot": "nope", "kind": "intent"}).status_code == 404
+    r = client.post("/api/ext/xray/snapshot", json={"prompt": "put the banana on the plate"})
+    assert r.status_code == 200
+    snap_id = r.json()["id"]
+    assert client.post("/api/ext/xray/run", json={"snapshot": snap_id, "kind": "intent"}).status_code == 200
+    end = time.time() + 30
+    while client.get("/api/ext/xray/status").json()["job"]["state"] == "running" and time.time() < end:
+        time.sleep(0.1)
+    status = client.get("/api/ext/xray/status").json()
+    assert status["job"]["state"] == "done" and status["job"]["calls"] == 3
+    detail = client.get(f"/api/ext/xray/snapshots/{snap_id}").json()
+    assert detail["results"]["intent"]["intent"]["event"] == "close" and set(detail["frames"]) == {"top", "left", "right"}
+    assert client.post("/api/ext/xray/overlay", json={"enabled": True, "snapshot": snap_id}).status_code == 200
+    assert client.delete(f"/api/ext/xray/snapshots/{snap_id}").status_code == 200
+    assert client.get(f"/api/ext/xray/snapshots/{snap_id}").status_code == 404
+
+
+def test_camera_check_routes(client):
+    app = client.app_ref
+    wait_idle(app)
+    status = client.get("/api/ext/camera_check/status").json()
+    assert set(status["faults"]) >= {"swap_wrists", "bgr", "delay", "black"}
+    assert client.post("/api/ext/camera_check/selftest", json={"faults": ["nope"]}).status_code == 400
+    cam = next(e for e in app.state.extensions if e.id == "camera_check")
+    cam.fake = True
+    assert client.post("/api/ext/camera_check/model-use", json={"prompt": "put the banana on the plate"}).status_code == 200
+    end = time.time() + 30
+    while client.get("/api/ext/camera_check/status").json()["model_use"]["state"] == "running" and time.time() < end:
+        time.sleep(0.1)
+    mu = client.get("/api/ext/camera_check/status").json()["model_use"]
+    assert mu["state"] == "done" and mu["rows"]["blank:top"]["reacts"] and not mu["rows"]["blank:left"]["reacts"]

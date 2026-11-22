@@ -1,0 +1,3 @@
+{"plan": 0, "started": "20261122-003354-light_dim", "body": {"task": "put the apple into the bowl", "mode": "sweep", "perturbation": "light_dim", "values": [0, 75], "trials": 2, "seconds": 25, "dry_run": false, "record": false, "seed": 41}, "at": "00:33:54"}
+{"plan": 0, "id": "20261122-003354-light_dim", "state": "done", "done": 4, "verdict": "Breaks at 75 % (success rate at half the baseline or below) \u2014 few trials, treat as a hint", "per": [], "pairs": null, "at": "00:36:09"}
+{"finished": true, "at": "00:36:09"}

@@ -2,9 +2,9 @@
 
 import { h } from "/static/lib/api.js";
 import {
-  adaptiveChart, adaptiveLegend, adaptiveStatus, chartLegend, describeParams, downloadButtons, factorScatter,
-  factorTable, interactionHeatmap, outcomeBar, outcomeChip, outcomeGrid, outcomeLegend, pct, rampLegend, searchTable,
-  strength, sweepChart, sweepTable,
+  adaptiveChart, adaptiveLegend, adaptiveStatus, chartLegend, compareChart, compareLegend, describeParams,
+  downloadButtons, factorScatter, factorTable, interactionHeatmap, outcomeBar, outcomeChip, outcomeGrid, outcomeLegend,
+  pairGrid, pairTable, pct, rampLegend, searchTable, smoothnessChart, strategyTable, strength, sweepChart, sweepTable,
 } from "./charts.js";
 
 
@@ -39,6 +39,10 @@ function trialCard(r, s, prefix) {
         metric("to target", m.final_to_container_cm, " cm"),
         metric("others moved", m.others_moved_cm, " cm"),
         metric("success at", m.time_to_success_s, " s"),
+        r.requests ? metric("requests", r.requests) : null,
+        r.commands && r.commands.seam_ratio != null ? metric("seams", r.commands.seam_ratio, "× step") : null,
+        m.joint_speed != null ? metric("speed", m.joint_speed, " rad/s") : null,
+        m.joint_jitter != null ? metric("jitter", Math.round(m.joint_jitter * 100), "%") : m.joint_jerk != null ? metric("jerk", m.joint_jerk, " rad/s³") : null,
       ),
       h("div", { class: "muted" }, `${r.stop_reason} · ${r.seconds}s · ${r.steps} steps` +
         (r.mean_rtt_s ? ` · RTT ${r.mean_rtt_s}s` : "") + (r.redraws ? ` · setup re-drawn ${r.redraws}×` : "")),
@@ -58,7 +62,7 @@ export function renderReport(root, s, { standalone = true, historyControl = null
       document.head.append(h("link", { rel: "stylesheet", href: `${BASE}pages.css` }));
     }
   }
-  if (standalone) document.title = `Robustness · ${s.perturbation ? s.perturbation.label : "Random mix"}`;
+  if (standalone) document.title = `Robustness · ${s.mode === "compare" ? "Strategy A/B" : s.perturbation ? s.perturbation.label : "Random mix"}`;
   const a = s.analysis;
   const trials = h("div", { class: "rp-trials" });
   let selectTrial;
@@ -99,7 +103,23 @@ export function renderReport(root, s, { standalone = true, historyControl = null
   filter.onchange = () => { st.onlyFailures = filter.checked; fillTrials(); };
 
   let left, right;
-  if (s.mode === "adaptive") {
+  if (s.mode === "compare") {
+    const cond = s.perturbation ? `${s.perturbation.label.toLowerCase()} ${strength(s.perturbation.strength, s.perturbation)}` : "the unperturbed scene";
+    left = h("section", { class: "card" }, h("h2", {}, "Success per strategy"),
+      compareChart(s, { width: 620 }), compareLegend(),
+      ...smoothnessSection(s),
+      h("p", { class: "rp-note" }, `Paired design: pair i runs under every strategy with the same seed (same scene, ` +
+        `${cond}${s.config.dry_run ? ", same simulated plan noise" : ""}). Only pairs where the strategies disagree carry ` +
+        "information, which is what McNemar's test uses. Trials are budgeted in simulated time, so asking Dream-1 more " +
+        "often costs requests, not motion time."),
+      ...s.strategies.map((x) => h("p", { class: "rp-note" }, h("b", {}, `${x.label}: `), x.description)),
+      s.strategies.some((x) => x.blend && x.blend !== "none" && !x.gripper)
+        ? h("p", { class: "warn" }, "Recorded before the gripper fix: the blended strategies here also averaged the " +
+          "gripper command, which can leave it half closed.") : null);
+    right = h("section", { class: "card" }, h("h2", {}, "Versus the default"), pairTable(s),
+      h("h2", { style: { marginTop: "18px" } }, "All outcomes"),
+      outcomeBar(countOutcomes(s.rows), s.outcome_labels), outcomeLegend(s.rows, s.outcome_labels));
+  } else if (s.mode === "adaptive") {
     left = h("section", { class: "card" }, h("h2", {}, `Where ${s.perturbation.label.toLowerCase()} breaks the model`),
       adaptiveChart(s, { width: 620, height: 330 }), adaptiveLegend(s), adaptiveStatus(s),
       h("p", { class: "rp-note" }, "Bayesian search (psi method): the curve is the estimated probability that the stage " +
@@ -134,7 +154,19 @@ export function renderReport(root, s, { standalone = true, historyControl = null
     if (standalone) history.replaceState(null, "", `#${prefix}${r.index}`);
   };
   let heat = null;
-  if (s.mode === "sweep" && s.rows.length) {
+  if (s.mode === "compare" && s.rows.length) {
+    heat = [
+      h("section", { class: "card rp-section" },
+        h("div", { class: "rp-section-head" }, h("h2", {}, "Smoothness and cost"),
+          h("span", { class: "muted" }, "What each strategy does to the motion and to the API bill. Hover a column head for its meaning.")),
+        h("div", { class: "rp-heat-wrap" }, strategyTable(s, { detailed: true }))),
+      h("section", { class: "card rp-section" },
+        h("div", { class: "rp-section-head" }, h("h2", {}, "Every pair at a glance"),
+          h("span", { class: "muted" }, "Row = pair (same seed), column = strategy. Click a cell for its video.")),
+        h("div", { class: "rp-heat-wrap" }, pairGrid(s, { onTrial: jump })),
+        outcomeLegend(s.rows, s.outcome_labels)),
+    ];
+  } else if (s.mode === "sweep" && s.rows.length) {
     heat = h("section", { class: "card rp-section" },
       h("div", { class: "rp-section-head" }, h("h2", {}, "Every trial at a glance"),
         h("span", { class: "muted" }, "Row = trial number (same random direction at every strength), column = strength. Click a cell for its video.")),
@@ -174,11 +206,14 @@ export function renderReport(root, s, { standalone = true, historyControl = null
   root.replaceChildren(
     h("header", { class: `rp-head${standalone ? "" : " rp-head-embedded"}` },
       h("div", {},
-        h("h1", {}, s.mode === "adaptive" ? `Breaking point: ${s.perturbation.label}` : s.mode === "sweep" ? s.perturbation.label : "Random perturbation mix"),
+        h("h1", {}, s.mode === "compare" ? "Strategy A/B: how Dream-1's chunks are executed"
+          : s.mode === "adaptive" ? `Breaking point: ${s.perturbation.label}` : s.mode === "sweep" ? s.perturbation.label : "Random perturbation mix"),
         h("div", { class: "rp-meta" },
           h("span", {}, h("b", {}, `${s.done} of ${s.total}`), " trials recorded · ", ({done: "Completed", running: "Running", error: "Failed", stopped: "Stopped"})[s.state] || s.state),
           h("span", {}, "Task ", h("b", {}, `“${s.config.task}”`)),
           h("span", {}, "Policy ", h("b", {}, s.policy)),
+          s.strategy && s.strategy.id !== "chunk" ? h("span", {}, "Execution ", h("b", {}, s.strategy.label)) : null,
+          s.mode === "compare" ? h("span", {}, "Condition ", h("b", {}, s.perturbation ? `${s.perturbation.label} ${strength(s.perturbation.strength, s.perturbation)}` : "unperturbed")) : null,
           h("span", {}, started.toLocaleString()),
           s.mode === "adaptive" ? h("span", {}, "Measure ", h("b", {}, s.analysis.measure.label), " · searched ", h("b", {}, `${strength(s.perturbation.neutral, s.perturbation)}–${strength(s.perturbation.max, s.perturbation)}`)) : s.mode === "sweep" ? h("span", {}, "Strengths ", h("b", {}, s.values.map((v) => strength(v, s.perturbation)).join(", "))) : null,
         )),
@@ -193,13 +228,21 @@ export function renderReport(root, s, { standalone = true, historyControl = null
     ...(!standalone ? [controls, trials] : []),
     h("div", { class: `rb-verdict ${a.verdict.breaking_point != null || a.verdict.most_harmful ? "bad" : ""}` }, a.verdict.text),
     ...(s.rows.length ? [h("details", {open: standalone}, h("summary", {}, "Campaign diagnostics"),
-      h("div", { class: "rp-grid" }, left, right), heat)] : []),
+      h("div", { class: "rp-grid" }, left, right), ...(heat ? [heat].flat() : []))] : []),
     ...(standalone ? [controls, trials] : []),
   );
   if (standalone && location.hash && !st.scrolled) {
     st.scrolled = true;
     root.querySelector(location.hash)?.scrollIntoView();
   }
+}
+
+function smoothnessSection(s) {
+  const chart = smoothnessChart(s, { width: 620 });
+  if (!chart) return s.rows.length ? [h("p", { class: "rp-note" }, "No jitter measurement in this campaign (recorded before it " +
+    "existed); absolute jerk is not shown because it mostly reflects speed.")] : [];
+  return [h("h3", { class: "rp-subhead" }, "Smoothness of the measured motion",
+    h("span", { class: "muted" }, " · share of the joint motion that is jitter; slowing down does not help")), chart];
 }
 
 function countOutcomes(rows) {

@@ -63,3 +63,4 @@ body.rp-page { display: block; height: auto; background: var(--clay); }
   .rp-grid { grid-template-columns: 1fr; }
   .rp-trials { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
 }
+.rp-subhead { margin: 16px 0 6px; font-size: 13px; font-weight: 600; }

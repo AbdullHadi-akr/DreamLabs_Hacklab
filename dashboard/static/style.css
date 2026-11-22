@@ -189,6 +189,10 @@ code { font-family: var(--font-mono); font-size: .9em; background: var(--grey-2)
 .mini { display: flex; align-items: center; gap: 6px; color: var(--ink-3); font-size: 13px; }
 .mini #model { width: min(31ch, 100%); color: var(--ink); font-family: var(--font-mono); }
 .mini #seconds { width: 68px; color: var(--ink); }
+.mini #strategy {
+  min-width: 0; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 6px 8px;
+  background: var(--white); color: var(--ink);
+}
 /* ---------- Buttons ---------- */
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;

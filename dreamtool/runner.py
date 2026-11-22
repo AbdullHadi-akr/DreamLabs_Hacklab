@@ -3,7 +3,8 @@
 Flow (synchronous, like the official example):
   1. collect 9 camera frames per camera (0.2 s apart in simulated time)
   2. get_action() -> action chunk (up to 48 rows x 7 values per arm); physics pauses meanwhile
-  3. execute the rows at 20 Hz while feeding new frames to the client
+  3. execute the rows at 20 Hz while feeding new frames to the client (how many rows, and whether consecutive chunks
+     are blended, is the inference strategy: see inference.py)
   4. repeat until time is up, success is detected or a hook stops the run
 
 Plug in your own logic with a `Hooks` subclass (monitoring, safety checks, metrics, UI ...).
@@ -19,7 +20,18 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from . import scene, sim
+from . import inference, scene, sim
+
+MAX_RETRY_WAIT_S = 180.0  # per run: longer than that at capacity and the run ends with the error
+
+## How the Dream client should account for the time a request is in flight (`latency=`):
+##   "paused"  the loop runs no rows meanwhile, which is the truth here: physics pauses during every request. The
+##             client's seam smoothing then hands over from the old plan at row 0 of the new one.
+##   "client"  the client's own default: it assumes the loop kept running at 20 rows/s and replaces the first
+##             round-trip-many rows (about 11 at 0.55 s) of every new chunk with the rest of the old plan. In a paused
+##             simulation that is an artificial reaction delay, and a random one, since the round trip varies.
+LATENCY_MODES = ("paused", "client")
+PAUSED_ACTION_HZ = 1e-3  # rows per second the client may assume during a request: round(rtt * 1e-3) = 0 rows
 
 
 class Hooks:
@@ -47,6 +59,15 @@ class Hooks:
     def on_end(self, env, result: "RunResult") -> None:
         """After the run."""
 
+    def wrap_policy(self, policy):
+        """The client the run talks to, or a proxy around it (e.g. one that changes frames before they are sent)."""
+        return policy
+
+    def on_round_trip(self, trip) -> None:
+        """After every get_action(), on the request thread (keep it short, never touch env): exactly what Dream-1 was
+        sent and what came back (dream.debug_view.RoundTrip: `frames` key -> base64 JPEGs oldest first, `observation`,
+        `action`, `error`)."""
+
 
 @dataclass
 class RunResult:
@@ -56,6 +77,10 @@ class RunResult:
     success: bool | None = None  # None = no success check known for this task
     steps: int = 0
     requests: int = 0
+    strategy: str = "chunk"
+    latency: str = "paused"
+    retries: int = 0  # retryable refusals (Dream-1 at capacity) that were waited out
+    commands: dict = field(default_factory=dict)  # smoothness of the executed commands (inference.CommandStats)
     rtts_s: list[float] = field(default_factory=list)
     seconds: float = 0.0  # wall-clock seconds, waiting for Dream-1 included
     sim_seconds: float = 0.0  # simulated seconds: what the time limit counts
@@ -77,6 +102,12 @@ def _get_action(policy):
     return reply, None, finished - started, finished
 
 
+def _sim_time(env) -> float | None:
+    """Simulated seconds of the env, or None for a stand-in without MuJoCo data (tests)."""
+    data = getattr(env, "data", None)
+    return None if data is None else float(data.time)
+
+
 def run_task(
     task: str,
     *,
@@ -92,11 +123,18 @@ def run_task(
     prompt: str | None = None,
     max_requests: int | None = None,
     capture_each_step: bool = True,
+    strategy: "str | inference.Strategy" = "chunk",
+    max_steps: int | None = None,
+    latency: str = "paused",
 ) -> RunResult:
     """Runs a task with Dream-1 in the simulator. Needs an API key (see README).
 
     `prompt` is the text Dream-1 receives (default: `task`). `task` still decides the success check, so a reworded
     or misspelled prompt is judged against the original goal.
+    `strategy` decides how each action chunk is executed (inference.py). `latency` tells the client whether rows run
+    while a request is in flight (LATENCY_MODES). `max_steps` ends the run after that many
+    control steps (a budget in simulated time, independent of how long the requests take); `seconds` stays the
+    wall-clock limit.
     """
     hooks = hooks if isinstance(hooks, list) else [hooks] if hooks else []
     config = sim.settings()
@@ -110,7 +148,12 @@ def run_task(
     managed = max_requests is not None
     check = None if managed else scene.success_check(task)
     prompt = prompt or task
-    result = RunResult(task=task, model=model, success=False if check else None)
+    strategy = inference.parse(strategy)
+    executor = inference.ChunkExecutor(strategy, actions_per_reply)
+    stats = inference.CommandStats()
+    if latency not in LATENCY_MODES:
+        raise ValueError(f"latency must be one of {LATENCY_MODES}")
+    result = RunResult(task=task, model=model, success=False if check else None, strategy=strategy.id, latency=latency)
     log = print if verbose else (lambda *a, **k: None)
     policy = None
     started_at = time.monotonic()
@@ -119,9 +162,18 @@ def run_task(
 
     def open_policy(poses):
         options = sim.policy_config(model, gateway, poses)
+        if latency == "paused":
+            options["action_hz"] = PAUSED_ACTION_HZ
         if managed:
             options["timeout_ms"] = min(15000, max(1, int(1000 * (deadline - time.monotonic()))))
-        return sim.open_policy(options, key)
+        client = sim.open_policy(options, key)
+        if hasattr(client, "on_round_trip"):
+            for h in hooks:
+                client.on_round_trip(h.on_round_trip)
+        for h in hooks:
+            client = h.wrap_policy(client)
+        return client
+
     sim_start = None
 
     try:
@@ -161,8 +213,9 @@ def run_task(
             # Outside the Test Suite the time limit counts SIMULATED seconds: waiting for Dream-1's replies (physics
             # paused) and a slow laptop do not use it up, so a run gets the same robot time on every computer.
             # The Test Suite (managed) keeps its wall-clock task deadline.
-            sim_start = None if managed else env.data.time
+            sim_start = None if managed else _sim_time(env)
             restarts = 0
+            waited = 0.0  # seconds spent waiting on retryable refusals
 
             def stop_reason():
                 if managed:
@@ -171,8 +224,15 @@ def run_task(
                         return reason
                     if time.monotonic() >= deadline:
                         return "task_deadline"
-                elif env.data.time - sim_start >= seconds:
-                    return "timeout"
+                else:
+                    if max_steps is not None and result.steps >= max_steps:
+                        return "timeout"
+                    if max_steps is None and sim_start is not None and _sim_time(env) - sim_start >= seconds:
+                        return "timeout"  # `seconds` of simulated time (see above)
+                    if time.monotonic() >= deadline and (max_steps is not None or sim_start is None):
+                        # with a simulated budget (`max_steps`), running out of wall time first means the run was cut
+                        # short (a hung request, a sleeping machine), not that the budget was used (measured 22.11.2026)
+                        return "wall_timeout" if max_steps is not None else "timeout"
                 if view is not None and not view.is_running():
                     return "viewer closed"
                 if check and check(env):
@@ -219,6 +279,15 @@ def run_task(
                     if type(error).__name__ == "DreamSessionExpired" and restarts < 3:
                         restarts += 1
                         continue
+                    # Dream Labs marks capacity refusals (pool_full, pool_warming, rate_limited) as retryable: wait and
+                    # ask again with the same observation. Physics is paused meanwhile, so the run is not changed by it.
+                    if getattr(error, "retryable", False) and waited < MAX_RETRY_WAIT_S:
+                        pause = min(float(getattr(error, "retry_after_s", None) or 2.0), 15.0)
+                        result.retries += 1
+                        log(f"  Dream refused ({getattr(error, 'reason', type(error).__name__)}), retrying in {pause:.0f} s")
+                        time.sleep(pause)
+                        waited += pause
+                        continue
                     if poses or not sim.needs_poses(error):
                         raise error
                     policy.close()
@@ -234,12 +303,14 @@ def run_task(
                 for h in hooks:
                     h.on_reply(env, reply, rtt)
 
-                left, right = sim.validate_chunk(env, reply, actions_per_reply, verbose=False)
-                for l_row, r_row in zip(left, right):
+                left, right = sim.validate_chunk(env, reply, inference.CHUNK, verbose=False)
+                left, right = executor.plan(result.steps, left, right)
+                for row, (l_row, r_row) in enumerate(zip(left, right)):
                     if stop_reason() is not None:
                         break
                     tick = time.monotonic()
                     env.step(l_row, r_row)
+                    stats.add(l_row, r_row, seam=row == 0)
                     kept = steps % sim.FRAME_EVERY_STEPS == 0
                     images = sim.capture(env, windows, keep=kept) if kept or capture_each_step else {}
                     if kept:
@@ -266,6 +337,7 @@ def run_task(
         else:
             result.stop_reason = f"error: {type(error).__name__}: {error}"
     finally:
+        result.commands = stats.summary()
         if managed:
             if result.stop_reason == "task_deadline":
                 ended_at = deadline
@@ -277,7 +349,7 @@ def run_task(
                 pass
         if not managed:
             result.seconds = time.monotonic() - started_at
-        result.sim_seconds = 0.0 if sim_start is None else float(env.data.time - sim_start)
+        result.sim_seconds = 0.0 if sim_start is None else float(_sim_time(env) - sim_start)
         for h in hooks:
             h.on_end(env, result)
         if own_env:

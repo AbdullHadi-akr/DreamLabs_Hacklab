@@ -1,0 +1,44 @@
+{
+ "starts": [
+  "38738e08bf86",
+  "38738e08bf86",
+  "38738e08bf86"
+ ],
+ "report": [
+  {
+   "request": 0,
+   "frames_equal": false,
+   "state_equal": true,
+   "reply_max_diff_rad": 0.02939
+  },
+  {
+   "request": 1,
+   "frames_equal": false,
+   "state_equal": false,
+   "reply_max_diff_rad": 0.13139
+  },
+  {
+   "request": 2,
+   "frames_equal": false,
+   "state_equal": false,
+   "reply_max_diff_rad": 0.10573
+  },
+  {
+   "request": 3,
+   "frames_equal": false,
+   "state_equal": false,
+   "reply_max_diff_rad": 0.07848999999999999
+  },
+  {
+   "request": 4,
+   "frames_equal": false,
+   "state_equal": false,
+   "reply_max_diff_rad": 0.08392
+  }
+ ],
+ "success": [
+  false,
+  false,
+  false
+ ]
+}

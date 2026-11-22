@@ -58,6 +58,7 @@
         <div class="prompt-tools">
           <label class="mini model-field">Model <input id="model"></label>
           <label class="mini">Duration (s) <input id="seconds" type="number" min="5" max="3600" step="5" value="60"></label>
+          <label class="mini" title="How each 48-step action chunk is executed (see dreamtool/inference.py)">Execution <select id="strategy"></select></label>
         </div>
         <div class="prompt-actions">
           <div class="prompt-buttons" role="group" aria-label="Run actions">

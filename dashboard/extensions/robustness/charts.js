@@ -174,8 +174,10 @@ export function factorScatter(summary, factor, { width = 220, height = 120 } = {
 }
 
 export function describeParams(row, summary) {
-  const defs = summary.perturbation ? [summary.perturbation] : summary.factors;
-  return defs.map((p) => `${p.label} ${strength(row.params[p.id], p)}`).join(" · ");
+  const defs = summary.perturbation ? [summary.perturbation] : summary.factors || [];
+  const params = defs.map((p) => `${p.label} ${strength(row.params[p.id], p)}`);
+  if (summary.mode === "compare") return [strategyLabel(summary, row.strategy), ...params].join(" · ");
+  return params.join(" · ");
 }
 
 // ---------------- heatmaps ----------------
@@ -440,4 +442,173 @@ export function downloadButtons(id) {
     link(`${base}/report.html`, "Report (one file)", "The whole report as one HTML file, without videos"),
     link(`${base}/report.html?videos=true`, "Report with videos", "One HTML file with every recorded trial video inside (large)"),
     link(`${base}/bundle.zip`, "ZIP + videos", "result.json, trials.csv and every trial video"));
+}
+
+// ---------------- strategy A/B ----------------
+
+export const strategyLabel = (summary, id) => ((summary.strategies || []).find((x) => x.id === id) || { label: id || "–" }).label;
+const num = (v, digits = 1) => (v === null || v === undefined ? "–" : (+v).toFixed(digits));
+export function change(v, { lowerIsBetter = true } = {}) {
+  if (v === null || v === undefined) return h("span", { class: "muted" }, "–");
+  const text = `${v > 0 ? "+" : v < 0 ? "−" : "±"}${Math.abs(Math.round(v * 100))}%`;
+  const good = lowerIsBetter ? v < -0.05 : v > 0.05, bad = lowerIsBetter ? v > 0.05 : v < -0.05;
+  return h("span", { class: good ? "good" : bad ? "bad" : "" }, text);
+}
+
+/**
+ * One row per strategy: success rate (dot + 95% Wilson interval) and progress score (square) on a shared 0–100% axis.
+ * The default strategy's rate is the dotted reference line.
+ */
+export function compareChart(summary, { width = 288 } = {}) {
+  const per = summary.analysis.per_strategy;
+  const labelW = width > 400 ? 170 : 96;
+  const m = { l: labelW, r: 14, t: 8, b: 26 }, rowH = 30;
+  const height = m.t + m.b + rowH * per.length;
+  const W = width - m.l - m.r;
+  const x = (v) => m.l + v * W;
+  const y = (i) => m.t + rowH * i + rowH / 2;
+  const root = svg("svg", { viewBox: `0 0 ${width} ${height}`, class: "rb-chart", role: "img",
+    "aria-label": "Success rate and progress per inference strategy" });
+  for (const t of [0, 0.5, 1]) {
+    root.append(svg("line", { x1: x(t), x2: x(t), y1: m.t, y2: height - m.b, class: "rb-grid" }),
+      svg("text", { x: x(t), y: height - 8, class: "rb-axis", "text-anchor": "middle" }, `${t * 100}%`));
+  }
+  const base = per[0];
+  if (base && base.rate !== null) root.append(svg("line", { x1: x(base.rate), x2: x(base.rate), y1: m.t, y2: height - m.b, class: "rb-base" }));
+  per.forEach((s, i) => {
+    const best = summary.analysis.verdict.best === s.id;
+    root.append(svg("text", { x: m.l - 8, y: y(i) + 4, class: `rb-cmp-label${best ? " rb-cmp-best" : ""}`, "text-anchor": "end" },
+      width > 400 ? s.label : s.id));
+    if (!s.n) return;
+    if (s.ci) root.append(svg("line", { x1: x(s.ci[0]), x2: x(s.ci[1]), y1: y(i), y2: y(i), class: "rb-ci" }),
+      svg("line", { x1: x(s.ci[0]), x2: x(s.ci[0]), y1: y(i) - 4, y2: y(i) + 4, class: "rb-ci" }),
+      svg("line", { x1: x(s.ci[1]), x2: x(s.ci[1]), y1: y(i) - 4, y2: y(i) + 4, class: "rb-ci" }));
+    if (s.progress !== null) root.append(svg("rect", { x: x(s.progress) - 4, y: y(i) - 4, width: 8, height: 8, class: "rb-progress-dot" },
+      svg("title", {}, `${s.label}: progress ${pct(s.progress)}`)));
+    root.append(svg("circle", { cx: x(s.rate), cy: y(i), r: 5, class: "rb-rate" },
+      svg("title", {}, `${s.label}: ${s.successes}/${s.n} successful (95% CI ${s.ci ? `${pct(s.ci[0])}–${pct(s.ci[1])}` : "–"})`)));
+  });
+  return root;
+}
+
+/** Jitter share of the measured joint motion per strategy (lower = smoother), change vs the default. */
+export function smoothnessChart(summary, { width = 288 } = {}) {
+  // Only the jitter share: absolute jerk mostly measures speed (older results have nothing else, so no chart).
+  const key = "joint_jitter";
+  const per = summary.analysis.per_strategy.filter((s) => s[key] != null);
+  if (!per.length) return null;
+  const labelW = width > 400 ? 170 : 96;
+  const m = { l: labelW, r: 64, t: 6, b: 6 }, rowH = 26, barH = 14;
+  const height = m.t + m.b + rowH * per.length;
+  const top = Math.max(...per.map((s) => s[key]));
+  const x = (v) => m.l + (v / top) * (width - m.l - m.r);
+  const base = summary.analysis.per_strategy[0];
+  const smoothest = summary.analysis.verdict.smoothest;
+  const root = svg("svg", { viewBox: `0 0 ${width} ${height}`, class: "rb-chart", role: "img",
+    "aria-label": "Jitter share of the measured joint motion per strategy, lower is smoother" });
+  per.forEach((s, i) => {
+    const y = m.t + rowH * i + (rowH - barH) / 2;
+    const rel = base && base[key] && s.id !== base.id ? (s[key] - base[key]) / base[key] : null;
+    root.append(
+      svg("text", { x: m.l - 8, y: y + barH - 3, class: `rb-cmp-label${smoothest === s.id ? " rb-cmp-best" : ""}`, "text-anchor": "end" },
+        width > 400 ? s.label : s.id),
+      svg("rect", { x: m.l, y, width: Math.max(2, x(s[key]) - m.l), height: barH, rx: 3,
+        class: `rb-jerk-bar${s.id === base.id ? " rb-jerk-base" : ""}` },
+        svg("title", {}, `${s.label}: ${key === "joint_jerk" ? `joint jerk ${s[key].toFixed(1)} rad/s³` : `jitter ${pct(s[key])} of the motion`}` +
+          (s.joint_speed != null ? ` · speed ${s.joint_speed.toFixed(3)} rad/s` : ""))),
+      svg("text", { x: x(s[key]) + 6, y: y + barH - 3, class: "rb-axis" },
+        `${key === "joint_jerk" ? s[key].toFixed(0) : pct(s[key])}${rel === null ? "" : ` (${rel > 0 ? "+" : "−"}${Math.abs(Math.round(rel * 100))}%)`}`));
+  });
+  return root;
+}
+
+export function compareLegend() {
+  return h("div", { class: "rb-chart-legend muted" },
+    h("span", {}, h("i", { class: "rb-key-rate" }), "success rate ± 95% CI"),
+    h("span", {}, h("i", { class: "rb-key-square" }), "progress score"),
+    h("span", {}, h("i", { class: "rb-key-base" }), "default strategy's rate"));
+}
+
+const HEAD_TIPS = {
+  Requests: "Dream-1 requests per trial (the API cost)",
+  Speed: "RMS speed of the measured arm joints, rad/s: is the arm slower under this strategy?",
+  "Seam / step": "Jump of the command when a new execution starts, divided by a normal step inside a chunk: 1× = invisible",
+  Jitter: "Share of the measured joint motion that is shaking (left over after a 0.45 s moving average) rather than going somewhere: 0% = smooth. A slower arm with the same shaking scores worse, not better",
+  "Joint jerk": "Absolute RMS jerk of the measured arm joints, rad/s³ (mostly follows speed: a slow arm looks smooth)",
+  Seams: "Seam / step relative to the default",
+  "Sim / wall s": "Simulated seconds per trial / wall-clock seconds (incl. waiting for Dream-1)",
+  "Only default": "Pairs where only the default strategy succeeded",
+  "Only this": "Pairs where only this strategy succeeded",
+  "p (McNemar)": "Exact paired test on the pairs that disagree; below 0.05 = significant",
+  "Δ progress": "Mean paired difference of the progress score, 95% bootstrap interval",
+};
+
+/** Per strategy: outcome and what the strategy does to the motion and the API bill. */
+export function strategyTable(summary, { detailed = false } = {}) {
+  const per = summary.analysis.per_strategy, labels = summary.outcome_labels;
+  const head = ["Strategy", "Success", "Progress", "Requests",
+    ...(detailed ? ["Speed", "Seam / step", "Jitter", "Joint jerk", "Sim / wall s"] : []), "Outcomes"];
+  return h("table", { class: "table rb-table" },
+    h("thead", {}, h("tr", {}, head.map((t) => h("th", { title: HEAD_TIPS[t] || null }, t)))),
+    h("tbody", {}, per.map((s, i) => h("tr", { class: summary.analysis.verdict.best === s.id ? "rb-row-best" : "" },
+      h("td", {}, detailed ? s.label : s.id, i === 0 ? h("span", { class: "muted" }, " default") : ""),
+      h("td", { class: "num" }, s.n ? `${s.successes}/${s.n}` : `– (${s.done})`),
+      h("td", { class: "num" }, pct(s.progress)),
+      h("td", { class: "num" }, num(s.requests)),
+      ...(detailed ? [
+        h("td", { class: "num" }, num(s.joint_speed, 3)),
+        h("td", { class: "num" }, s.seam_ratio === null ? "–" : `${num(s.seam_ratio)}×`),
+        h("td", { class: "num" }, pct(s.joint_jitter)),
+        h("td", { class: "num muted" }, num(s.joint_jerk)),
+        h("td", { class: "num" }, `${num(s.sim_seconds, 0)} / ${num(s.wall_seconds, 0)}`),
+      ] : []),
+      h("td", { style: { width: detailed ? "18%" : "34%" } }, outcomeBar(s.outcomes, labels)),
+    ))));
+}
+
+/** Every strategy against the default, pair by pair. */
+export function pairTable(summary) {
+  const pairs = summary.analysis.pairs;
+  const head = ["Versus default", "Pairs", "Only default", "Only this", "p (McNemar)", "Δ progress", "Speed", "Seams", "Jitter", "Requests"];
+  const signed = (v) => `${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(2)}`;
+  return h("table", { class: "table rb-table" },
+    h("thead", {}, h("tr", {}, head.map((t) => h("th", { title: HEAD_TIPS[t] || null }, t)))),
+    h("tbody", {}, pairs.map((p) => h("tr", {},
+      h("td", {}, p.label),
+      h("td", { class: "num" }, p.n),
+      h("td", { class: "num" }, p.only_baseline),
+      h("td", { class: "num" }, p.only_this),
+      h("td", { class: `num ${p.p_value !== null && p.p_value < 0.05 ? "good" : ""}` }, p.p_value === null ? "–" : p.p_value.toFixed(2)),
+      h("td", { class: "num" }, p.progress_diff === null ? "–" : signed(p.progress_diff),
+        p.progress_ci ? h("span", { class: "muted" }, ` [${signed(p.progress_ci[0])}, ${signed(p.progress_ci[1])}]`) : ""),
+      h("td", { class: "num" }, change(p.speed_change, { lowerIsBetter: false })),
+      h("td", { class: "num" }, change(p.seam_change)),
+      h("td", { class: "num" }, change(p.jitter_change ?? null)),
+      h("td", { class: "num" }, p.requests_factor === null ? "–" : `${p.requests_factor}×`),
+    ))));
+}
+
+/** Rows = pair (trial number), columns = strategy; colour = outcome. Click a cell for its video. */
+export function pairGrid(summary, { onTrial } = {}) {
+  const labels = summary.outcome_labels, strategies = summary.strategies;
+  const trials = [...new Set(summary.rows.map((r) => r.trial))].sort((a, b) => a - b);
+  const grid = h("div", { class: "rb-heat rb-heat-small", style: { gridTemplateColumns: `60px repeat(${strategies.length}, minmax(56px, 1fr))` } });
+  grid.append(h("div", { class: "rb-heat-head" }, "Pair"),
+    ...strategies.map((s) => h("div", { class: "rb-heat-head num", title: s.description }, s.id)));
+  for (const t of trials) {
+    grid.append(h("div", { class: "rb-heat-label" }, `#${t}`));
+    for (const st of strategies) {
+      const r = summary.rows.find((x) => x.trial === t && x.strategy === st.id);
+      if (!r) { grid.append(h("div", { class: "rb-cell rb-cell-empty" })); continue; }
+      const cell = h("button", { class: "rb-cell", style: { background: OUTCOME_COLORS[r.outcome] },
+        "aria-label": `pair ${t}, ${st.label}: ${labels[r.outcome]}` }, r.success ? "✓" : "");
+      tooltip(cell, () => h("div", {}, h("b", {}, `Pair ${t} · ${st.label}`), h("div", {}, labels[r.outcome]),
+        h("div", {}, `progress ${pct(r.progress)} · ${r.requests ?? "–"} requests`),
+        r.commands && r.commands.seam_ratio != null ? h("div", {}, `seams ${r.commands.seam_ratio}× a normal step`) : null,
+        onTrial ? h("div", { class: "muted" }, "click: jump to the video") : null));
+      if (onTrial) cell.onclick = () => onTrial(r);
+      grid.append(cell);
+    }
+  }
+  return grid;
 }

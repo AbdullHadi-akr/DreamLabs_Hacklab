@@ -1,0 +1,31 @@
+/* Model X-Ray panel (prefix xr-). */
+.xr-intro { margin: 0 0 8px; }
+.xr-live { min-height: 1.3em; margin: 0 0 6px; }
+.xr-moments { display: flex; flex-direction: column; max-height: 168px; overflow-y: auto; margin-bottom: 6px; }
+.xr-moment { display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; gap: 6px; align-items: center;
+  font-size: 12px; padding: 4px 0; border-bottom: 1px solid var(--line-soft); }
+.xr-moment .num { font-family: var(--font-mono); color: var(--ink-3); }
+.xr-moment-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.xr-list { width: 100%; margin: 8px 0; }
+.xr-snap { margin-bottom: 10px; font-size: 12px; }
+.xr-thumbs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; margin-bottom: 4px; }
+.xr-thumbs figure { margin: 0; }
+.xr-thumbs img { width: 100%; display: block; border-radius: 6px; }
+.xr-thumbs figcaption { font-size: 10px; color: var(--ink-3); }
+.xr-del { margin-top: 6px; }
+.xr-section { border-top: 1px solid var(--line-soft); padding-top: 8px; margin-top: 10px; }
+.xr-section h4 { margin: 0 0 2px; }
+.xr-section .row { align-items: flex-end; }
+.xr-section .field input { width: 80px; }
+.xr-verdict { margin: 8px 0; padding: 8px 10px; border-radius: var(--radius-sm, 8px); background: var(--grey-1);
+  border: 1px solid var(--line); font-size: 13px; }
+.xr-heat-fig { margin: 6px 0; }
+.xr-heat { width: 100%; height: auto; display: block; border-radius: 6px; }
+.xr-heat-fig figcaption { font-size: 11px; color: var(--ink-2); margin-top: 2px; }
+.xr-bars { display: flex; flex-direction: column; gap: 4px; margin: 4px 0; }
+.xr-bar { display: grid; grid-template-columns: 76px minmax(0, 1fr) 54px; gap: 6px; align-items: center; font-size: 12px; }
+.xr-bar .num { text-align: right; font-family: var(--font-mono); }
+.xr-bar-track { position: relative; height: 10px; background: var(--grey-2); border-radius: 999px; }
+.xr-bar-track i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--creamsicle-deep); border-radius: 999px; }
+.xr-bar-track u { position: absolute; top: -3px; bottom: -3px; width: 0; border-left: 2px dotted var(--ink-2); }
+.xr-table td, .xr-table th { font-size: 12px; }

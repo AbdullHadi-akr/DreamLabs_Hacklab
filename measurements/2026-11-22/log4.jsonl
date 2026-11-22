@@ -1,0 +1,5 @@
+{"plan": 0, "started": "20261122-021455-prompt_paraphrase", "body": {"task": "put the apple into the bowl", "mode": "sweep", "perturbation": "prompt_paraphrase", "values": [0, 1, 2, 3, 4], "trials": 3, "seconds": 40, "dry_run": false, "record": false, "seed": 61, "strategy": "chunk"}, "at": "02:14:55"}
+{"plan": 0, "id": "20261122-021455-prompt_paraphrase", "state": "done", "done": 15, "verdict": "All 4 variants hold up against the original. (Baseline never succeeds, so this uses the progress score.)", "per": [], "pairs": null, "at": "02:26:26"}
+{"plan": 1, "started": "20261122-022626-prompt_paraphrase", "body": {"task": "put the apple into the bowl", "mode": "sweep", "perturbation": "prompt_paraphrase", "values": [0, 1, 2, 3, 4], "trials": 3, "seconds": 40, "dry_run": false, "record": false, "seed": 61, "strategy": "receding-24"}, "at": "02:26:26"}
+{"plan": 1, "id": "20261122-022626-prompt_paraphrase", "state": "done", "done": 15, "verdict": "Fails on variants 1, 2, 3, 4", "per": [], "pairs": null, "at": "02:40:12"}
+{"finished": true, "at": "02:40:12"}

@@ -28,6 +28,9 @@ Hacklab/
     ├── dreamtool/
     │   ├── sim.py        locates the simulator, re-exports YamEnv + request helpers
     │   ├── runner.py     Dream-1 ↔ sim control loop, with hooks for your tool
+    │   ├── inference.py  inference strategies: how Dream-1's action chunks are executed (chunk/receding/ensemble/crossfade)
+    │   ├── camcheck.py   camera check: sent frames vs. rendered truth, fault injection, does the model use them
+    │   ├── xray.py       Model X-Ray: planned gripper paths, RISE heatmaps, language probe on a frozen moment
     │   ├── scene.py      object positions + simple success detection ("apple in bowl")
     │   └── recorder.py   MP4 recording of the 3 cameras (for the demo)
     ├── run.py            CLI: run a task, optionally record it
@@ -96,7 +99,8 @@ Placement outcomes use simulated contact, release, and stability evidence. Repor
 
 ### Robustness test
 
-**Test Suite → Robustness** (three tiles in the Test Builder: Robustness Sweep, Breaking Point, Perturbation Mix):
+**Test Suite → Robustness** (four tiles in the Test Builder: Robustness Sweep, Breaking Point, Perturbation Mix,
+Strategy A/B):
 change the world on purpose and see how and when Dream-1 fails. The full report appears in the Test Report area.
 
 - **Sweep:** one perturbation at increasing strength (e.g. move the apple 0/2/4/6/8 cm) → success rate with a 95 %
@@ -110,6 +114,12 @@ change the world on purpose and see how and when Dream-1 fails. The full report 
   trials when nothing breaks.
 - **Random mix:** every trial draws random strengths for several perturbations → which factor hurts most
   (rank correlation with the progress score).
+- **Strategy A/B:** the same trials under different inference strategies (see below), optionally under one fixed
+  perturbation. Paired design (pair *i* = same seed for every strategy) → McNemar's exact test on the pairs that
+  disagree, a bootstrap interval for the progress difference, and motion/cost per strategy (speed, seam jump relative
+  to a normal step, jitter share of the measured joint motion, requests per trial).
+- **Budget in simulated time:** `seconds` limits simulated motion (20 steps/s); waiting for Dream-1 does not count, so
+  a strategy that asks more often is not punished by network latency.
 - **15 perturbations** in five groups: scene layout (target/container/other objects moved, target rotated), vision
   (camera shifted/tilted, dimmer light, table/target recolored, sensor noise), physics (heavier target, slippery
   gripper pads), language (typos, rewordings) and during the run (target moved the moment the gripper arrives).
@@ -132,6 +142,87 @@ change the world on purpose and see how and when Dream-1 fails. The full report 
   (random mix).
 - **Dry run** (default) replays a scripted pick-and-place planned once on the unperturbed scene: no credits, and a
   reference for a policy that does not look (it breaks at ~2 cm and ignores all visual changes).
+
+### Camera check (do the images reach Dream-1 correctly?)
+
+Tab **Cameras**. Dream Labs' own tools show the frames to a person who types "yes" (`python -m dream.check`,
+`dream.DebugView`); the only automatic check there is the frame rate. Here every frame Dream-1 was **actually sent**
+(`DreamClient.on_round_trip`: the request as it left) is compared with the truth: the simulation renders every camera on
+its own at every step. Each sent frame is matched (normalised correlation, 80 × 44 pixels) against every camera, the last
+6 s of steps and every orientation. Per camera that gives:
+
+- the right camera on the right key (a swapped or duplicated key shows up as the wrong camera / the same picture twice),
+- upright and in natural colours (upside down, mirrored, red and blue swapped),
+- current: lag behind the robot (> 250 ms is reported; frames are taken every 200 ms), frozen frames, order, frame rate,
+- a real picture: blank or blown out, or one that matches no camera (cropped, zoomed, another source).
+
+**Self-test:** a clean Dream-1 run plus one per fault injected on purpose between cameras and model (swapped wrists,
+duplicate key, upside down, BGR, frozen, 0.6 s delay, black, zoomed). First real run: **8 of 8 caught, clean run clean**.
+**Does Dream-1 use them?** freezes the scene and asks Dream-1 with each camera blanked and with the wrists swapped
+(7 calls): which cameras the plan reacts to, against Dream-1's own noise.
+
+Only a person may record Dream Labs' input check (`python -m dream.input_check`, "never an agent"); this check gives that
+person the evidence. On a real robot the comparison with the truth is not available; the generic checks (key count,
+size, blank, duplicates, frozen) still are.
+
+### Model X-Ray (why Dream-1 does what it does)
+
+Tab **X-Ray**. The robustness test shows *when* the model fails; the X-Ray shows *why*. It freezes one moment (the
+camera windows Dream-1 sees, the joint state, the MuJoCo state) and asks Dream-1 about that same moment again, each time
+with one thing changed. The simulation does not move meanwhile; what is measured is how the planned motion changes.
+
+- **Live intent:** every reply of a Dream-1 run becomes gripper paths (forward kinematics of the 48 joint targets on a
+  scratch copy of the MuJoCo state), drawn into the 3D view: orange = planned path of the acting arm, red dot = where
+  the gripper closes, yellow = the object it heads for. Every moment of the run can be frozen afterwards.
+- **1 · Intent** (3 calls): the plan for the frozen moment, asked three times. The spread between identical questions
+  is the **noise floor** every other number is read against (Dream-1 is not necessarily deterministic).
+- **2 · Where it looks** (masks + 6 calls): first **camera reliance**, the change when one camera is blanked
+  completely. If no camera moves the plan by more than max(3 × noise, 1 cm), the masks are skipped (the heatmap would
+  only show noise). Otherwise **RISE** on the camera whose blanking matters most, the other two left as they are: random
+  smooth masks grey out a quarter of its window; per cell, importance = mean path change when it was hidden − when it
+  was visible (cm). A permutation test gives the **chance level**; only cells above it are coloured. (Masking all
+  three cameras at once, `camera="all"`, gave no signal on real Dream-1 even with 200 masks.)
+- **3 · Does it follow the words?** (6 × repeats calls): same images, the original prompt and then only the object
+  word swapped (apple, banana, orange, bottle, the made-up "blicket"). Per word: how much nearer the gripper paths get
+  to the named object than with the original prompt; it "follows" when that is more than max(3 × noise, 1 cm) and more
+  than towards any other object. This needs no grasp or clear approach in the plan, so it answers at any moment.
+
+Results live in `out/extensions/xray/<moment>/`. `DREAM_XRAY_FAKE=1` swaps Dream-1 for a scripted stand-in
+(`dreamtool/xray_fake.py`) to try the tool without credits; the panel then says so.
+
+### Latency in the simulator (found in the night measurements, 22.11.)
+
+The Dream client smooths every new chunk onto the old one (`dream.smoothing`, always on). It assumes the robot kept
+moving while the request was in flight and replaces the first `round(round trip × action_hz)` rows of every new chunk
+with the rest of the old plan (about 11 rows at 0.55 s). The simulator pauses physics during every request, so that is
+an artificial reaction delay, and a random one because the round trip varies: with an identical scene and a
+deterministic Dream-1, "repeated" trials still came out differently, and re-planning every 8 rows never executed a
+single row of a new plan. The runner now tells the client that no rows run during a request (`latency="paused"`,
+`action_hz` ≈ 0, so the hand-over starts at row 0). `latency="client"` restores the old behaviour for comparison;
+results recorded before the fix are marked "client latency" in the run list. Details: `NIGHTLY_REPORT.md`.
+
+### Inference strategies (better behaviour without fine-tuning)
+
+Dream-1 returns 48 joint targets per arm (2.4 s) per request. How much of that is executed before asking again, and how
+consecutive plans are combined, is our choice (`dreamtool/inference.py`):
+
+| Strategy | What it does | Trade-off |
+| --- | --- | --- |
+| `chunk` | execute all 48 rows, then ask again | open loop for 2.4 s; visible jump at every seam |
+| `receding-N` | execute the first N rows, discard the rest, ask again | reacts faster to what the cameras see, but every new plan may start elsewhere |
+| `ensemble-N` | ask every N steps, average the arm joints of all plans covering a step (weight `exp(-0.05·steps ahead)`, as in ACT) | averages out plan-to-plan noise, follows a new plan with lag and can slow the arm down |
+| `crossfade-N` | ask every N steps, fade the arm joints linearly from the old plan to the new one over N rows | no seam jumps and fully on the new plan after N steps |
+
+The dashboard runs **`crossfade-30`** unless told otherwise (`inference.DEFAULT`); the library's `run_task()` keeps `chunk`, the model's plain output. Measured on 22.11.2026 with real Dream-1 on the same scenes (all campaigns pooled, [NIGHTLY_REPORT.md](NIGHTLY_REPORT.md)): crossfade-30 succeeded in 9 pairs where the full chunk failed and never the other way round (32 pairs, McNemar p = 0.004, progress +0.36 [+0.24, +0.48]); receding-24 +0.30 [+0.19, +0.40] over 62 pairs. The full chunk mostly fails before the grasp (38 of 52 apple trials). Horizons of 8 and 16 rows and the ensemble were no better or worse than the chunk and are no longer in the menu (any `<kind>-<rows>` still works).
+
+Blends never touch the gripper: it always follows the newest plan. (A first Dream-1 comparison averaged the gripper
+too; `ensemble-16` then lifted the apple and lost it on the way in 3 of 4 trials.)
+
+All of them cost about 48/N times the requests. Pick one in the dashboard's prompt bar (**Execution**), per robustness
+campaign, with `python run.py "..." --strategy ensemble-16`, or compare them with **Strategy A/B**. Every run reports
+`commands` (seam jump relative to a normal step, speed, jerk, jitter) next to the result. Smoothness is judged by the
+**jitter share** (the part of the joint motion left over after a 0.45 s moving average), not by absolute jerk: absolute
+jerk mostly measures speed, so a strategy that just slows the arm down would look smooth.
 
 Deliberately left out: latency (the sim pauses physics while waiting for Dream-1, so delays change nothing) and
 joint-encoder noise (real encoders are precise; the noise would also leak into the hold commands).

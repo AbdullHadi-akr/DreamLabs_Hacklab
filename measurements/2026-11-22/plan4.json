@@ -1,0 +1,38 @@
+[
+ {
+  "task": "put the apple into the bowl",
+  "mode": "sweep",
+  "perturbation": "prompt_paraphrase",
+  "values": [
+   0,
+   1,
+   2,
+   3,
+   4
+  ],
+  "trials": 3,
+  "seconds": 40,
+  "dry_run": false,
+  "record": false,
+  "seed": 61,
+  "strategy": "chunk"
+ },
+ {
+  "task": "put the apple into the bowl",
+  "mode": "sweep",
+  "perturbation": "prompt_paraphrase",
+  "values": [
+   0,
+   1,
+   2,
+   3,
+   4
+  ],
+  "trials": 3,
+  "seconds": 40,
+  "dry_run": false,
+  "record": false,
+  "seed": 61,
+  "strategy": "receding-24"
+ }
+]

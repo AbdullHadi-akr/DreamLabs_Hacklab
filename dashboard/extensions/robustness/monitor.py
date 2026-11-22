@@ -22,9 +22,11 @@ import mujoco
 import numpy as np
 
 from dreamtool import scene
+from dreamtool.inference import Smoothness
 from dreamtool.runner import Hooks
 
 REACH_M = 0.04
+DROP_OPENED = 0.15  # the holding gripper opened by more than this (of 0..1) before the drop: released
 LIFT_M = 0.03
 PUSHED_M = 0.04
 OFF_TABLE_Z = 0.70
@@ -89,6 +91,11 @@ class TrialMonitor(Hooks):
         self.recording_seconds = 0.0
         self.simulation_seconds = 0.0
         self.warnings0 = 0
+        self.motion = Smoothness()  # measured arm joints
+        # drop analysis: was a lifted target let go by the gripper (released) or did it slip out of a closed one?
+        self.holding_side = None
+        self.openings: list[float] = []  # recent openings of the holding gripper (0 closed .. 1 open)
+        self.drops: list[dict] = []
         self.metrics: dict = {}
 
     def on_start(self, env, task, model):
@@ -126,6 +133,9 @@ class TrialMonitor(Hooks):
             self.others_moved = max(self.others_moved, float(np.linalg.norm(q[:2] - q0[:2])))
         if p[2] < OFF_TABLE_Z:
             self.off_table = True
+        state = env.state()
+        self.motion.add(np.r_[state["left"][:6], state["right"][:6]])
+        self._watch_drop(env, p, lift, tcp, state)
         if self.success_at is None and scene.is_in(env, self.obj, self.container):
             self.success_at = float(env.data.time) - self.t0
         if self.recorder is not None:
@@ -136,6 +146,33 @@ class TrialMonitor(Hooks):
                 self.recorder = None
             finally:
                 self.recording_seconds += perf_counter() - started
+
+    def _watch_drop(self, env, p, lift, tcp, state):
+        if lift > LIFT_M:
+            near = int(np.argmin([np.linalg.norm(t - p) for t in tcp]))
+            side = ("left", "right")[near]
+            if np.linalg.norm(tcp[near] - p) < 0.08:
+                if side != self.holding_side:
+                    self.openings = []
+                self.holding_side = side
+            if self.holding_side:
+                self.openings = (self.openings + [float(state[self.holding_side][6])])[-12:]
+            return
+        if self.holding_side is None or lift > LIFT_M / 2:
+            return
+        # it was held up and is now back down: dropped, unless it landed where it should
+        if not scene.is_in(env, self.obj, self.container) and len(self.drops) < 5:
+            held = min(self.openings) if self.openings else None
+            now = float(state[self.holding_side][6])
+            c = scene.position(env, self.container)
+            self.drops.append({
+                "t_s": round(float(env.data.time) - self.t0, 2), "side": self.holding_side,
+                "opening_held": None if held is None else round(held, 3), "opening_at_drop": round(now, 3),
+                "cause": "released" if held is not None and now - held > DROP_OPENED else "slipped",
+                "to_container_cm": round(float(np.linalg.norm(p[:2] - c[:2])) * 100, 1),
+            })
+        self.holding_side = None
+        self.openings = []
 
     def should_stop(self, env):
         # A fallen target cannot be recovered: end the trial instead of paying for the rest of it.
@@ -164,7 +201,7 @@ class TrialMonitor(Hooks):
             outcome = "invalid"
         elif success:
             outcome = "success"
-        elif reason == "stopped" or reason.startswith("error") or not self.started:
+        elif reason in ("stopped", "wall_timeout") or reason.startswith("error") or not self.started:
             outcome = "aborted"
         elif self.off_table:
             outcome = "off_table"
@@ -181,6 +218,7 @@ class TrialMonitor(Hooks):
             success = False
         progress = None if unstable else 1.0 if success else 0.75 if (lifted and carried) else 0.5 if lifted else 0.25 if reached else 0.0
         finite = lambda v: None if not np.isfinite(v) else round(float(v) * 100, 1)  # noqa: E731
+        motion = self.motion.summary()
         self.metrics = {
             "outcome": outcome,
             "progress": progress,
@@ -191,6 +229,15 @@ class TrialMonitor(Hooks):
             "final_to_container_cm": round(float(np.linalg.norm(p[:2] - c[:2])) * 100, 1),
             "others_moved_cm": round(self.others_moved * 100, 1),
             "time_to_success_s": None if self.success_at is None else round(self.success_at, 1),
+            # measured arm joints: RMS speed (rad/s), RMS jerk (rad/s^3) and the share of the motion that is jitter
+            # (inference.Smoothness): how fast and how smoothly the arms actually moved
+            "joint_speed": motion["speed"],
+            "joint_jerk": motion["jerk"],
+            "joint_jitter": motion["jitter"],
+            # drops of the lifted target that did not end in the container: "released" (the gripper opened by more
+            # than 15 % of its range) or "slipped" (it stayed closed)
+            "drops": len(self.drops),
+            "drop": self.drops[0] if self.drops else None,
         }
         if unstable:
             self.metrics["note"] = "physics became unstable (simulator issue, not counted)"

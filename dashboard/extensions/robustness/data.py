@@ -19,10 +19,13 @@ from .monitor import OUTCOMES
 from .perturbations import GROUPS, REGISTRY
 
 METRICS = ("min_reach_cm", "max_lift_cm", "target_moved_cm", "final_to_container_cm", "others_moved_cm",
-           "time_to_success_s")
-BASE_FIELDS = ("campaign", "started", "mode", "task", "policy", "perturbation", "strength", "trial_index", "trial",
+           "time_to_success_s", "joint_speed", "joint_jerk", "joint_jitter")
+COMMAND_METRICS = ("seam_jump_rad", "seam_ratio", "command_speed", "command_jerk", "command_jitter")
+BASE_FIELDS = ("campaign", "started", "mode", "task", "policy", "strategy", "perturbation", "strength", "trial_index",
+               "trial",
                "prompt", "outcome", "outcome_label", "counted", "success", "progress")
-TAIL_FIELDS = ("stop_reason", "seconds", "calls", "cost_usd", "steps", "mean_rtt_s", "redraws", "note", "applied", "video")
+TAIL_FIELDS = ("stop_reason", "seconds", "calls", "cost_usd", "steps", "requests", "mean_rtt_s", "redraws", "note",
+               "applied", "video")
 SCORED = lambda r: r.get("outcome") not in ("invalid", "aborted", None)  # noqa: E731
 
 ## Columns of the robustness map: strength as a share of the perturbation's maximum.
@@ -40,7 +43,20 @@ def load_all(data_dir: Path) -> list[dict]:
 
 
 def policy_key(result: dict) -> str:
-    return "dry run" if result["config"]["dry_run"] else result["config"]["model"]
+    """Model (or dry run), plus the inference strategy when it is not the default. A strategy comparison varies the
+    strategy inside the campaign, so it is keyed by the model alone."""
+    base = "dry run" if result["config"]["dry_run"] else result["config"]["model"]
+    strategy = result["config"].get("strategy", "chunk")
+    key = base if result["mode"] == "compare" or strategy == "chunk" else f"{base} · {strategy}"
+    # runs before the latency fix (no "latency" in the config) used the client's async compensation
+    return key if result["config"].get("latency", "client") == "paused" or result["config"]["dry_run"] else f"{key} · client latency"
+
+
+def label(result: dict) -> str:
+    if result["mode"] == "compare":
+        p = result.get("perturbation")
+        return "Strategy A/B" + (f" · {p['label']}" if p else "")
+    return (result.get("perturbation") or {}).get("label") or "Random mix"
 
 
 def run_info(result: dict, folder: Path) -> dict:
@@ -52,7 +68,7 @@ def run_info(result: dict, folder: Path) -> dict:
     return {
         "id": result["id"], "mode": result["mode"], "state": result["state"], "started": result.get("started"),
         "task": result["config"]["task"], "policy": policy_key(result), "dry_run": result["config"]["dry_run"],
-        "label": (result.get("perturbation") or {}).get("label") or "Random mix",
+        "label": label(result),
         "perturbation": (result.get("perturbation") or {}).get("id"),
         "factors": [f["label"] for f in result.get("factors", [])],
         "done": result["done"], "total": result["total"], "scored": len(scored), "successes": k,
@@ -78,6 +94,7 @@ def trial_records(result: dict) -> list[dict]:
             "campaign": result["id"],
             "started": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(started)) if started else "",
             "mode": result["mode"], "task": result["config"]["task"], "policy": policy_key(result),
+            "strategy": r.get("strategy") or result["config"].get("strategy", "chunk"),
             "perturbation": (result.get("perturbation") or {}).get("id", ""),
             "strength": r.get("value", ""),
             "trial_index": r["index"], "trial": r["trial"], "prompt": r.get("prompt", ""),
@@ -89,8 +106,11 @@ def trial_records(result: dict) -> list[dict]:
         metrics = r.get("metrics") or {}
         for name in METRICS:
             rec[name] = metrics.get(name)
+        commands = r.get("commands") or {}
+        for name in COMMAND_METRICS:
+            rec[name] = commands.get(name)
         rec.update(stop_reason=r.get("stop_reason", ""), seconds=r.get("seconds"), calls=r.get("calls"),
-                   cost_usd=r.get("cost_usd"), steps=r.get("steps"),
+                   cost_usd=r.get("cost_usd"), steps=r.get("steps"), requests=r.get("requests"),
                    mean_rtt_s=r.get("mean_rtt_s"), redraws=r.get("redraws"), note=r.get("note", ""),
                    applied=json.dumps(r.get("info") or {}, ensure_ascii=False), video=r.get("video") or "")
         out.append(rec)
@@ -102,7 +122,7 @@ def to_csv(records: list[dict], excel: bool = False) -> str:
     if not records:
         return ""
     params = [f"p_{pid}" for pid in REGISTRY if any(f"p_{pid}" in rec for rec in records)]
-    fields = [*BASE_FIELDS, *params, *METRICS, *TAIL_FIELDS]
+    fields = [*BASE_FIELDS, *params, *METRICS, *COMMAND_METRICS, *TAIL_FIELDS]
 
     def fmt(value):
         if value is None:

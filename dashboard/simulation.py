@@ -106,6 +106,9 @@ class RunRequest:
     capture_each_step: bool = True
     prompt: str | None = None  # text sent to Dream-1 instead of `task` (the success check still uses `task`)
     realtime: bool = True  # offline: play targets at 20 Hz wall clock; False = as fast as possible
+    strategy: str = "chunk"  # how action chunks are executed (dreamtool/inference.py)
+    max_steps: int | None = None  # budget in simulated control steps (20 per second), besides the wall-clock `seconds`
+    latency: str = "paused"  # see dreamtool.runner.LATENCY_MODES
     source: str = "core"  # who started the run (core or an extension id)
     label: str = ""
     id: int = 0
@@ -326,7 +329,7 @@ class SimWorker(threading.Thread):
         self.run_stats = {"steps": 0, "requests": 0, "last_rtt_s": None, "rtts_s": [], "started": time.time()}
         info = {"id": request.id, "task": request.task, "model": "offline" if request.offline else request.model,
                 "offline": request.offline, "source": request.source, "label": request.label,
-                "prompt": request.prompt or request.task}
+                "prompt": request.prompt or request.task, "strategy": None if request.offline else request.strategy}
         self.bus.emit("run.started", info)
         run_id = None
         try:
@@ -379,7 +382,8 @@ class SimWorker(threading.Thread):
                 result = runner.run_task(
                     request.task, model=request.model, seconds=request.seconds, env=env, hooks=hooks,
                     viewer=False, verbose=False, stop_on_success=request.stop_on_success, prompt=request.prompt,
-                    max_requests=request.max_requests,
+                    max_requests=request.max_requests, strategy=request.strategy, max_steps=request.max_steps,
+                    latency=request.latency,
                     capture_each_step=request.capture_each_step,
                 )
         except Exception as error:
@@ -504,3 +508,8 @@ class _SafeHook(Hooks):
     def on_wait(self, *a): self._call("on_wait", *a)  # noqa: E704
     def should_stop(self, *a): return self._call("should_stop", *a)  # noqa: E704
     def on_end(self, *a): self._call("on_end", *a)  # noqa: E704
+    def on_round_trip(self, *a): self._call("on_round_trip", *a)  # noqa: E704
+
+    def wrap_policy(self, policy):
+        wrapped = self._call("wrap_policy", policy)
+        return policy if wrapped is None else wrapped
