@@ -249,6 +249,10 @@ code { font-family: var(--font-mono); font-size: .9em; background: var(--grey-2)
 .link:hover { color: var(--ink); }
 
 /* ---------- Cameras ---------- */
+/* The stage holds the main view and the camera row under it. Its width is limited by the window height, so the
+   main view (16:9) plus the camera row (a third of the width each, 16:9, plus a label) fit without scrolling.
+   190px is the room above (top bar, section title) and below (labels, gaps, padding). 480px is the smallest width. */
+.stage { display: grid; gap: 10px; width: 100%; max-width: min(100%, max(480px, calc((100dvh - 190px) * 4 / 3))); margin-inline: auto; }
 .cams { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .cam { padding: 0; min-width: 0; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--white); cursor: pointer; }
 .cam-inner { position: relative; display: block; border-radius: inherit; overflow: hidden; background: var(--grey-3); }

@@ -67,6 +67,8 @@
             </span>
           </div>
 
+          <!-- The main view and the three robot cameras under it; sized so all four fit on the screen without scrolling. -->
+          <div class="stage" id="stage">
           <div class="frame" id="viewer-frame">
             <div class="viewer" id="viewer">
               <img id="main-view" alt="Simulation" draggable="false">
@@ -81,6 +83,8 @@
                 <p id="caption-task">Waiting for the next prompt…</p>
               </div>
             </div>
+          </div>
+          <div class="cams" id="cams" aria-label="Robot cameras: what Dream-1 sees"></div>
           </div>
 
           <form class="prompt card" id="taskbar">
@@ -111,9 +115,6 @@
               </div>
             </div>
           </form>
-
-          <div class="section-head"><h2 class="pixel">Robot cameras</h2><span class="muted">What Dream-1 sees</span></div>
-          <div class="cams" id="cams"></div>
         </div>
       </details>
     </section>
