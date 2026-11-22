@@ -15,13 +15,14 @@ const test = `
     if (box.y > 0) assert(!onImage(toImage(box, x + rect.left, rect.top)));
     if (box.x > 0) assert(!onImage(toImage(box, rect.left, y + rect.top)));
   }
-  const img = { alt: "Simulation", after() {}, removeAttribute() {} };
+  const img = { alt: "Simulation", after() {}, removeAttribute() { delete this.src; } };
   const canvas = {setAttribute() {}, getBoundingClientRect: () => ({width: 360, height: 720}),
     getContext: () => ({drawImage(bitmap) { seen.push(["paint", bitmap.id]); }})};
   document.createElement = () => canvas;
   const viewer = {querySelector: () => img};
   const view = overlayViewer(viewer);
   const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+  viewport.intersect([{isIntersecting: true}]);
   view.onFrame("teleop", (state) => seen.push(["overlay", state.id, view.frame("teleop")]));
   view.onFrame("objects", (state) => seen.push(["overlay", state.id, view.frame("objects")]));
   view.activate("teleop", true);
@@ -35,13 +36,17 @@ const test = `
   assert.equal(JSON.stringify(seen), JSON.stringify([["paint", 8], ["overlay", 8, 8]]));
   assert.equal(view.frame("teleop"), null);
   view.activate("objects", false);
-  assert.equal(img.src, "/stream/main.mjpg");
+  assert(img.src.startsWith("/stream/main.mjpg"));
+  viewport.intersect([{isIntersecting: false}]);
+  assert.equal(img.src, undefined);
 })();`;
 
 const seen = [], decode = [];
+const viewport = {};
 let responses = 0;
 await new Script(source.replaceAll(/^export /gm, "") + test).runInNewContext({
-  assert, seen, decode, document: {}, AbortController, setTimeout,
+  assert, seen, decode, viewport, document: {addEventListener() {}}, AbortController, setTimeout,
+  IntersectionObserver: class { constructor(callback) { viewport.intersect = callback; } observe() {} },
   ResizeObserver: class { observe() {} },
   createImageBitmap: () => new Promise((resolve) => decode.push(resolve)),
   fetch: () => {

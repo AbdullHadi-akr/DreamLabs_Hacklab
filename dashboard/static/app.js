@@ -4,6 +4,7 @@ import { EventHub, createExtensionApi, h, request } from "./lib/api.js";
 import { episodesPanel, setupEpisodes } from "./episodes.js";
 import { creditsPanel, gateRun, setupCredits } from "./credits.js";
 import { playersPanel } from "./players.js";
+import { overlayViewer, previewImage } from "./lib/viewer-overlay.js";
 
 const $ = (id) => document.getElementById(id);
 const core = {
@@ -51,15 +52,7 @@ async function action(promise, okMessage) {
 
 function setupViewer(camera) {
   const viewer = $("viewer");
-  const img = $("main-view");
-  img.src = "/stream/main.mjpg";
-  img.onerror = () => {
-    if (!img.hasAttribute("src")) return;
-    const failed = img.src;
-    setTimeout(() => {
-      if (img.src === failed) img.src = `${failed.split("?")[0]}?r=${Date.now()}`;
-    }, 1500);
-  };
+  overlayViewer(viewer);
 
   let cam = { ...camera };
   let drag = null;
@@ -111,18 +104,33 @@ function setupCameras(names) {
   const labels = { top: "Overhead", left: "Left wrist", right: "Right wrist" };
   const dialog = $("camera-dialog");
   const enlarged = $("camera-large");
-  dialog.addEventListener("close", () => enlarged.removeAttribute("src"));
+  const previews = [];
+  let largeSource = null;
+  const updateLarge = () => {
+    if (dialog.open && !document.hidden && largeSource) {
+      if (enlarged.getAttribute("src") !== largeSource) enlarged.src = largeSource;
+    } else enlarged.removeAttribute("src");
+  };
+  enlarged.onerror = () => setTimeout(() => {
+    enlarged.removeAttribute("src");
+    updateLarge();
+  }, 1500);
+  document.addEventListener("visibilitychange", updateLarge);
+  dialog.addEventListener("close", () => { updateLarge(); previews.forEach((sync) => sync()); });
   for (const name of names) {
     const label = labels[name] || name;
-    const img = h("img", { src: `/stream/${name}.mjpg`, alt: "" });
-    img.onerror = () => setTimeout(() => (img.src = `/stream/${name}.mjpg?r=${Date.now()}`), 1500);
-    $("cams").append(h("button", { type: "button", class: "cam", "aria-label": `Enlarge ${label} camera`,
+    const img = h("img", { alt: "" });
+    const button = h("button", { type: "button", class: "cam", "aria-label": `Enlarge ${label} camera`,
       onclick: () => {
         $("camera-title").textContent = label;
         enlarged.alt = `${label} camera feed`;
-        enlarged.src = img.src;
+        largeSource = `/stream/${name}-large.mjpg`;
         dialog.showModal();
-      } }, h("span", { class: "cam-inner" }, img, h("span", { class: "cam-label" }, label))));
+        previews.forEach((sync) => sync());
+        updateLarge();
+      } }, h("span", { class: "cam-inner" }, img, h("span", { class: "cam-label" }, label)));
+    $("cams").append(button);
+    previews.push(previewImage(img, button, `/stream/${name}.mjpg`, () => !dialog.open));
   }
 }
 
@@ -422,7 +430,8 @@ async function main() {
 
 window.addEventListener("dashboard:print-return", async () => {
   core.events.connect();
-  for (const image of document.querySelectorAll("#main-view, #cams img")) {
+  overlayViewer($("viewer")).refresh();
+  for (const image of document.querySelectorAll("#cams img")) {
     if (image.src) image.src = `${image.src.split("?")[0]}?r=${Date.now()}`;
   }
   try {

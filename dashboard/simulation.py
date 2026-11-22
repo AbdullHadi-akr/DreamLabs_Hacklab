@@ -17,7 +17,9 @@ import queue
 import threading
 import time
 import traceback
+from collections import Counter
 from concurrent.futures import Future
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Callable
 
@@ -186,10 +188,9 @@ class SimWorker(threading.Thread):
         self.ready = threading.Event()
         self.stop_event = threading.Event()
         self.shutdown_event = threading.Event()
-        self.frames: dict[str, tuple[int, bytes]] = {}
-        self.teleop_viewers = 0  # Updated by MJPEG subscriptions on the dashboard event loop.
-        self.teleop_frame_until = 0.0
-        self.low_frame_until = 0.0
+        self.frames = {}
+        self._viewers = Counter()
+        self._viewers_lock = threading.Lock()
         self.interaction_views = {}
         self.state_snapshot: dict = {}
         self.current: RunRequest | None = None
@@ -200,10 +201,10 @@ class SimWorker(threading.Thread):
         self.controls_lock = threading.RLock()
         self._outstanding_runs: set[Future] = set()
         self.exclusive = False
-        self._last = {"main": 0.0, "cams": 0.0, "state": 0.0}
+        self._last = {"main": 0.0, "state": 0.0}
+        self._camera_preview_times = dict.fromkeys(CAMERAS, 0.0)
         self._seq = 0
         self.env = None
-        self.low_viewers = 0  # guests watching the main view (the app counts them); 0 = no low-quality frames
 
     # ---------- public, thread-safe API ----------
 
@@ -476,9 +477,24 @@ class SimWorker(threading.Thread):
 
     # ---------- rendering & status ----------
 
+    @contextmanager
+    def watch_frames(self, name):
+        """Keep a frame variant active for the lifetime of a stream or single-frame request."""
+        with self._viewers_lock:
+            self._viewers[name] += 1
+        try:
+            yield
+        finally:
+            with self._viewers_lock:
+                self._viewers[name] -= 1
+                if self._viewers[name] == 0:
+                    del self._viewers[name]
+
     def publish(self, images: dict | None = None, force: bool = False) -> None:
         """Renders (throttled) the main view + cameras and sends the sim state. Sim thread only."""
         now = time.monotonic()
+        with self._viewers_lock:
+            wanted = set(self._viewers)
         if force or now - self._last["main"] >= 1 / MAIN_FPS:
             self._last["main"] = now
             self.camera.apply(self.main_cam)
@@ -498,12 +514,14 @@ class SimWorker(threading.Thread):
                     self.bus.log(f"decorate of {ext.id}: {error}", "error", ext.id)
             interaction = {ext.id: (ext.info, ext.view) for ext in self.extensions
                            if ext.id in ("teleop", "objects") and ext.view is not None}
-            frame = self.main_renderer.render()
-            self._store("main", frame, interaction=interaction)
-            if self.low_viewers > 0 or now < self.low_frame_until:
-                self._store("main-low", cv2.resize(frame, LOW_SIZE, interpolation=cv2.INTER_AREA), LOW_QUALITY,
-                            interaction=interaction)
-            if self.teleop_viewers or now < self.teleop_frame_until:
+            if wanted & {"main", "main-low"}:
+                frame = self.main_renderer.render()
+                if "main" in wanted:
+                    self._store("main", frame, interaction=interaction)
+                if "main-low" in wanted:
+                    self._store("main-low", cv2.resize(frame, LOW_SIZE, interpolation=cv2.INTER_AREA), LOW_QUALITY,
+                                interaction=interaction)
+            if "main-teleop" in wanted:
                 for ext in self.extensions:
                     decorate = getattr(ext, "decorate_teleop", None)
                     if decorate:
@@ -512,14 +530,7 @@ class SimWorker(threading.Thread):
                         except Exception as error:
                             self.bus.log(f"decorate_teleop of {ext.id}: {error}", "error", ext.id)
                 self._store("main-teleop", self.main_renderer.render(), interaction=interaction)
-        if force or now - self._last["cams"] >= 1 / CAM_FPS:
-            self._last["cams"] = now
-            images = images or self.env.images()
-            for name in CAMERAS:
-                self._store(name, cv2.resize(images[name], CAM_SIZE, interpolation=cv2.INTER_AREA))
-                # The same picture at the camera's own size, for when a viewer makes this camera the large view.
-                # No extra rendering: only one more JPEG encoding of a picture that is already drawn.
-                self._store(f"{name}-large", images[name])
+        self._publish_camera_previews(wanted, images or {}, now)
         if force or now - self._last["state"] >= 1 / STATE_HZ:
             self._last["state"] = now
             state = self.env.state()
@@ -530,6 +541,29 @@ class SimWorker(threading.Thread):
                 "status": self.status(),
             }
             self.bus.emit("sim.state", self.state_snapshot, keep=False)
+
+    def _publish_camera_previews(self, wanted, images, now):
+        due = [camera for camera, last in self._camera_preview_times.items()
+               if now - last >= 1 / CAM_FPS and (camera in wanted or f"{camera}-large" in wanted)]
+        ready = {camera: images[camera] for camera in due if camera in images}
+        missing = [camera for camera in due if camera not in ready]
+        if missing:
+            # Interleave preview renders so a set of three cameras cannot stall a control tick.
+            camera = min(missing, key=self._camera_preview_times.get)
+            ready[camera] = self._render_preview(camera)
+        for camera, frame in ready.items():
+            self._camera_preview_times[camera] = now
+            if camera in wanted:
+                self._store(camera, cv2.resize(frame, CAM_SIZE, interpolation=cv2.INTER_AREA))
+            if f"{camera}-large" in wanted:
+                self._store(f"{camera}-large", frame)
+
+    def _render_preview(self, camera):
+        # Reuse YamEnv's camera renderer and station crop. Inference still calls env.images().
+        if self.env.renderer is None:
+            self.env.renderer = mujoco.Renderer(self.env.model, height=480, width=640)
+        self.env.renderer.update_scene(self.env.data, camera=camera)
+        return self.env.renderer.render()[60:420]
 
     def _store(self, name: str, rgb: np.ndarray, quality: int = JPEG_QUALITY, interaction=None) -> None:
         ok, jpeg = cv2.imencode(".jpg", cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR), [cv2.IMWRITE_JPEG_QUALITY, quality])

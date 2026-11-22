@@ -8,7 +8,6 @@ import json
 import mimetypes
 import threading
 import secrets
-import time
 from pathlib import Path
 from typing import Annotated
 
@@ -421,9 +420,22 @@ def create_app() -> FastAPI:
 
     # ---------- Video ----------
 
+    async def next_frame(source, after):
+        for _ in range(35):
+            frame = worker.frames.get(source)
+            if frame and frame[0] != after:
+                return frame
+            if closing.is_set():
+                break
+            await asyncio.sleep(.02)
+        return None
+
     @app.get("/snapshot/{name}.jpg")
-    def snapshot(name: str):
-        frame = worker.frames.get(name)
+    async def snapshot(name: str):
+        if name not in ("main", "main-low", "main-teleop") and name.removesuffix("-large") not in CAMERAS:
+            raise HTTPException(404)
+        with worker.watch_frames(name):
+            frame = await next_frame(name, worker.frames.get(name, (-1,))[0])
         if not frame:
             raise HTTPException(404)
         return Response(frame[1], media_type="image/jpeg", headers={"Cache-Control": "no-store"})
@@ -434,23 +446,18 @@ def create_app() -> FastAPI:
             raise HTTPException(404)
         teleop = tool == "teleop"
         remote = is_remote(request.headers)
-        if teleop:
-            worker.teleop_frame_until = time.monotonic() + 1
-        elif remote:
-            worker.low_frame_until = time.monotonic() + 1
         source = "main-teleop" if teleop else "main-low" if remote else "main"
         if remote:
             await asyncio.sleep(1 / 12)
-        if after == -1 and source != "main":
-            after = worker.frames.get(source, (-1,))[0]
         headers = {"Cache-Control": "no-store"}
-        for _ in range(25):
-            frame = worker.frames.get(source)
-            if frame and frame[0] != after and frame[2] and tool in frame[2]:
-                headers["X-View-Frame"] = str(frame[0])
-                headers["X-View-State"] = json.dumps(frame[2][tool][0], separators=(",", ":"), ensure_ascii=True)
-                return Response(frame[1], media_type="image/jpeg", headers=headers)
-            await asyncio.sleep(.02)
+        with worker.watch_frames(source):
+            if after == -1:
+                after = worker.frames.get(source, (-1,))[0]
+            frame = await next_frame(source, after)
+        if frame and frame[2] and tool in frame[2]:
+            headers["X-View-Frame"] = str(frame[0])
+            headers["X-View-State"] = json.dumps(frame[2][tool][0], separators=(",", ":"), ensure_ascii=True)
+            return Response(frame[1], media_type="image/jpeg", headers=headers)
         return Response(status_code=204, headers=headers)
 
     @app.get("/stream/{name}.mjpg")
@@ -462,13 +469,8 @@ def create_app() -> FastAPI:
         pause = 1 / 12 if is_remote(request.headers) else 1 / (MAIN_FPS + 5)
 
         async def frames():
-            teleop = name == "main-teleop"
-            last = worker.frames.get(name, (-1,))[0] if teleop else -1
-            if teleop:
-                worker.teleop_viewers += 1
-            if guest_main:
-                worker.low_viewers += 1
-            try:
+            with worker.watch_frames(source):
+                last = worker.frames.get(source, (-1,))[0]
                 while not closing.is_set():
                     frame = worker.frames.get(source)
                     if frame and frame[0] != last:
@@ -476,11 +478,6 @@ def create_app() -> FastAPI:
                         yield b"--frame\r\nContent-Type: image/jpeg\r\nContent-Length: %d\r\n\r\n%s\r\n" % (
                             len(frame[1]), frame[1])
                     await asyncio.sleep(pause)
-            finally:
-                if teleop:
-                    worker.teleop_viewers -= 1
-                if guest_main:
-                    worker.low_viewers -= 1
 
         return StreamingResponse(frames(), media_type="multipart/x-mixed-replace; boundary=frame",
                                  headers={"Cache-Control": "no-store"})

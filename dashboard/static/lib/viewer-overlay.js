@@ -1,6 +1,35 @@
 // Interactive tools draw the JPEG and its own overlay state in the same browser paint.
 const viewers = new WeakMap();
 
+export function watchViewport(element, changed) {
+  let intersecting = false;
+  const update = () => changed(intersecting && !document.hidden);
+  new IntersectionObserver(([entry]) => {
+    intersecting = entry.isIntersecting;
+    update();
+  }).observe(element);
+  document.addEventListener("visibilitychange", update);
+}
+
+export function previewImage(image, element, source, allowed = () => true) {
+  let visible = false;
+  function sync() {
+    if (visible && allowed()) {
+      if (!image.hasAttribute("src")) image.src = source;
+    } else {
+      image.removeAttribute("src");
+    }
+  }
+  watchViewport(element, (value) => { visible = value; sync(); });
+  image.onerror = () => {
+    const failed = image.src;
+    setTimeout(() => {
+      if (visible && allowed() && failed && image.src === failed) image.src = `${source}?r=${Date.now()}`;
+    }, 1500);
+  };
+  return sync;
+}
+
 export function containedImage(rect, width, height) {
   const scale = Math.min(rect.width / width, rect.height / height);
   const w = width * scale, h = height * scale;
@@ -29,7 +58,7 @@ export function overlayViewer(viewer) {
   img.after(canvas);
   const context = canvas.getContext("2d");
   const callbacks = new Map();
-  let tool = null, controller = null, frame = null, state = null;
+  let tool = null, controller = null, frame = null, state = null, visible = false;
   const box = () => containedImage(canvas.getBoundingClientRect(), canvas.width, canvas.height);
   const redraw = () => { if (frame !== null) callbacks.get(tool)?.(state); };
   new ResizeObserver(redraw).observe(canvas);
@@ -65,20 +94,33 @@ export function overlayViewer(viewer) {
     onFrame(kind, callback) { callbacks.set(kind, callback); },
     activate(kind, active) {
       if (active ? tool === kind : tool !== kind) return;
+      tool = active ? kind : null;
+      view.refresh();
+    },
+    refresh() {
       controller?.abort();
       frame = state = null;
-      tool = active ? kind : null;
       canvas.hidden = true;
-      img.hidden = active;
-      if (active) {
-        img.removeAttribute("src");
+      img.hidden = Boolean(tool);
+      img.removeAttribute("src");
+      if (!visible) return;
+      if (tool) {
         controller = new AbortController();
-        read(kind, controller.signal);
+        read(tool, controller.signal);
       } else {
-        img.src = "/stream/main.mjpg";
+        img.src = `/stream/main.mjpg?r=${Date.now()}`;
       }
     },
   };
+  img.onerror = () => {
+    const failed = img.src;
+    setTimeout(() => { if (!tool && visible && failed && img.src === failed) view.refresh(); }, 1500);
+  };
+  watchViewport(viewer, (value) => {
+    if (visible === value) return;
+    visible = value;
+    view.refresh();
+  });
   viewers.set(viewer, view);
   return view;
 }
