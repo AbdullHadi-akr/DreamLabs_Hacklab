@@ -1,4 +1,4 @@
-"""Draws the six architecture diagrams of Dream-1 Lab as PNG files (needs only Pillow).
+"""Draws the eight architecture diagrams of Dream-1 Lab as PNG files (needs only Pillow).
 
 Run from the repository root:  python docs/architecture/diagrams.py docs/architecture/png
 Then build the Word file:     python docs/architecture/make_docx.py docs/architecture/png docs/architecture/Dream-1-Lab-architecture.docx
@@ -224,7 +224,7 @@ def deployment():
     g.node(80, 200, 1090, 970, "«execution environment» WSL 2: Ubuntu 24.04 Linux", fill="#FFFFFF")
     g.artifact(110, 290, 640, 380, "«process» Dashboard: python start.py",
                "Python 3.12 in ~/Hacklab/.venv\nWeb server (FastAPI), port 8000\nSim worker: MuJoCo, 3 cameras, "
-               "Dream-1 runs\nRecorder, credits, players, brain notes\nTest Suite (with Robustness), Control, Scene")
+               "Dream-1 runs\nRecorder, credits, players, brain notes\nTools: Test Suite, Control, Scene, Objects,\nCameras, X-Ray, Brain")
     g.artifact(790, 290, 350, 170, "«program» cloudflared", "~/Hacklab/bin/\nstarted from Players\n"
                "forwards to port 8000")
     g.artifact(110, 720, 500, 200, "«source» dreamlabs clone", "~/Hacklab/dreamlabs\nYAM simulator, dream client")
@@ -233,7 +233,7 @@ def deployment():
     g.artifact(110, 950, 500, 190, "«files» dream-tool/out/",
                "lab.db: SQLite database\nepisodes/, exports/: LeRobot folders\nextensions/: Test Suite reports")
     g.artifact(640, 950, 500, 190, "«file» API key", "~/.dreamlabs/credentials\nonly on this laptop, never in git")
-    g.artifact(1210, 480, 360, 150, "«program» Web browser", "Opens http://localhost:8000")
+    g.artifact(1210, 480, 360, 150, "«program» Web browser", "Opens localhost:8000,\nalso the Brain page")
     g.artifact(1210, 700, 360, 160, "«program» AI agent", "Planned: Claude Code or Codex", planned=True)
 
     g.node(1700, 110, 650, 150, "«device» Guest laptop")
@@ -272,8 +272,8 @@ def context():
     g.person(1720, 110, 560, 340, "Remote operator or judge", "Uses another laptop and a public link. Controls "
              "one arm.")
     g.box(820, 520, 760, 330, "Dream-1 Lab", "Software system",
-          "Runs the YAM robot simulation. Lets Dream-1 try tasks, tests it (Test Suite), lets people take over, "
-          "records episodes, counts credits.", style=SYSTEM)
+          "Runs the YAM robot simulation. Lets Dream-1 try tasks, tests it (Test Suite) and explains it (X-Ray), lets "
+          "people take over, records episodes, counts credits, shows the second brain.", style=SYSTEM)
     g.box(120, 560, 560, 250, "AI agent", "External system, planned", "Claude Code or Codex. Later: summarizes "
           "notes, answers questions.", style=EXTERNAL, planned=True)
     g.box(1720, 560, 560, 250, "Cloudflare", "External system", "A public link to the host laptop. No account "
@@ -305,10 +305,10 @@ def containers():
     g.person(1760, 80, 520, 230, "Remote operator or judge", None)
     g.boundary(60, 380, 1560, 950, "Dream-1 Lab [software system, on the host laptop]")
     g.box(120, 420, 640, 230, "Web page", "Container: HTML, CSS, JavaScript",
-          "View, cameras, Take over, menu panels, Test Suite workspace. Guests: join page, fewer panels.")
+          "View and camera row, Take over, tool menu, Test Suite workspace, Brain view. Guests: join page, fewer tools.")
     g.box(120, 760, 640, 360, "Dashboard application", "Container: Python 3.12, FastAPI, MuJoCo",
-          "Web server with access check, simulation thread, recorder, credits, players, Test Suite, extensions. One "
-          "process.")
+          "Web server with access check, simulation thread (one run at a time), execution strategies, recorder, credits, "
+          "players, Test Suite, X-Ray, camera check, Brain. One process.")
     g.cylinder(900, 420, 660, 220, "Lab database", "Container: SQLite file out/lab.db",
                "Runs, episodes, exports, settings.")
     g.cylinder(900, 680, 660, 200, "Episodes and test reports", "Container: folders in out/",
@@ -332,7 +332,7 @@ def containers():
     g.label((830, 860), "writes", 100)
     g.arrow([(760, 920), (1650, 920), (1650, 760), (1760, 760)], "HTTPS: frames and arm state; back: arm moves",
             at=(1230, 920), lw=700)
-    g.arrow([(760, 1060), (900, 1060)], "notes, wiki", at=(830, 1060), lw=100)
+    g.arrow([(760, 1060), (900, 1060)], "notes, wiki", at=(830, 1060), lw=100, both=True)
     g.arrow([(1760, 1030), (1560, 1030)], "later", at=(1660, 1030), lw=120, planned=True)
     g.arrow([(1230, 1160), (1230, 1250), (1760, 1250)], "git push", at=(1500, 1250), lw=200)
     g.save("3-c4-containers.png")
@@ -343,8 +343,8 @@ def containers():
 # =====================================================================================================
 def components():
     g = Diagram("C4 level 3, components: inside the dashboard application")
-    g.boundary(430, 100, 1540, 1220, "Dashboard application [one Python process]")
-    cols, rows, cw, ch = (460, 847, 1233, 1620), (140, 510, 880), 320, 290
+    g.boundary(430, 100, 1540, 1225, "Dashboard application [one Python process]")
+    cols, rows, cw, ch = (460, 847, 1233, 1620), (140, 425, 710, 995), 320, 250
 
     def comp(c, r, title, kind, body):
         g.box(cols[c], rows[r], cw, ch, title, kind, body, style=COMPONENT)
@@ -354,43 +354,49 @@ def components():
     comp(2, 0, "Credits", "credits.py", "Estimate, ask, monthly limit, balance")
     comp(3, 0, "Web app", "app.py, FastAPI", "Routes, video, /ws; access check for guests")
     comp(0, 1, "Recorder", "episodes.py", "Take over, LeRobot folders, export")
-    comp(1, 1, "Test Suite and extensions", "extensions/", "Test Suite with Robustness; Control, Scene")
-    comp(2, 1, "Sim worker", "simulation.py", "One thread owns MuJoCo and does the jobs")
+    comp(1, 1, "Test Suite and tools", "extensions/", "Test Suite, Robustness, Control, Scene, Objects")
+    comp(2, 1, "Sim worker", "simulation.py", "One thread owns MuJoCo; one run at a time")
     comp(3, 1, "Players", "multiplayer.py", "Access code, arm owners, public link")
     comp(0, 2, "Success check", "dreamtool/scene.py", "Task rules: on, in, next to, lift, push ...")
-    comp(1, 2, "Second brain notes", "brain.py", "Notes into brain/raw, then runs build_wiki.py")
+    comp(1, 2, "Model X-Ray", "dreamtool/xray.py", "Freezes a moment, asks Dream-1 again with one change")
     comp(2, 2, "Simulator wrapper", "dreamtool/sim.py", "Physics and the 3 cameras")
     comp(3, 2, "Run loop", "dreamtool/runner.py", "Dream-1 calls, 20 steps per second")
+    comp(0, 3, "Second brain notes", "brain.py", "Notes into brain/raw, then runs build_wiki.py")
+    comp(1, 3, "Brain view", "extensions/brain/", "Pages and links of brain/ for the 3D brain")
+    comp(2, 3, "Camera check", "dreamtool/camcheck.py", "Each frame sent to Dream-1 against its own render")
+    comp(3, 3, "Execution strategies", "dreamtool/inference.py", "How a plan of 48 steps is carried out")
 
-    g.cylinder(40, 150, 330, 260, "Lab database", "SQLite", "out/lab.db")
-    g.cylinder(40, 520, 330, 260, "Episode store", "LeRobot folders", "out/episodes, out/extensions")
-    g.cylinder(40, 900, 330, 250, "Second brain", "Markdown", "brain/raw, brain/wiki")
-    g.box(2030, 160, 330, 250, "Web page", "Container", "Sends requests; gets video and events")
-    g.box(2030, 530, 330, 250, "Cloudflare", "External system", "Tunnel made by cloudflared", style=EXTERNAL)
-    g.box(2030, 900, 330, 250, "Dream-1 API", "External system", "Through the dream library", style=EXTERNAL)
+    g.cylinder(40, 150, 330, 250, "Lab database", "SQLite", "out/lab.db")
+    g.cylinder(40, 435, 330, 240, "Episode store", "LeRobot folders", "out/episodes, out/extensions")
+    g.cylinder(40, 1000, 330, 240, "Second brain", "Markdown", "brain/raw, brain/wiki")
+    g.box(2030, 140, 330, 250, "Web page", "Container", "Sends requests; gets video and events")
+    g.box(2030, 425, 330, 250, "Cloudflare", "External system", "Tunnel made by cloudflared", style=EXTERNAL)
+    g.box(2030, 710, 330, 250, "Dream-1 API", "External system", "Through the dream library", style=EXTERNAL)
 
     # web side
-    g.arrow([(1940, 285), (2030, 285)], both=True)
-    g.arrow([(1007, 140), (1007, 118), (2195, 118), (2195, 160)], "events", at=(1600, 118), lw=120)
-    g.arrow([(1620, 285), (1553, 285)])  # web app -> credits
-    g.arrow([(1780, 430), (1780, 510)])  # web app -> players
-    g.arrow([(1940, 655), (2030, 655)])  # players -> Cloudflare
-    g.arrow([(1620, 390), (1587, 390), (1587, 600), (1553, 600)], "jobs", at=(1587, 545), lw=80)
+    g.arrow([(1940, 265), (2030, 265)], both=True)
+    g.arrow([(1007, 140), (1007, 118), (2195, 118), (2195, 140)], "events", at=(1600, 118), lw=120)
+    g.arrow([(1620, 265), (1553, 265)])  # web app -> credits
+    g.arrow([(1780, 390), (1780, 425)])  # web app -> players
+    g.arrow([(1940, 550), (2030, 550)])  # players -> Cloudflare
+    g.arrow([(1620, 360), (1587, 360), (1587, 500), (1553, 500)])  # web app -> sim worker: jobs
     # simulation side
-    g.arrow([(1167, 655), (1233, 655)])  # extensions -> sim worker
-    g.arrow([(1553, 750), (1587, 750), (1587, 1000), (1620, 1000)], "runs", at=(1587, 880), lw=80)
-    g.arrow([(1620, 1100), (1553, 1100)])  # run loop -> simulator wrapper
-    g.arrow([(1940, 1025), (2030, 1025)])  # run loop -> Dream-1 API
+    g.arrow([(1167, 550), (1233, 550)])  # tools -> sim worker
+    g.arrow([(1553, 620), (1587, 620), (1587, 835), (1620, 835)], "runs", at=(1587, 760), lw=80)
+    g.arrow([(1620, 900), (1553, 900)])  # run loop -> simulator wrapper
+    g.arrow([(1940, 835), (2030, 835)])  # run loop -> Dream-1 API
+    g.arrow([(1780, 995), (1780, 960)])  # execution strategies -> run loop
+    g.arrow([(1167, 835), (1233, 835)])  # X-Ray -> simulator wrapper (snapshot)
     # data side
-    g.arrow([(1393, 430), (1393, 455), (680, 455), (680, 430)], "spending so far", at=(1240, 455), lw=260)
-    g.arrow([(1360, 510), (1360, 488), (720, 488), (720, 510)], "every step", at=(900, 488), lw=200)
-    g.arrow([(560, 510), (560, 430)], "rows", at=(560, 470), lw=80)
-    g.arrow([(460, 285), (370, 285)], "SQL", at=(415, 285), lw=80)
-    g.arrow([(460, 650), (370, 650)])
-    g.arrow([(620, 800), (620, 880)], "is the task done?", at=(620, 840), lw=260)
-    g.arrow([(1360, 800), (1360, 840), (1007, 840), (1007, 880)], "after each run", at=(1180, 840), lw=220)
-    g.arrow([(1007, 1170), (1007, 1215), (400, 1215), (400, 1100), (370, 1100)], "writes notes and wiki", at=(700, 1215),
-            lw=200)
+    g.arrow([(1393, 390), (1393, 407), (680, 407), (680, 390)], "spending so far", at=(1040, 407), lw=260)
+    g.arrow([(1300, 675), (1300, 692), (720, 692), (720, 675)], "every step", at=(1010, 692), lw=200)
+    g.arrow([(560, 425), (560, 390)])  # recorder -> database access
+    g.arrow([(460, 265), (370, 265)], "SQL", at=(415, 265), lw=80)
+    g.arrow([(460, 550), (370, 550)])  # recorder -> episode store
+    g.arrow([(620, 675), (620, 710)])  # recorder -> success check
+    g.arrow([(1700, 960), (1700, 977), (620, 977), (620, 995)], "after each run", at=(1160, 977), lw=230)
+    g.arrow([(460, 1120), (370, 1120)])  # notes -> second brain
+    g.arrow([(1007, 1245), (1007, 1268), (205, 1268), (205, 1240)], "reads pages and links", at=(640, 1268), lw=300)
     g.save("4-c4-components.png")
 
 
@@ -399,9 +405,9 @@ def components():
 # =====================================================================================================
 def layers():
     g = Diagram("Architecture: the layers and what is in each one")
-    bands = [("People and access", 100, 150), ("Browser", 255, 140), ("Web server", 400, 140),
-             ("Application", 545, 220), ("Simulation", 770, 140), ("Data on disk", 915, 160),
-             ("Outside services", 1080, 170)]
+    bands = [("People and access", 100, 150), ("Browser", 255, 200), ("Web server", 460, 140),
+             ("Application", 605, 235), ("Simulation", 845, 140), ("Data on disk", 990, 140),
+             ("Outside services", 1135, 150)]
     for i, (name, y, h) in enumerate(bands):
         g.d.rectangle([40, y, 2360, y + h], fill="#F5F7FA" if i % 2 == 0 else "#FFFFFF", outline="#D5DCE4")
         g.block(56, y + h / 2 - 22, 300, [(name, font(30, "b"))], TEXT, align="left")
@@ -415,33 +421,35 @@ def layers():
                    ("Remote operator or judge", "browser, public link", PERSON),
                    ("Cloudflare tunnel", "public link + access code", EXTERNAL),
                    ("AI agent", "planned: summaries, answers", EXTERNAL, True)])
-    row(265, 120, [("Core page", "index.html, app.js", COMPONENT),
+    row(265, 180, [("Core page", "view, camera row, prompt", COMPONENT),
                    ("Join page", "join.html: code and name", COMPONENT),
                    ("Menu panels", "Episodes, Credits, Players", COMPONENT),
-                   ("Extension panels", "Control, Scene", COMPONENT),
-                   ("Test Suite workspace", "builder, report, monitor", COMPONENT)])
-    row(410, 120, [("HTTP JSON API", "/api/run, /api/credits ...", COMPONENT),
+                   ("Tool panels", "Control, Scene, Objects, Cameras, X-Ray", COMPONENT),
+                   ("Test Suite workspace", "builder, report, monitor", COMPONENT),
+                   ("Brain view", "3D brain, also a full page", COMPONENT)], gap=16)
+    row(470, 120, [("HTTP JSON API", "/api/run, /api/credits ...", COMPONENT),
                    ("Access check", "guests: code, routes, own arm", COMPONENT),
                    ("Video streams", "smaller for guests", COMPONENT),
                    ("Event bus", "WebSocket /ws", COMPONENT)])
-    row(560, 190, [("Sim worker", "one thread owns the simulation", COMPONENT),
-                   ("Run loop", "Dream-1 calls, 20 steps per second", COMPONENT),
+    row(620, 205, [("Sim worker", "one thread, one run at a time", COMPONENT),
+                   ("Run loop", "Dream-1 calls, execution strategy", COMPONENT),
                    ("Recorder", "episodes, take over, export", COMPONENT),
                    ("Credits", "estimate, limit, balance", COMPONENT),
                    ("Players", "access code, arm owners", COMPONENT),
-                   ("Brain notes", "raw notes, then the wiki script", COMPONENT),
-                   ("Test Suite", "test campaigns, robustness", COMPONENT)], gap=16)
-    row(782, 116, [("YAM simulator: MuJoCo physics", "two arms, 3 cameras at 640 x 360, fruit, bowl, plate",
+                   ("Brain", "notes, wiki script, 3D view data", COMPONENT),
+                   ("Test Suite", "campaigns, robustness, A/B", COMPONENT),
+                   ("X-Ray", "why Dream-1 acts; camera check", COMPONENT)], gap=14)
+    row(857, 116, [("YAM simulator: MuJoCo physics", "two arms, 3 cameras at 640 x 360, fruit, bowl, plate",
                     CONTAINER),
                    ("Success check", "task rules decide success, time counted in simulated seconds", CONTAINER)])
-    row(930, 130, [("lab.db (SQLite)", "runs, episodes, exports, settings", CONTAINER),
+    row(1002, 115, [("lab.db (SQLite)", "runs, episodes, exports, settings", CONTAINER),
                    ("episodes/ and exports/", "LeRobot v2.1 folders", CONTAINER),
                    ("extensions/ results", "Test Suite and robustness reports", CONTAINER),
                    ("brain/", "raw/ and wiki/, in git", CONTAINER)])
-    row(1095, 140, [("Dream-1 API (Dream Labs)", "frames + arm state in, arm moves out", EXTERNAL),
+    row(1145, 130, [("Dream-1 API (Dream Labs)", "frames + arm state in, arm moves out", EXTERNAL),
                     ("Dream Labs fine-tuning", "upload, train, new model id", EXTERNAL, True),
                     ("GitHub", "code and brain/", EXTERNAL)])
-    g.legend(380, 1285)
+    g.legend(380, 1302)
     g.save("5-architecture-layers.png")
 
 
@@ -502,7 +510,7 @@ def test_suite():
         g.box(x, y, w, h, f"{i}. {title}", None, body, style=style)
 
     step(1, xs[0], y1, "Choose a test", "Menu Test Suite. Quick Test, Repeated Runs, Parameter Sweep, Safety Stress "
-         "Test, A/B Comparison, Failure Reproduction; Robustness: Sweep, Breaking Point, Perturbation Mix.",
+         "Test, A/B Comparison, Failure Reproduction; Robustness: Sweep, Breaking Point, Perturbation Mix, Strategy A/B.",
          style=PERSON)
     step(2, xs[1], y1, "Plan the cases", "scenarios.py: repetitions or combinations of object offset, camera tilt, "
          "light and seed. The start state is saved, so a case can be replayed exactly.")
@@ -531,12 +539,48 @@ def test_suite():
             "Breaking Point: result of the case", at=(xs[1] + w / 2, 620), lw=420)
     g.arrow([(xs[0], mid2), (30, mid2), (30, 590), (xs[2] + w / 2 + 60, 590), (xs[2] + w / 2 + 60, y1 + h)])
     g.label((xs[1] + 60, 590), "next strength", 200)
-    g.d.text((60, 1120), "The Robustness tests (Sweep, Breaking Point, Perturbation Mix) are shown as tiles inside the "
-             "Test Suite and keep their own report.", font=F_BODY, fill="#333333")
+    g.d.text((60, 1120), "The Robustness tests (Sweep, Breaking Point, Perturbation Mix, Strategy A/B) are tiles inside "
+             "the Test Suite and keep their own report.", font=F_BODY, fill="#333333")
     g.save("7-test-suite.png")
+
+
+# =====================================================================================================
+# 8. Architecture: the Brain view (dashboard/extensions/brain)
+# =====================================================================================================
+def brain_view():
+    g = Diagram("Architecture: the Brain view, which event lights which part of the brain")
+    xs, ws = (60, 860, 1500), (640, 520, 840)
+    for x, w, head in zip(xs, ws, ("Event in the dashboard", "Part of the brain", "Part of the project")):
+        g.block(x, 112, w, [(head, font(32, "b"))], TEXT)
+    rows = [
+        ("run.reply", "each answer from Dream-1", "Cortex", "Dream-1, the model that moves the arms", SYSTEM),
+        ("sim.state", "while the simulation sends frames", "Visual cortex", "the 3 robot cameras and the 3D view",
+         CONTAINER),
+        ("run.reply, 0.35 s later", "the new plan is blended in", "Cerebellum",
+         "execution strategy (dreamtool/inference.py)", CONTAINER),
+        ("sim.state", "a heartbeat", "Brainstem", "the MuJoCo simulation thread", CONTAINER),
+        ("run.ended, new raw file", "after each run", "Hippocampus", "brain/raw/: new memories (pink points)",
+         CONTAINER),
+        ("a wiki page changed", "found by the next graph read", "Long-term memory",
+         "brain/wiki/: pages (yellow points) and [[links]]", CONTAINER),
+        ("Test Suite case ended", "safety check failed", "Amygdala", "Test Suite safety checks", CONTAINER),
+        ("episode.exported", "an export for a fine-tune", "Sleep", "teaching loop: raw -> memory -> cortex",
+         CONTAINER),
+    ]
+    y, h, gap = 170, 118, 14
+    for event, when, part, project, style in rows:
+        g.box(xs[0], y, ws[0], h, event, None, when, style=COMPONENT)
+        g.box(xs[1], y, ws[1], h, part, None, None, style=PERSON)
+        g.box(xs[2], y, ws[2], h, project, None, None, style=style)
+        g.arrow([(xs[0] + ws[0], y + h / 2), (xs[1], y + h / 2)])
+        g.arrow([(xs[1] + ws[1], y + h / 2), (xs[2], y + h / 2)])
+        y += h + gap
+    g.d.text((60, y + 6), "Click a point: its page opens. Backend: GET /api/ext/brain/graph (pages, links, safety "
+             "failures) and /page (only .md files inside brain/).", font=F_BODY, fill="#333333")
+    g.save("8-brain-view.png")
 
 
 if __name__ == "__main__":
     OUT.mkdir(parents=True, exist_ok=True)
-    for fn in (deployment, context, containers, components, layers, teaching_loop, test_suite):
+    for fn in (deployment, context, containers, components, layers, teaching_loop, test_suite, brain_view):
         fn()
