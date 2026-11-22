@@ -4,6 +4,7 @@ import { EventHub, createExtensionApi, h, request } from "./lib/api.js";
 import { episodesPanel, setupEpisodes } from "./episodes.js";
 import { creditsPanel, gateRun, setupCredits } from "./credits.js";
 import { playersPanel } from "./players.js";
+import { overlayViewer, watchViewport } from "./lib/viewer-overlay.js";
 
 const $ = (id) => document.getElementById(id);
 const core = {
@@ -54,16 +55,9 @@ async function action(promise, okMessage) {
 
 function setupViewer(camera) {
   const viewer = $("viewer");
-  const img = $("main-view");
-  // The stream itself is set by setupCameras (the big screen can also show a robot camera).
+  overlayViewer(viewer);  // loads the big screen's stream; setupCameras picks what it shows
   // Orbit, pan and zoom only work while the big screen shows the 3D view.
-  const is3d = () => (viewer.dataset.view || "main") === "main";
-  img.onerror = () => {
-    const failed = img.src;
-    setTimeout(() => {
-      if (img.src === failed) img.src = `${failed.split("?")[0]}?r=${Date.now()}`;
-    }, 1500);
-  };
+  const is3d = () => (viewer.dataset?.view || "main") === "main";
 
   let cam = { ...camera };
   let drag = null;
@@ -79,12 +73,14 @@ function setupViewer(camera) {
 
   viewer.addEventListener("contextmenu", (e) => e.preventDefault());
   viewer.addEventListener("pointerdown", (e) => {
-    if (!is3d()) return;
+    if (!is3d() || !e.isPrimary || (e.button !== 0 && e.button !== 2)) return;
     drag = { x: e.clientX, y: e.clientY, pan: e.button === 2 || e.shiftKey };
     viewer.setPointerCapture(e.pointerId);
     viewer.classList.add("dragging");
   });
-  viewer.addEventListener("pointerup", () => { drag = null; viewer.classList.remove("dragging"); });
+  const endDrag = () => { drag = null; viewer.classList.remove("dragging"); };
+  viewer.addEventListener("pointerup", endDrag);
+  viewer.addEventListener("pointercancel", endDrag);
   viewer.addEventListener("pointermove", (e) => {
     if (!drag) return;
     const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
@@ -103,7 +99,7 @@ function setupViewer(camera) {
     send();
   });
   viewer.addEventListener("wheel", (e) => {
-    if (!is3d()) return;
+    if (!is3d() || !e.altKey || e.ctrlKey || e.metaKey) return;
     e.preventDefault();
     cam.distance = Math.max(0.2, Math.min(6, cam.distance * (e.deltaY > 0 ? 1.1 : 0.9)));
     send();
@@ -120,31 +116,40 @@ function setupViewer(camera) {
 function setupCameras(names) {
   const labels = { main: "3D view", top: "Overhead", left: "Left wrist", right: "Right wrist" };
   const viewer = $("viewer");
+  const view = overlayViewer(viewer);  // loads the big screen's stream (a camera's large stream when swapped)
   const mainImg = $("main-view");
   const badge = $("badge-view");
   let big = "main";  // what the big screen shows: "main" (the 3D view) or a camera name
-  const reload = (img) => setTimeout(() => (img.src = `${img.src.split("?")[0]}?r=${Date.now()}`), 1500);
-  const show = (img, name) => {
-    const src = `/stream/${name}.mjpg`;
-    if (img.dataset.stream !== name) { img.dataset.stream = name; img.src = src; }
+  // A small screen loads its stream only while it is on screen and the tab is visible (as on main).
+  const load = (slot) => {
+    if (!slot.visible) slot.img.removeAttribute("src");
+    else if ((slot.img.getAttribute("src") || "").split("?")[0] !== slot.source) slot.img.src = slot.source;
   };
   const slots = names.map((name) => {
     const img = h("img", { alt: "" });
-    img.onerror = () => reload(img);
     const label = h("span", { class: "cam-label" });
     const button = h("button", { type: "button", class: "cam" }, h("span", { class: "cam-inner" }, img, label));
     $("cams").append(button);
-    return { name, img, label, button };
+    const slot = { name, img, label, button, source: `/stream/${name}.mjpg`, visible: false };
+    watchViewport(button, (visible) => { slot.visible = visible; load(slot); });
+    img.onerror = () => {
+      const failed = img.getAttribute("src");
+      setTimeout(() => {
+        if (slot.visible && failed && img.getAttribute("src") === failed) img.src = `${slot.source}?r=${Date.now()}`;
+      }, 1500);
+    };
+    return slot;
   });
   const render = () => {
-    show(mainImg, big);
+    view.show(big);
     mainImg.alt = big === "main" ? "Simulation" : `${labels[big] || big} camera`;
     viewer.dataset.view = big;
     badge.hidden = big === "main";
     badge.textContent = `${labels[big] || big} camera`;
     for (const slot of slots) {
       const shown = slot.name === big ? "main" : slot.name;
-      show(slot.img, shown);
+      slot.source = `/stream/${shown}.mjpg`;
+      load(slot);
       slot.label.textContent = labels[shown] || shown;
       slot.button.classList.toggle("is-3d", shown === "main");
       slot.button.setAttribute("aria-label", shown === "main" ? "Show the 3D view on the big screen"
@@ -261,6 +266,10 @@ function updateControls(status) {
 
 let chartRun = null;
 function setChartRun(run) {
+  if (!run) {  // no run now: keep the last run's response times on screen until the next one starts
+    if (chartRun && !chartRun.finished) { chartRun = { ...chartRun, finished: true }; drawRtt(); }
+    return;
+  }
   if (chartRun?.id === run?.id && chartRun?.rtts_s === run?.rtts_s) return;
   if (chartRun?.id === run?.id && run?.rtts_s &&
       run.rtts_s.length === chartRun.rtts_s?.length && run.rtts_s.every((v, i) => v === chartRun.rtts_s[i])) return;
@@ -283,7 +292,7 @@ function drawRtt() {
   ctx.fillStyle = color("--ink-3");
   const rtts = chartRun?.rtts_s || [];
   const offline = chartRun?.offline || chartRun?.model === "offline";
-  $("rtt-scope").textContent = chartRun ? `Run #${chartRun.id} · ${offline ? "Offline" : "API RTT"}` : "Current run";
+  $("rtt-scope").textContent = chartRun ? `${chartRun.finished ? "Last run" : "Run"} #${chartRun.id} · ${offline ? "Offline" : "API RTT"}` : "Current run";
   if (!rtts.length) {
     ctx.fillText(offline ? "Offline run · no API requests" : chartRun ? "No requests yet" : "No active run", 4, hgt / 2);
     return;
@@ -337,7 +346,7 @@ function setupEvents() {
   });
   ev.on("run.cancelled", (d) => log(`Cancelled: ${d.label || d.task}`, "warn", d.source));
   ev.on("run.ended", (d) => {
-    if (chartRun?.id === d.id) setChartRun(null);
+    if (chartRun?.id === d.id) setChartRun(null);  // marks it finished, keeps it visible
     const r = d.result;
     const success = r.success === true ? "Success" : r.success === false ? "Unsuccessful" : "Unevaluated";
     $("run-heading").textContent = "Last run";
@@ -357,21 +366,24 @@ function setupEvents() {
   });
 }
 
-// ---------------- Right column (folds away into a rail) ----------------
+// ---------------- Side columns (each folds away into a rail) ----------------
 
-function setupRightPanel() {
+function setupSidePanels() {
   const layout = document.querySelector(".layout");
-  const set = (collapsed) => {
-    layout.classList.toggle("right-collapsed", collapsed);
-    $("right-collapse").setAttribute("aria-expanded", String(!collapsed));
-    $("right-rail").setAttribute("aria-expanded", String(!collapsed));
-    try { localStorage.setItem("dream.rightCollapsed", collapsed ? "1" : "0"); } catch {}
-  };
-  $("right-collapse").onclick = () => set(true);
-  $("right-rail").onclick = () => set(false);
-  let saved = null;
-  try { saved = localStorage.getItem("dream.rightCollapsed"); } catch {}
-  set(saved === "1");
+  for (const side of ["left", "right"]) {
+    const key = `dream.${side}Collapsed`;
+    const set = (collapsed) => {
+      layout.classList.toggle(`${side}-collapsed`, collapsed);
+      $(`${side}-collapse`).setAttribute("aria-expanded", String(!collapsed));
+      $(`${side}-rail`).setAttribute("aria-expanded", String(!collapsed));
+      try { localStorage.setItem(key, collapsed ? "1" : "0"); } catch {}
+    };
+    $(`${side}-collapse`).onclick = () => set(true);
+    $(`${side}-rail`).onclick = () => set(false);
+    let saved = null;
+    try { saved = localStorage.getItem(key); } catch {}
+    set(saved === "1");
+  }
 }
 
 // ---------------- Extensions ----------------
@@ -465,7 +477,7 @@ async function main() {
   setupViewer(state.camera);
   setupCameras(state.cameras);
   setupViewportControls();
-  setupRightPanel();
+  setupSidePanels();
   setupTaskbar(state);
   setupEpisodes(core, action, state.episode);
   if (!state.me || state.me.role !== "guest") setupCredits(core);
@@ -490,7 +502,8 @@ async function main() {
 
 window.addEventListener("dashboard:print-return", async () => {
   core.events.connect();
-  for (const image of document.querySelectorAll("#main-view, #cams img")) {
+  overlayViewer($("viewer")).refresh();
+  for (const image of document.querySelectorAll("#cams img")) {
     if (image.src) image.src = `${image.src.split("?")[0]}?r=${Date.now()}`;
   }
   try {

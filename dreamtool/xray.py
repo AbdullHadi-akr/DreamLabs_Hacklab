@@ -66,6 +66,7 @@ class Snapshot:
     reply: dict | None = None  # run moments: the chunk Dream-1 actually returned at that moment
     id: str = field(default_factory=lambda: time.strftime("%Y%m%d-%H%M%S-") + uuid.uuid4().hex[:4])
     created: float = field(default_factory=time.time)
+    scene_positions: dict = field(default_factory=dict)  # includes containers stored in the model rather than qpos
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -131,7 +132,8 @@ def capture_scene(env, prompt: str, model: str) -> Snapshot:
             window.add(env.images())
     state = env.state()
     return Snapshot(prompt=prompt, model=model, state={s: np.asarray(state[s], float).tolist() for s in ("left", "right")},
-                    qpos=env.data.qpos.tolist(), windows=window.copy(), steps=steps, source="scene")
+                    qpos=env.data.qpos.tolist(), windows=window.copy(), steps=steps, source="scene",
+                    scene_positions={name: pos.tolist() for name, pos in scene.positions(env).items()})
 
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -206,6 +208,7 @@ def intent(kin: Kinematics, snapshot: Snapshot, left, right) -> dict:
     left, right = np.asarray(left, float), np.asarray(right, float)
     paths = kin.tcp_paths(snapshot.qpos, left, right)
     now = kin.positions(snapshot.qpos)
+    now.update({name: np.asarray(point) for name, point in snapshot.scene_positions.items()})
     arms = {}
     for side, rows in (("left", left), ("right", right)):
         start = now[f"{side}_tcp"]
@@ -225,12 +228,28 @@ def intent(kin: Kinematics, snapshot: Snapshot, left, right) -> dict:
     containers = {n: now[n] for n in scene.CONTAINERS}
     target, distance, how = pick_target(now[f"{active}_tcp"], path, a["event"], point, objects, containers)
     return {
+        "prompt": snapshot.prompt,
         "arm": active, "arms": arms, "target": target, "distance_cm": distance, "how": how,
+        "target_position": (now[target].tolist() if target in scene.OBJECTS or target in snapshot.scene_positions
+                            else None),
         "event": a["event"], "event_step": a["event_step"],
         "event_s": None if a["event_step"] is None else round((a["event_step"] + 1) / 20, 2),
         "point": None if point is None else np.round(point, 4).tolist(),
         "text": describe_intent(active, a, target, distance, how),
     }
+
+
+def target_marker(plan: dict):
+    """Only highlight a guessed fruit if it agrees with the prompt's named fruit."""
+    prompt = plan.get("prompt", "")
+    target = plan.get("target")
+    objects = scene.named_objects(prompt)
+    if target in scene.OBJECTS and objects and target not in objects:
+        return None
+    placement = scene.parse_task(prompt)
+    if target in scene.CONTAINERS and (not placement or target != placement[1]):
+        return None
+    return plan.get("target_position")
 
 
 def describe_intent(arm, a, target, distance, how) -> str:

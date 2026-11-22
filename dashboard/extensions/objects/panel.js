@@ -2,7 +2,7 @@
 // In the 3D view (only while this tab is open): grab dots + labels, drag an object to slide it over the table,
 // Shift + drag to lift / lower it, mouse wheel to turn it, let go to drop it. Bowl and plate take their contents along.
 
-const RENDER = [960, 540]; // size of the rendered main view (simulation.MAIN_SIZE)
+import { onImage, overlayViewer, toImage, toPixels } from "/static/lib/viewer-overlay.js";
 const HANDLE_PX = 14; // grab radius around the dot above an object
 const MIN_REACH_PX = 12; // smallest grab radius on the object itself (far away = tiny on screen)
 const WHEEL_DEG = 15; // turn per mouse wheel notch over an object
@@ -16,7 +16,7 @@ const label = (name) => (name.charAt(0).toUpperCase() + name.slice(1)).replace(/
 export async function mount(root, api) {
   const { h, toast } = api.ui;
   const viewer = document.getElementById("viewer");
-  const img = document.getElementById("main-view");
+  const view = overlayViewer(viewer);
   const isActive = () => root.isConnected && !root.closest("[hidden]");
   const initial = await api.get("/state");
   const names = initial.names;
@@ -56,7 +56,7 @@ export async function mount(root, api) {
   const keys = [
     ["Drag an object", "slide it over the table (its height stays, it stays above what lies below)"],
     ["Shift + drag", "lift / lower it"],
-    ["Wheel on object", "turn it (Shift: finer)"],
+    ["Alt + scroll on object", "turn it (Shift: finer)"],
     ["Let go", "it drops and physics takes over"],
     ["Bowl / plate", "drag and lift them the same way: what lies in or on them comes along, and when you let go they are put straight down (they are fixed in the model, physics does not move them)"],
   ];
@@ -106,30 +106,14 @@ export async function mount(root, api) {
   layer.append(tag);
   viewer.append(layer);
   const hint = document.querySelector(".viewer-hint");
-  const objectsHint = h("span", {}, " · Object: drag / Shift lift / wheel turn");
+  const objectsHint = h("span", {}, " · Object: drag / Shift lift / Alt + scroll to turn");
   if (hint) hint.append(objectsHint);
-
-  // The main image is shown with object-fit: contain: map image coordinates <-> viewer pixels.
-  function imageBox() {
-    const rect = viewer.getBoundingClientRect();
-    const iw = img.naturalWidth || RENDER[0], ih = img.naturalHeight || RENDER[1];
-    const scale = Math.min(rect.width / iw, rect.height / ih);
-    const w = iw * scale, hh = ih * scale;
-    return { rect, w, h: hh, x: (rect.width - w) / 2, y: (rect.height - hh) / 2 };
-  }
-  const toPixels = (box, [u, v]) => [box.x + u * box.w, box.y + v * box.h];
-  const toImage = (e) => {
-    const box = imageBox();
-    const clamp = (value) => Math.max(-0.5, Math.min(1.5, value));
-    return [clamp((e.clientX - box.rect.left - box.x) / box.w), clamp((e.clientY - box.rect.top - box.y) / box.h)];
-  };
-  const inside = (box, [x, y]) => x >= 0 && y >= 0 && x <= box.rect.width && y <= box.rect.height;
 
   const fmt = (value) => value.toFixed(3);
   function render() {
     const info = state.info;
-    if (!info?.items) return;
-    const box = imageBox();
+    if (!info?.items || view.frame("objects") === null) return;
+    const box = view.box();
     for (const name of names) {
       const item = info.items[name];
       if (!item) continue;
@@ -141,7 +125,7 @@ export async function mount(root, api) {
 
       const dot = dots[name];
       const point = item.handle && toPixels(box, item.handle);
-      const visible = Boolean(point && inside(box, point));
+      const visible = Boolean(point && onImage(item.handle));
       dot.style.display = visible ? "" : "none";
       if (visible) {
         dot.style.left = `${point[0]}px`;
@@ -156,7 +140,7 @@ export async function mount(root, api) {
     const shown = info.held || state.hover;
     const item = shown && info.items[shown];
     const point = item?.handle && toPixels(box, item.handle);
-    tag.style.display = point && inside(box, point) ? "" : "none";
+    tag.style.display = point && onImage(item.handle) ? "" : "none";
     if (tag.style.display === "") {
       tag.style.left = `${point[0]}px`;
       tag.style.top = `${point[1]}px`;
@@ -171,16 +155,19 @@ export async function mount(root, api) {
     status.textContent = info.busy ? "Run active: objects are locked until it ends." : held;
   }
 
-  api.on("objects", (info) => {
+  view.onFrame("objects", (info) => {
+    if (!isActive()) return;
     state.info = info;
-    if (isActive()) render();
+    layer.hidden = false;
+    render();
   });
 
   // What is under the mouse: a dot first, then an object's body before a container's, the closest one first.
   function itemAt(e) {
     const items = state.info?.items;
-    if (!isActive() || !items || busy()) return null;
-    const box = imageBox();
+    if (!isActive() || view.frame("objects") === null || !items || busy()) return null;
+    const box = view.box();
+    if (!onImage(toImage(box, e.clientX, e.clientY))) return null;
     const mx = e.clientX - box.rect.left, my = e.clientY - box.rect.top;
     let best = null;
     for (const name of names) {
@@ -189,7 +176,7 @@ export async function mount(root, api) {
       // Lower wins: a dot (0..1) before an object's body (1..2) before a container's body (2..3), so an apple
       // lying on the plate is grabbed on its body, and the plate under it on the plate's own dot.
       const scores = [];
-      if (item.handle) {
+      if (item.handle && onImage(item.handle)) {
         const [x, y] = toPixels(box, item.handle);
         const d = Math.hypot(x - mx, y - my);
         if (d <= HANDLE_PX) scores.push(d / HANDLE_PX);
@@ -232,10 +219,12 @@ export async function mount(root, api) {
 
   let drag = null; // { name, pointerId, last: {u, v, mode}, sentAt, keepalive }
   function sendPosition(e, start = false) {
-    const [u, v] = toImage(e);
+    const frame = view.frame("objects");
+    if (frame === null) return;
+    const [u, v] = toImage(view.box(), e.clientX, e.clientY);
     const mode = e.shiftKey ? "vertical" : "horizontal";
     drag.last = { u, v, mode };
-    const body = { name: drag.name, u, v, mode, start };
+    const body = { name: drag.name, u, v, mode, start, frame };
     if (start) {
       outbox.start = body;
       outbox.drag = null;
@@ -259,7 +248,7 @@ export async function mount(root, api) {
     drag = { name, pointerId: e.pointerId, last: null, sentAt: 0 };
     drag.keepalive = setInterval(() => {
       if (drag?.last && Date.now() - drag.sentAt >= KEEPALIVE_MS) {
-        outbox.drag = outbox.drag || { name: drag.name, ...drag.last };
+        outbox.drag = outbox.drag || { name: drag.name, ...drag.last, frame: view.frame("objects") };
         drag.sentAt = Date.now();
         flush();
       }
@@ -322,7 +311,7 @@ export async function mount(root, api) {
     const mode = e.type === "keydown" ? "vertical" : "horizontal";
     if (mode === drag.last.mode) return;
     drag.last.mode = mode;
-    outbox.drag = { name: drag.name, ...drag.last };
+    outbox.drag = { name: drag.name, ...drag.last, frame: view.frame("objects") };
     drag.sentAt = Date.now();
     flush();
   };
@@ -343,6 +332,7 @@ export async function mount(root, api) {
 
   // Mouse wheel on an object turns it instead of zooming (bowl and plate are round: the wheel zooms there).
   viewer.addEventListener("wheel", (e) => {
+    if (!e.altKey || e.ctrlKey || e.metaKey) return;
     if (e.defaultPrevented) return; // Teleop turned a gripper
     const name = drag?.name || itemAt(e);
     if (!name || isContainer(name)) return;
@@ -356,7 +346,9 @@ export async function mount(root, api) {
 
   function syncVisibility() {
     const active = isActive();
-    layer.hidden = objectsHint.hidden = !active;
+    view.activate("objects", active);
+    layer.hidden = !active || view.frame("objects") === null;
+    objectsHint.hidden = !active;
     if (active) {
       render();
       return;
@@ -372,6 +364,5 @@ export async function mount(root, api) {
   for (let element = root; element; element = element.parentElement) {
     visibility.observe(element, { attributes: true, attributeFilter: ["hidden"] });
   }
-  window.addEventListener("resize", () => isActive() && render());
   syncVisibility();
 }

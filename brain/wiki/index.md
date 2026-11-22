@@ -24,4 +24,5 @@ Every page of the wiki, one line each. The script `brain/build_wiki.py` rewrites
 
 ## tasks
 
-- [[tasks/put-apple-into-the-bowl]]: This page shows how often the task "put apple into the bowl" succeeded, with which model, and what it cost.
+- [[tasks/apple-into-the-bowl]]: This page shows how often the task "apple into the bowl" succeeded, with which model, and what it cost.
+- [[tasks/banana-onto-the-plate]]: This page shows how often the task "banana onto the plate" succeeded, with which model, and what it cost.

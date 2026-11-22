@@ -95,6 +95,7 @@ export async function mount(root, api) {
     if (!mu) return useOut.replaceChildren();
     if (mu.state === "running") return useOut.replaceChildren(h("p", { class: "muted" }, `Asking… ${mu.done}/${mu.total}`));
     if (mu.state === "error") return useOut.replaceChildren(h("p", { class: "bad" }, mu.text));
+    if (!mu.rows) return useOut.replaceChildren(h("p", { class: "muted" }, mu.text || "Stopped."));
     const rows = Object.values(mu.rows);
     const max = Math.max(mu.threshold_cm * 1.5, ...rows.map((r) => r.change_cm), 0.1);
     useOut.replaceChildren(

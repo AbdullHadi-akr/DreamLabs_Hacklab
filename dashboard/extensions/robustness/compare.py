@@ -121,15 +121,15 @@ def _verdict(per: list[dict], pairs: list[dict]) -> dict:
     elif best is base:
         runner_up = max([s for s in tested if s is not base], key=score)
         pair = next(p for p in pairs if p["id"] == runner_up["id"])
-        verdict["text"] = (f"The default {base['label']} is best ({rate(base)} vs {rate(runner_up)} for "
+        verdict["text"] = (f"The baseline {base['label']} is best ({rate(base)} vs {rate(runner_up)} for "
                            f"{runner_up['label']})" if use_rate else
-                           f"The default {base['label']} gets furthest (progress {base['progress']:.2f} vs "
+                           f"The baseline {base['label']} gets furthest (progress {base['progress']:.2f} vs "
                            f"{runner_up['progress']:.2f})")
         verdict["significant"] = _significant(pair, use_rate)
         verdict["text"] += _evidence(pair, use_rate)
     else:
         pair = next(p for p in pairs if p["id"] == best["id"])
-        verdict["text"] = (f"{best['label']} wins: {rate(best)} successes vs {rate(base)} with the default"
+        verdict["text"] = (f"{best['label']} wins: {rate(best)} successes vs {rate(base)} with the baseline"
                            if use_rate else
                            f"{best['label']} gets furthest: progress {best['progress']:.2f} vs {base['progress']:.2f} "
                            "(nobody succeeds yet)")
@@ -150,7 +150,7 @@ def _verdict(per: list[dict], pairs: list[dict]) -> dict:
         verdict["text"] = verdict["text"].rstrip(".") + (
             f". Smoothest motion: {smoothest['label']} (jitter {_pct(smoothest['jitter_change'])}"
             + (f", seams {_pct(smoothest['seam_change'])}" if smoothest["seam_change"] is not None else "")
-            + " vs the default, independent of speed).")
+            + " vs the baseline, independent of speed).")
     return verdict
 
 

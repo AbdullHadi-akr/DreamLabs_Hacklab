@@ -27,6 +27,7 @@ differ on.
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
 import tempfile
@@ -69,7 +70,7 @@ class StartBody(BaseModel):
     model: str = sim.BETA_MODEL
     dry_run: bool = True
     record: bool = False  # trial videos cost disk space and time: off unless asked for
-    seed: int = 0
+    seed: int = Field(0, ge=0, le=2**32 - 1)  # numpy's generators refuse negative seeds
     latency: Literal["paused", "client"] = "paused"  # dreamtool.runner.LATENCY_MODES ("client" = before 22.11.)
     budget: Literal["sim", "wall"] = "sim"  # what `seconds` limits: simulated time (default) or wall time (old runs)
 
@@ -426,6 +427,15 @@ class RobustnessLab(Extension):
                 body.strategies = list(dict.fromkeys(inference.parse(x).id for x in body.strategies))
             except ValueError as error:
                 raise HTTPException(400, str(error))
+            for name, strengths in (("values", body.values), ("strength", [body.strength] if body.strength is not None else []),
+                                    ("max_strength", [body.max_strength] if body.max_strength is not None else [])):
+                p = REGISTRY.get(body.perturbation)
+                if p is None or not strengths:
+                    continue
+                limit = 10 * max(abs(p.max), abs(p.neutral), 1.0)  # sanity bound: far beyond any useful strength
+                bad = [v for v in strengths if not math.isfinite(v) or abs(v) > limit]
+                if bad:
+                    raise HTTPException(400, f"{p.label}: {name} {bad} out of range (at most {limit:g} {p.unit}).")
             if body.mode == "compare":
                 if len(body.strategies) < 2:
                     raise HTTPException(400, "Pick at least two different strategies to compare.")

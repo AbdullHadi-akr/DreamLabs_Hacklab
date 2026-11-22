@@ -65,6 +65,7 @@ class DragBody(BaseModel):
     v: float = Field(ge=-0.5, le=1.5)
     mode: Literal["horizontal", "vertical"] = "horizontal"
     start: bool = False  # first event of a drag: the TCP's goal becomes the anchor
+    frame: int | None = None
 
 
 class GripperBody(BaseModel):
@@ -133,7 +134,8 @@ class Teleop(Extension):
 
         @r.post("/drag")
         def drag(body: DragBody):
-            self._queue(body.side, drag=(body.u, body.v, body.mode, body.start))
+            view = self.ctx.sim.interaction_view(body.frame, self.id, self.view)
+            self._queue(body.side, drag=(body.u, body.v, body.mode, body.start, view))
             return {"ok": True}
 
         @r.post("/gripper")
@@ -150,17 +152,20 @@ class Teleop(Extension):
 
     def _queue(self, side: str, delta=None, drag=None, gripper=None, rotate=0.0, tilt=None) -> None:
         """Merge a command into the pending ones; at most one teleop job waits on the sim thread at a time."""
-        if self.ctx.sim.busy:
-            raise HTTPException(409, "A run is active. Teleop works between runs: stop the run first.")
-        with self.lock:
+        worker = self.ctx.sim
+        with worker.controls_lock, self.lock:
+            if worker.busy:
+                raise HTTPException(409, "A run is active. Teleop works between runs: stop the run first.")
             cmd = self.pending[side]
             if delta is not None:
                 cmd["delta"] = cmd["delta"] + delta
             if drag is not None:
-                u, v, mode, start = drag
+                u, v, mode, start, view = drag
                 # where the ball was grabbed: kept when later positions replace this one before it is applied
-                grab = (u, v) if start else (cmd["drag"]["grab"] if cmd["drag"] else None)
-                cmd["drag"] = {"uv": (u, v), "mode": mode, "grab": grab}
+                grab = (view, u, v) if start else (cmd["drag"]["grab"] if cmd["drag"] else None)
+                if cmd["drag"] and cmd["drag"]["mode"] != mode and not start:
+                    grab = None
+                cmd["drag"] = {"uv": (u, v), "mode": mode, "grab": grab, "view": view}
             if gripper is not None:
                 cmd["gripper"] = None if gripper == cmd["gripper"] == "toggle" else gripper
             cmd["rotate"] += rotate
@@ -169,7 +174,7 @@ class Teleop(Extension):
             if self.scheduled:
                 return
             self.scheduled = True
-        self.ctx.sim.call(self._apply, hold=True).add_done_callback(self._report)
+            worker.call(self._apply, hold=True).add_done_callback(self._report)
 
     def _report(self, future) -> None:
         if not future.cancelled() and future.exception() is not None:
@@ -218,14 +223,15 @@ class Teleop(Extension):
     def _move(self, goal: dict, cmd: dict) -> None:
         """New goal position from a drag and/or jog steps."""
         drag = cmd["drag"]
-        if drag is not None and self.view is not None:
+        if drag is not None and drag["view"] is not None:
             mode = drag["mode"]
             if drag["grab"] is not None or goal["anchor"] is None or goal["mode"] != mode:
                 # new drag (or Shift pressed/released): anchor at the goal, remember where the ball was grabbed
                 goal["anchor"], goal["mode"] = goal["pos"].copy(), mode
-                grabbed = drag_point(self.view, *(drag["grab"] or drag["uv"]), goal["anchor"], mode)
+                view, u, v = drag["grab"] or (drag["view"], *drag["uv"])
+                grabbed = drag_point(view, u, v, goal["anchor"], mode)
                 goal["offset"] = goal["anchor"] - grabbed if grabbed is not None else np.zeros(3)
-            point = drag_point(self.view, *drag["uv"], goal["anchor"], mode)
+            point = drag_point(drag["view"], *drag["uv"], goal["anchor"], mode)
             if point is not None:
                 goal["pos"] = point + goal["offset"]  # grabbed off-center: no jump on the first move
         goal["pos"] = goal["pos"] + cmd["delta"]

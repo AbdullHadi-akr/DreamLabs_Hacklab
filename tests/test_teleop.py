@@ -1,11 +1,13 @@
 """Teleop extension without the API: kinematics, projection, and keyboard/mouse/gripper commands in the real sim."""
 
+import json
 import time
 import warnings
 
 import mujoco
 import numpy as np
 import pytest
+import cv2
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 from fastapi.testclient import TestClient  # noqa: E402
@@ -96,23 +98,72 @@ def test_ik_turns_the_gripper_and_stops_at_the_wrist_limit(env):
     assert rot_error > np.radians(20) and error < 0.003 and describe(mat)["tilt"] < 1
 
 
-def test_projection_matches_rendered_pixels(env):
+@pytest.mark.parametrize("size", [(960, 540), (640, 360), (540, 540)])
+def test_projection_matches_rendered_pixels(env, size):
     g = env.model.vis.global_
     g.offwidth, g.offheight = max(g.offwidth, MAIN_SIZE[0]), max(g.offheight, MAIN_SIZE[1])
-    renderer = mujoco.Renderer(env.model, height=MAIN_SIZE[1], width=MAIN_SIZE[0])
+    width, height = size
+    renderer = mujoco.Renderer(env.model, height=height, width=width)
     cam = mujoco.MjvCamera()
     OrbitCamera().apply(cam)
-    for azimuth, elevation in ((90, -32), (30, -50)):
-        cam.azimuth, cam.elevation = azimuth, elevation
+    for azimuth, elevation, distance in ((90, -32, 1.45), (30, -50, 1.3), (-90, -35, 1.5), (0, -84, 1.6)):
+        cam.azimuth, cam.elevation, cam.distance = azimuth, elevation, distance
         renderer.update_scene(env.data, camera=cam)
-        view = view_from_scene(renderer.scene, *MAIN_SIZE)
-        point = env.data.site("left_tcp").xpos.copy()
+        view = view_from_scene(renderer.scene, width, height)
+        point = np.array([0.12, 0.05, 1.18])
         overlay_sphere(renderer.scene, point, radius=0.012, rgba=(1, 0, 1, 1))
         u, v = project(view, point)
-        r, g_, b = renderer.render()[int(v * MAIN_SIZE[1]), int(u * MAIN_SIZE[0])]
-        assert r > 200 and b > 200 and g_ < 80  # the magenta marker is exactly there
+        rgb = renderer.render()
+        y, x = np.where((rgb[:, :, 0] > 175) & (rgb[:, :, 2] > 175) & (rgb[:, :, 1] < 80))
+        assert len(x) > 0
+        assert np.hypot(x.mean() + .5 - u * width, y.mean() + .5 - v * height) < 2
         assert np.linalg.norm(drag_point(view, u, v, point) - point) < 1e-3
     renderer.close()
+
+
+def test_displayed_frames_keep_their_projection_after_camera_changes(client, monkeypatch):
+    worker = client.app_ref.state.sim
+    ext = next(ext for ext in worker.extensions if ext.id == "teleop")
+    objects_ext = next(ext for ext in worker.extensions if ext.id == "objects")
+    calls = []
+    object_calls = []
+    monkeypatch.setattr(ext, "_queue", lambda side, drag: calls.append((side, drag)))
+    monkeypatch.setattr(objects_ext, "_drag", lambda env, drag: object_calls.append(drag))
+
+    def read(tool, after=-1):
+        response = client.get(f"/api/view-frame/{tool}", params={"after": after})
+        assert response.status_code == 200
+        frame = int(response.headers["X-View-Frame"])
+        rgb = cv2.imdecode(np.frombuffer(response.content, np.uint8), cv2.IMREAD_COLOR)
+        assert rgb.shape[:2] == MAIN_SIZE[::-1]
+        return frame, json.loads(response.headers["X-View-State"])
+
+    try:
+        first, before = read("teleop")
+        jpeg_view = worker.interaction_view(first, "teleop", None)
+        first_objects, objects = read("objects")
+        apple_u, apple_v = objects["items"]["apple"]["handle"]
+        client.post("/api/camera", json={"azimuth": -70, "elevation": -76, "lookat": [0.12, 0.15, .85]})
+        second, after = first, before
+        while second == first or np.linalg.norm(np.subtract(after["arms"]["left"]["screen"], before["arms"]["left"]["screen"])) < .05:
+            second, after = read("teleop", second)
+            assert second - first < 120
+        u, v = before["arms"]["left"]["screen"]
+        point = before["arms"]["left"]["pos"]
+        assert np.allclose(project(jpeg_view, point), [u, v], atol=.00025)
+        shifted = project(worker.interaction_view(second, "teleop", None), point)
+        assert np.linalg.norm(np.multiply(np.subtract(shifted, [u, v]), MAIN_SIZE)) > 24
+        assert client.post(f"{API}/drag", json={"side": "left", "u": u, "v": v, "frame": first, "start": True}).status_code == 200
+        assert calls[0][0] == "left" and calls[0][1][-1] is jpeg_view
+        apple = {"name": "apple", "u": apple_u, "v": apple_v, "frame": first_objects, "start": True}
+        assert client.post("/api/ext/objects/drag", json=apple).status_code == 200
+        drag = wait_for(lambda: object_calls and object_calls[0])
+        assert drag["name"] == "apple"
+        assert drag["view"] is worker.interaction_view(first_objects, "objects", None)
+        assert client.post(f"{API}/drag", json={"side": "left", "u": u, "v": v, "frame": -1}).status_code == 409
+    finally:
+        client.post("/api/ext/objects/release")
+        client.post("/api/camera", json={"reset": True})
 
 
 def test_keyboard_jog_moves_only_that_arm(client):

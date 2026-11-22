@@ -38,11 +38,13 @@
     <button class="tab" type="button" id="suite-report-tab" aria-pressed="false" aria-controls="test-suite-results">Report</button>
   </nav>
   <main class="layout">
-    <aside class="col col-left">
+    <button type="button" class="left-rail" id="left-rail" title="Show the side panel: tools and test builder" aria-controls="col-left" aria-expanded="false">‹ <span>Side panel</span></button>
+    <aside class="col col-left" id="col-left">
       <section class="card tools" id="dashboard-tools">
         <div class="section-head tool-head">
           <h2 class="pixel">Tools</h2>
           <select id="tool-select" class="tool-select" aria-label="Choose a tool"></select>
+          <button type="button" class="fold-btn" id="left-collapse" title="Hide the side panel (more room for the simulation)" aria-controls="col-left" aria-expanded="true">‹</button>
         </div>
         <p class="tool-desc muted" id="tool-desc"></p>
         <div class="panels" id="ext-panels">
@@ -78,7 +80,7 @@
                 <span class="chip-dark mono" id="badge-time">t = 0.0 s</span>
                 <span class="chip-dark" id="badge-view" hidden></span>
               </div>
-              <div class="viewer-hint">Drag: orbit · Right/Shift: pan · Wheel: zoom · Double-click: reset</div>
+              <div class="viewer-hint">Drag: orbit · Right/Shift: pan · Alt + scroll: zoom · Double-click: reset</div>
               <div class="caption">
                 <span class="caption-label" id="caption-label">Ready</span>
                 <p id="caption-task">Waiting for the next prompt…</p>

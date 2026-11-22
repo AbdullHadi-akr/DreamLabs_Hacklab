@@ -21,6 +21,9 @@ from .evaluation import placement, snapshot
 
 from .metrics import Evidence, execution_status, summarize
 from .scenarios import STRESS, apply, capture_start, generate, sweep_values
+from .checkpoint import DEMO_PREFIX, TASK, ForkExecution, chunks
+from .forks import Forks
+from ..robustness.replay import plan as scripted_plan
 
 Prompt = Annotated[str, StringConstraints(strip_whitespace=True, min_length=2, max_length=300)]
 Offset = Annotated[float, Field(ge=-30, le=30)]
@@ -92,6 +95,10 @@ class CampaignControl(BaseModel):
     id: UUID
 
 
+class ForkConfirmation(BaseModel):
+    confirmed: bool = False
+
+
 class TestSuite(Extension):
     id = "test_suite"
     title = "Test Suite"
@@ -104,6 +111,7 @@ class TestSuite(Extension):
         self.cancel_pending = threading.Event()
         self.live = None
         self.history_cache = {}
+        self.forks = Forks(self) if hasattr(self.ctx, "sim") else None
 
     def directory(self, campaign: UUID):
         return self.ctx.data_dir / campaign.hex
@@ -132,7 +140,7 @@ class TestSuite(Extension):
         path = self.directory(campaign) / f'{row["number"]}.actions.json'
         return json.loads(path.read_text(encoding="utf-8")) if path.is_file() else []
 
-    def start(self, config, replay=None):
+    def start(self, config, replay=None, fork_demo=False):
         worker = self.ctx.sim
         with self.lock:
             if self.active or worker.busy:
@@ -145,6 +153,9 @@ class TestSuite(Extension):
             cases = [replay["case"]] if replay else list(generate(config))
             report = dict(id=campaign, created=time.time(), state="running", total=len(cases),
                           config=config.model_dump(), trials=[], logs=[])
+            if fork_demo:
+                report["fork_demo"] = True
+                cases[0]["current_scene"] = False
             if replay:
                 report["reproduction"] = replay["reference"]
             self.save(report)
@@ -174,6 +185,12 @@ class TestSuite(Extension):
                 video = directory / f"{index}.mp4" if config.record else None
                 goal = placement(config.goal or case["prompt"])
                 evidence = Evidence(self.cancelled, video, goal, stage)
+                demo = report.get("fork_demo", False)
+                experiment = None
+                if config.mode == "quick" and goal == ("banana", "plate") and (demo or not config.dry_run):
+                    experiment = ForkExecution(evidence.evaluator, case["prompt"], case["model"],
+                                               path=directory / f"{index}.checkpoint.json.gz",
+                                               script=[] if demo else None, max_requests=config.max_requests)
                 restore = None
                 initial = final = None
                 starting_physics = None
@@ -187,6 +204,10 @@ class TestSuite(Extension):
                         if self.cancelled.is_set():
                             return
                         restore = apply(env, case)
+                        if demo:
+                            rows = scripted_plan(env, "banana", "plate", release_height=.085)
+                            experiment.script = chunks(rows[:DEMO_PREFIX]) + chunks(rows[DEMO_PREFIX:])
+                            experiment.continuation = rows[DEMO_PREFIX:]
                         initial = snapshot(env)
                         starting_physics = capture_start(env)
                         evidence.prepare(env)
@@ -209,14 +230,16 @@ class TestSuite(Extension):
                                          offline=config.dry_run, stop_on_success=False, max_requests=config.max_requests,
                                          capture_each_step=config.record,
                                          targets=lambda env: [(env.state()["left"], env.state()["right"])] * 10,
-                                         source=self.id, label=f"Run {index}/{len(cases)}")
+                                         source=self.id, label=f"Run {index}/{len(cases)}",
+                                         **({"experiment": experiment} if experiment else {}))
                 result = result_dict(future.result())
                 termination = result["stop_reason"]
-                verdict, explanation = evidence.evaluator.result(termination, config.dry_run)
+                unevaluated_dry_run = config.dry_run and not demo
+                verdict, explanation = evidence.evaluator.result(termination, unevaluated_dry_run)
                 category, verified_stage = evidence.evaluator.classify(
                     termination, verdict, bool(evidence.requests and evidence.requests[-1].get("error"))
                     or termination.startswith("error: Dream"))
-                if config.dry_run and execution_status(termination) == "completed":
+                if unevaluated_dry_run and execution_status(termination) == "completed":
                     category, verified_stage = "EVALUATION_UNAVAILABLE", None
                 execution = execution_status(termination, verdict)
                 duration = result["seconds"] if evidence.started else None
@@ -244,7 +267,7 @@ class TestSuite(Extension):
                     task_duration_seconds=duration, completion_duration_seconds=duration if verdict is True else None,
                     setup_duration_seconds=setup_seconds, api_request_count=result["requests"],
                     mean_request_latency_seconds=result["mean_rtt_s"],
-                    evaluation_method="deterministic_placement" if goal and not config.dry_run else None,
+                    evaluation_method="deterministic_placement" if goal and not unevaluated_dry_run else None,
                     evaluation_evidence=evidence.evaluator.latest, failure_reason=explanation, confidence=None,
                     initial_state=initial, final_state=final, timeline=evidence.timeline,
                     api_events=evidence.requests, video=bool(video and video.is_file()), action_chunks=len(evidence.actions),
@@ -259,6 +282,10 @@ class TestSuite(Extension):
                     safety_checks=safety_checks,
                 )
                 row["success"] = verdict
+                if experiment:
+                    row["checkpoint"] = experiment.reference
+                    if not experiment.reference:
+                        row["checkpoint_unavailable"] = experiment.reason
                 evidence.timeline.append({"stage": execution, "at": time.time()})
                 if evidence.actions:
                     (directory / f"{index}.actions.json").write_text(
@@ -298,6 +325,8 @@ class TestSuite(Extension):
 
     def shutdown(self):
         self.cancelled.set()
+        if self.forks is not None:
+            self.forks.cancelled.set()
 
     def router(self):
         router = APIRouter()
@@ -328,6 +357,26 @@ class TestSuite(Extension):
             if config.mode == "reproduction":
                 raise HTTPException(422, "Select a saved failed run to reproduce.")
             return self.start(config)
+
+        @router.post("/fork-demo")
+        def fork_demo():
+            return self.start(Config(mode="quick", prompt=TASK, dry_run=True, seconds=180), fork_demo=True)
+
+        @router.get("/reports/{campaign}/forks/{trial}")
+        def fork_history(campaign: UUID, trial: int):
+            return self.forks.history(campaign, trial)
+
+        @router.get("/reports/{campaign}/forks/{trial}/quote")
+        def fork_quote(campaign: UUID, trial: int):
+            return self.forks.quote(self.forks.checkpoint(campaign, trial))
+
+        @router.post("/reports/{campaign}/forks/{trial}")
+        def fork(campaign: UUID, trial: int, body: ForkConfirmation):
+            return self.forks.launch(campaign, trial, body.confirmed)
+
+        @router.post("/forks/{comparison}/stop")
+        def stop_fork(comparison: UUID):
+            return self.forks.stop(comparison)
 
         @router.post("/stop")
         def stop(body: CampaignControl | None = None):

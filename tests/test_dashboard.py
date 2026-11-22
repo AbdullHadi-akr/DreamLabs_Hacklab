@@ -228,3 +228,29 @@ def test_camera_check_routes(client):
         time.sleep(0.1)
     mu = client.get("/api/ext/camera_check/status").json()["model_use"]
     assert mu["state"] == "done" and mu["rows"]["blank:top"]["reacts"] and not mu["rows"]["blank:left"]["reacts"]
+
+
+def test_dropped_connections_are_not_logged_as_errors():
+    """Windows asyncio reports a browser closing a stream as ConnectionResetError; only that is silenced."""
+    from dashboard.app import _quiet_disconnects
+
+    seen = []
+
+    class Loop:
+        def default_exception_handler(self, context):
+            seen.append(context)
+
+    _quiet_disconnects(Loop(), {"exception": ConnectionResetError(10054, "closed by the remote host")})
+    _quiet_disconnects(Loop(), {"exception": RuntimeError("real problem")})
+    _quiet_disconnects(Loop(), {"message": "no exception at all"})
+    assert [type(c.get("exception")).__name__ for c in seen] == ["RuntimeError", "NoneType"]
+
+
+def test_robustness_refuses_absurd_strengths_and_seeds(client):
+    """Found by the API sweep: a strength of 1e12 cm and a negative seed were accepted and started a campaign."""
+    base = {"task": "put the apple into the bowl", "mode": "sweep", "perturbation": "target_shift", "dry_run": True,
+            "record": False, "trials": 1, "seconds": 5}
+    assert client.post("/api/ext/robustness/start", json={**base, "values": [1e12]}).status_code == 400
+    assert client.post("/api/ext/robustness/start", json={**base, "mode": "compare", "strategies": ["chunk", "crossfade-30"],
+                                                          "strength": -1e9}).status_code == 400
+    assert client.post("/api/ext/robustness/start", json={**base, "seed": -1}).status_code == 422

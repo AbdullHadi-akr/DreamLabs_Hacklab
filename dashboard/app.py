@@ -27,7 +27,7 @@ from .events import EventBus
 from .extension import describe, load_extensions
 from .lab_db import LabDB
 from .multiplayer import ARM_POSTS, GUEST_POSTS, HOST_ONLY_GETS, OPEN_PATHS, PlayerError, Players, is_remote
-from .simulation import CAMERAS, MAIN_FPS, SimWorker, demo_motion
+from .simulation import CAMERAS, MAIN_FPS, ExpiredView, SimulatorReserved, SimWorker, demo_motion
 
 ## Windows reads MIME types from the registry, which often maps .js to text/plain -> browsers refuse ES modules.
 mimetypes.add_type("text/javascript", ".js")
@@ -92,6 +92,14 @@ class CameraBody(BaseModel):
     reset: bool = False
 
 
+def _quiet_disconnects(loop, context):
+    """Windows' asyncio logs a traceback whenever a browser drops a connection (a closed camera stream, a reload):
+    ConnectionResetError [WinError 10054] while shutting the socket down. Harmless; every other error is logged."""
+    if isinstance(context.get("exception"), ConnectionResetError):
+        return
+    loop.default_exception_handler(context)
+
+
 def create_app() -> FastAPI:
     bus = EventBus()
     db = LabDB()
@@ -102,6 +110,7 @@ def create_app() -> FastAPI:
     worker.extensions = extensions
     campaigns = getattr(worker, "campaign_recovery", None)
     controls_lock = campaigns.lock if campaigns else threading.RLock()
+    worker.controls_lock = controls_lock
 
     def campaign_active():
         return campaigns is not None and campaigns.active is not None
@@ -109,6 +118,7 @@ def create_app() -> FastAPI:
     @contextlib.asynccontextmanager
     async def lifespan(app: FastAPI):
         bus.bind(asyncio.get_running_loop())
+        asyncio.get_running_loop().set_exception_handler(_quiet_disconnects)
         worker.start()
         await asyncio.get_running_loop().run_in_executor(None, worker.ready.wait, 60)
         yield
@@ -120,6 +130,11 @@ def create_app() -> FastAPI:
         await asyncio.get_running_loop().run_in_executor(None, worker.join, 5)
 
     app = FastAPI(title="Dream-1 Dashboard", lifespan=lifespan)
+
+    @app.exception_handler(SimulatorReserved)
+    @app.exception_handler(ExpiredView)
+    async def simulator_reserved(request, error):
+        return JSONResponse({"detail": str(error)}, status_code=409)
     app.state.bus, app.state.sim, app.state.extensions = bus, worker, extensions
     ## Set by the server on Ctrl+C (see __main__.py): ends the endless video streams, otherwise shutdown waits forever.
     app.state.closing = closing = threading.Event()
@@ -154,6 +169,12 @@ def create_app() -> FastAPI:
                 client = new_client = "h-" + secrets.token_hex(6)
         request.state.client, request.state.role = client, role
         players.seen(client, role)
+        if worker.exclusive and request.method == "POST" and (
+            path.startswith("/api/ext/xray/")
+            or path in ("/api/stop", "/api/reset", "/api/episodes/take-over", "/api/episodes/save",
+                        "/api/episodes/discard", "/api/episodes/record")
+        ):
+            return JSONResponse({"detail": "A Fork Here comparison owns the simulator."}, status_code=409)
         if path in ARM_POSTS and request.method == "POST":
             try:
                 side = json.loads((await request.body()) or b"{}").get("side")
@@ -339,10 +360,13 @@ def create_app() -> FastAPI:
 
     @app.post("/api/credits/settings")
     def credits_settings(body: CreditSettingsBody):
-        try:
-            return credits.save_settings(db, **body.model_dump())
-        except ValueError as error:
-            raise HTTPException(400, str(error)) from None
+        with controls_lock:
+            if worker.exclusive:
+                raise SimulatorReserved("A Fork Here comparison owns the simulator.")
+            try:
+                return credits.save_settings(db, **body.model_dump())
+            except ValueError as error:
+                raise HTTPException(400, str(error)) from None
 
     # ---------- Players (multiplayer) ----------
 
@@ -405,12 +429,45 @@ def create_app() -> FastAPI:
 
     # ---------- Video ----------
 
+    async def next_frame(source, after):
+        for _ in range(35):
+            frame = worker.frames.get(source)
+            if frame and frame[0] != after:
+                return frame
+            if closing.is_set():
+                break
+            await asyncio.sleep(.02)
+        return None
+
     @app.get("/snapshot/{name}.jpg")
-    def snapshot(name: str):
-        frame = worker.frames.get(name)
+    async def snapshot(name: str):
+        if name not in ("main", "main-low", "main-teleop") and name.removesuffix("-large") not in CAMERAS:
+            raise HTTPException(404)
+        with worker.watch_frames(name):
+            frame = await next_frame(name, worker.frames.get(name, (-1,))[0])
         if not frame:
             raise HTTPException(404)
         return Response(frame[1], media_type="image/jpeg", headers={"Cache-Control": "no-store"})
+
+    @app.get("/api/view-frame/{tool}")
+    async def view_frame(tool: str, request: Request, after: int = -1):
+        if tool not in ("teleop", "objects"):
+            raise HTTPException(404)
+        teleop = tool == "teleop"
+        remote = is_remote(request.headers)
+        source = "main-teleop" if teleop else "main-low" if remote else "main"
+        if remote:
+            await asyncio.sleep(1 / 12)
+        headers = {"Cache-Control": "no-store"}
+        with worker.watch_frames(source):
+            if after == -1:
+                after = worker.frames.get(source, (-1,))[0]
+            frame = await next_frame(source, after)
+        if frame and frame[2] and tool in frame[2]:
+            headers["X-View-Frame"] = str(frame[0])
+            headers["X-View-State"] = json.dumps(frame[2][tool][0], separators=(",", ":"), ensure_ascii=True)
+            return Response(frame[1], media_type="image/jpeg", headers=headers)
+        return Response(status_code=204, headers=headers)
 
     @app.get("/stream/{name}.mjpg")
     async def stream(name: str, request: Request):
@@ -421,13 +478,8 @@ def create_app() -> FastAPI:
         pause = 1 / 12 if is_remote(request.headers) else 1 / (MAIN_FPS + 5)
 
         async def frames():
-            teleop = name == "main-teleop"
-            last = worker.frames.get(name, (-1,))[0] if teleop else -1
-            if teleop:
-                worker.teleop_viewers += 1
-            if guest_main:
-                worker.low_viewers += 1
-            try:
+            with worker.watch_frames(source):
+                last = worker.frames.get(source, (-1,))[0]
                 while not closing.is_set():
                     frame = worker.frames.get(source)
                     if frame and frame[0] != last:
@@ -435,11 +487,6 @@ def create_app() -> FastAPI:
                         yield b"--frame\r\nContent-Type: image/jpeg\r\nContent-Length: %d\r\n\r\n%s\r\n" % (
                             len(frame[1]), frame[1])
                     await asyncio.sleep(pause)
-            finally:
-                if teleop:
-                    worker.teleop_viewers -= 1
-                if guest_main:
-                    worker.low_viewers -= 1
 
         return StreamingResponse(frames(), media_type="multipart/x-mixed-replace; boundary=frame",
                                  headers={"Cache-Control": "no-store"})

@@ -71,7 +71,7 @@ class SceneInspector(Extension):
 
     def run_hooks(self, run):
         parsed = scene.parse_task(run["task"])
-        self.target = parsed or self.target
+        self.target = parsed
         return LiftTracker(self, parsed[0]) if parsed else None
 
     def decorate(self, env, mjscene):
