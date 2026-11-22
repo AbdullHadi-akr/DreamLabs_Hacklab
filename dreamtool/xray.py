@@ -535,13 +535,23 @@ def run_intent(prober: Prober, kin: Kinematics, repeats: int = 3, progress=None)
     }
 
 
+## RISE only runs where the plan depends on the images at all: when blanking a whole camera moves the plan by at most
+## this (or 3x the noise), every masked window changes even less and the heatmap is noise. Measured on real Dream-1
+## (22.11.2026): at 3 s into a run blanking any camera moved the plan 0.4-0.5 cm and 200 masks stayed at chance level.
+MIN_RELIANCE_CM = 1.0
+
+
 def run_rise(prober: Prober, kin: Kinematics, masks: int = 40, repeats: int = 3, seed: int = 0, progress=None) -> dict:
-    """RISE over all three cameras at once, plus camera reliance (each camera blanked) and the noise floor."""
+    """RISE over all three cameras at once, plus camera reliance (each camera blanked) and the noise floor.
+
+    The unchanged and blanked windows are asked first; when no camera matters at this moment (MIN_RELIANCE_CM) the
+    masks are skipped and the result says so instead of drawing a heatmap of noise."""
     snap = prober.snapshot
     rng = np.random.default_rng(seed)
     questions = [Question(snap.prompt, snap.windows, tag=("base", i)) for i in range(repeats)]
     for cam in CAMERAS:
         questions.append(Question(snap.prompt, {**snap.windows, cam: blank_window(snap.windows[cam])}, tag=("blank", cam)))
+    first = len(questions)
     small_masks = []
     for k in range(masks):
         windows, smalls = {}, {}
@@ -558,13 +568,21 @@ def run_rise(prober: Prober, kin: Kinematics, masks: int = 40, repeats: int = 3,
         done[0] += 1
         _progress(progress, done[0], total, "masked camera windows")
 
-    replies = prober.ask(questions, answered)
+    replies = prober.ask(questions[:first], answered)
     intents = [None if r is None else intent(kin, snap, *chunk(r)) for r in replies]
     base = [it for q, it in zip(questions, intents) if q.tag[0] == "base" and it is not None]
     if not base:
         raise RuntimeError("stopped before the unchanged moment was answered")
     reference = mean_intent(base)
     noise = [plan_change_cm(b, reference) for b in base]
+    blanked = [plan_change_cm(it, reference) for q, it in zip(questions, intents) if q.tag[0] == "blank" and it is not None]
+    needed = max(3 * float(np.mean(noise)), MIN_RELIANCE_CM)
+    if blanked and max(blanked) <= needed:
+        questions = questions[:first]
+        _progress(progress, first, first, "skipped the masks: no camera matters at this moment")
+    else:
+        replies += prober.ask(questions[first:], lambda i, q, reply: answered(first + i, q, reply))
+        intents += [None if r is None else intent(kin, snap, *chunk(r)) for r in replies[first:]]
     maps = {cam: RiseMap() for cam in CAMERAS}
     changes, reliance = [], {}
     for q, it in zip(questions, intents):
@@ -577,6 +595,16 @@ def run_rise(prober: Prober, kin: Kinematics, masks: int = 40, repeats: int = 3,
             changes.append(change)
             for cam in CAMERAS:
                 maps[cam].add(small_masks[q.tag[1]][cam], change)
+    if not changes:  # masks skipped (or none answered)
+        most = max(reliance.values(), key=lambda r: r["change_cm"])["change_cm"] if reliance else 0.0
+        text = (f"At this moment the plan barely depends on the images: blanking a whole camera moves it by at most "
+                f"{most} cm (needs more than {round(needed, 2)} cm), so masks would only map noise and were skipped. "
+                f"Freeze a moment where the arm reaches for or carries an object.")
+        zeros = np.zeros((HEAT_H, HEAT_W)).tolist()
+        return {"heat": {cam: zeros for cam in CAMERAS}, "peak_cm": {cam: 0.0 for cam in CAMERAS},
+                "chance_cm": {cam: None for cam in CAMERAS}, "looks_at": [], "reliance": reliance,
+                "noise_cm": round(float(np.mean(noise)), 2), "mask_changes_cm": [], "masks": 0, "skipped": True,
+                "grid": [HEAT_H, HEAT_W], "reference_target": base[0]["target"], "text": text, "calls": prober.calls}
     heat = {cam: np.round(maps[cam].importance(), 3).tolist() for cam in CAMERAS}
     peak = {cam: round(float(np.max(maps[cam].importance())), 2) for cam in CAMERAS}
     used = [small_masks[q.tag[1]] for q, it in zip(questions, intents) if it is not None and q.tag[0] == "mask"]

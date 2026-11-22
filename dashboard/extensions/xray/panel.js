@@ -143,8 +143,9 @@ export async function mount(root, api) {
     out.rise.replaceChildren(
       h("div", { class: "xr-verdict" }, r.text),
       ...CAMS.map(([cam, label]) => h("figure", { class: "xr-heat-fig" }, heatCanvas(cam, r),
-        h("figcaption", {}, h("b", {}, label), ` peak ${r.peak_cm[cam]} cm · chance ${r.chance_cm[cam]} cm`,
-          r.looks_at.includes(cam) ? h("span", { class: "good" }, " · above chance") : h("span", { class: "muted" }, " · noise")))),
+        h("figcaption", {}, h("b", {}, label), r.skipped ? h("span", { class: "muted" }, " · masks skipped") : [
+          ` peak ${r.peak_cm[cam]} cm · chance ${r.chance_cm[cam]} cm`,
+          r.looks_at.includes(cam) ? h("span", { class: "good" }, " · above chance") : h("span", { class: "muted" }, " · noise")]))),
       h("p", { class: "muted" }, "Coloured cells: hiding them changes the planned path more than chance would (permutation test). " +
         "Washed-out cells: no evidence. Darker orange = stronger."),
       h("h4", {}, "Camera blanked completely"),

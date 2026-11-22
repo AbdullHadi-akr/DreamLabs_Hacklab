@@ -137,3 +137,14 @@ def test_language_summary_texts():
     none = [{"word": "apple", "named": "apple", "targets": [None]}]
     assert "No plan heads for any object" in xray.language_summary(none)["text"]
     assert scene.parse_task("put the banana on the plate") == ("banana", "plate")
+
+
+def test_rise_skips_the_masks_when_no_camera_matters(frozen, monkeypatch):
+    """Measured on real Dream-1: early in a run blanking a camera moved the plan 0.5 cm and 200 masks stayed at chance."""
+    _, snap, kin = frozen
+    monkeypatch.setattr(xray, "MIN_RELIANCE_CM", 1e6)  # no camera change is large enough
+    prober = xray.Prober(snap, xray_fake.open_fake, workers=2)
+    rise = xray.run_rise(prober, kin, masks=40)
+    assert rise["skipped"] and rise["masks"] == 0 and rise["looks_at"] == []
+    assert prober.calls == 3 + 3, "only the unchanged and the blanked windows were asked"
+    assert set(rise["reliance"]) == set(xray.CAMERAS) and "barely depends on the images" in rise["text"]
