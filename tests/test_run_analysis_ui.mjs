@@ -39,6 +39,7 @@ globalThis.Event=class {constructor(type){this.type=type;}};
 globalThis.CustomEvent=class extends Event {constructor(type, options){super(type);this.detail=options.detail;}};
 globalThis.window=new FakeElement("window");
 window.setInterval=()=>{};
+window.clearTimeout=()=>{};
 let printed=0;
 window.print=()=>{printed++;};
 function assert(condition, message) { if(!condition) throw Error(message); }
@@ -58,7 +59,7 @@ const reports={
 };
 reports.historic.stats.unevaluated=1;
 Object.assign(reports.large.trials[0],{task_success:true,task_duration_seconds:5.4,evaluation_evidence:{object:"apple",target:"bowl",best_planar_distance_m:.01},
-  snapshots:[{kind:"final",simulation_time:4}]});
+  snapshots:[{kind:"final",simulation_time:4}],checkpoint:{id:"checkpoint-one",simulation_time:3,scripted:true}});
 Object.assign(reports.large.trials[1],{task_success:false,failure_category:"PICKUP_FAILED",failure_reason:"Exact run 2 evaluation",
   termination_reason:"task_deadline",execution_status:"timed_out",task_duration_seconds:17,
   last_verified_stage:"Gripper contact",api_request_count:4,snapshots:[{kind:"contact",simulation_time:9}],
@@ -76,6 +77,10 @@ const api={ui:{h,toast(){}},on(name,fn){(suiteEvents[name]||=[]).push(fn);},onCo
   async get(url){ reads.push(url);
   if(url==="/history")return Object.values(reports).map((r)=>({id:r.id,state:r.state,created:1,config:r.config}));
   if(url.endsWith("/actions/2"))return [{reply:"run 2 action"}];
+  if(url.endsWith("/forks/1/quote"))return {api_request_limit:0,max_cost_usd:0};
+  if(url.endsWith("/forks/1"))return [{id:"comparison-one",state:"done",branches:{
+    baseline:{status:"complete",outcome:false,requests:0,cost_usd:0},
+    guarded:{status:"complete",outcome:true,requests:0,cost_usd:0}}}];
   return reports[url.split("/").at(-1)]; }};
 (async()=>{
   await mount(document.getElementById("config"),api);
@@ -121,6 +126,12 @@ const api={ui:{h,toast(){}},on(name,fn){(suiteEvents[name]||=[]).push(fn);},onCo
   assert(tabs[1].attrs["aria-selected"]==="true" && panel.textContent.includes("prompt-2"),"Build and Report preserve selection");
   tabs[0].events.click();
   assert(panel.textContent.includes("prompt-1") && !panel.textContent.includes("Exact run 2"),"switching back restores run 1");
+  const fork=find(panel,(node)=>node.tag==="details"&&node.firstChild.textContent==="Fork here");
+  fork.isConnected=true;
+  fork.open=true;
+  fork.events.toggle();
+  await new Promise((resolve)=>setTimeout(resolve,0));
+  assert(fork.textContent.includes("Added API requests: 0")&&!fork.textContent.includes("undefined"),"fork report omits missing error text");
   assert(reads.filter((url)=>url==="/reports/large").length===1,"run changes are local");
   const compare=find(results,(node)=>node.tag==="details"&&node.firstChild.textContent==="Compare Runs");
   const selectors=descendants(compare,(node)=>node.tag==="select");

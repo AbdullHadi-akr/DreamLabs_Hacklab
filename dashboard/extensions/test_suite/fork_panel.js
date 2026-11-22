@@ -27,7 +27,7 @@ export function forkPanel({h, api, button, base, run}) {
     const {baseline, guarded} = item.branches;
     results.replaceChildren(
       h("h4", {}, `Comparison ${item.id.slice(0, 8)} · ${item.state}`),
-      item.restore_error && h("p", {role: "alert"}, item.restore_error),
+      ...(item.restore_error ? [h("p", {role: "alert"}, item.restore_error)] : []),
       h("p", {}, `Added API requests: ${baseline.requests == null || guarded.requests == null
         ? "Unavailable" : guarded.requests - baseline.requests} · Added estimated cost: ${baseline.cost_usd == null ||
         guarded.cost_usd == null ? "Unavailable" : spend(guarded.cost_usd - baseline.cost_usd)}`),
