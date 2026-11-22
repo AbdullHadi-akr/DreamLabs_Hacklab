@@ -7,11 +7,12 @@ import contextlib
 import mimetypes
 import threading
 from pathlib import Path
+from typing import Annotated
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StringConstraints
 
 from dreamtool import sim as dsim
 
@@ -34,8 +35,8 @@ EXT_FILE_TYPES = {".js", ".css", ".html", ".svg", ".png", ".jpg", ".json"}
 
 
 class RunBody(BaseModel):
-    task: str = Field(min_length=2, max_length=300)
-    model: str = dsim.BETA_MODEL
+    task: Annotated[str, StringConstraints(strip_whitespace=True, min_length=2, max_length=300)]
+    model: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=300)] = dsim.BETA_MODEL
     seconds: float = Field(60, gt=0, le=3600)
     offline: bool = False
 
@@ -53,6 +54,11 @@ def create_app() -> FastAPI:
     worker = SimWorker(bus)
     extensions = load_extensions(worker, bus)
     worker.extensions = extensions
+    campaigns = getattr(worker, "campaign_recovery", None)
+    controls_lock = campaigns.lock if campaigns else threading.RLock()
+
+    def campaign_active():
+        return campaigns is not None and campaigns.active is not None
 
     @contextlib.asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -111,38 +117,60 @@ def create_app() -> FastAPI:
             "extensions": [describe(e) for e in extensions],
         }
 
+    reset_job = None
+
     def require_idle():
-        if worker.busy:
+        if not worker.ready.is_set() or worker.error:
+            raise HTTPException(503, "The simulator is unavailable.")
+        if worker.busy or campaign_active() or (reset_job is not None and not reset_job.done()):
             raise HTTPException(409, "A run is already active (or queued). Stop it first.")
 
     @app.post("/api/run")
     def run(body: RunBody):
-        require_idle()
-        if not body.offline and not dsim.settings().get("DREAM_API_KEY"):
-            raise HTTPException(400, "No API key configured (see README). The offline demo still works.")
-        worker.run_task(body.task, model=body.model, seconds=body.seconds, offline=body.offline,
-                        targets=demo_motion if body.offline else None, label="Offline demo" if body.offline else "")
+        with controls_lock:
+            require_idle()
+            if not body.offline and not dsim.settings().get("DREAM_API_KEY"):
+                raise HTTPException(400, "No API key configured (see README). The offline demo still works.")
+            worker.run_task(body.task, model=body.model, seconds=body.seconds, offline=body.offline,
+                            targets=demo_motion if body.offline else None, label="Offline demo" if body.offline else "")
         return {"ok": True}
 
     @app.post("/api/stop")
     def stop():
-        dropped = worker.cancel_queued()
-        worker.stop()
+        with controls_lock:
+            if campaign_active():
+                raise HTTPException(409, "Stop the active campaign from Test Suite.")
+            dropped = worker.cancel_queued()
+            worker.stop()
         return {"ok": True, "dropped": dropped}
 
     @app.post("/api/reset")
     def reset():
-        worker.cancel_queued()
-        worker.stop()
-        worker.call(lambda env: env.reset())
-        bus.log("Scene reset.")
+        nonlocal reset_job
+        def reset_scene(env):
+            try:
+                env.reset()
+            except Exception:
+                bus.log("Scene reset failed. Check the simulator state before the next run.", "error")
+                raise
+            bus.log("Scene reset.")
+
+        with controls_lock:
+            if not worker.ready.is_set() or worker.error:
+                raise HTTPException(503, "The simulator is unavailable.")
+            if campaign_active() or (reset_job is not None and not reset_job.done()):
+                raise HTTPException(409, "A campaign or scene reset is already active.")
+            worker.cancel_queued()
+            worker.stop()
+            reset_job = worker.call(reset_scene)
         return {"ok": True}
 
     @app.post("/api/home")
     def home():
-        require_idle()
-        worker.run_task("move arms home", offline=True, targets=lambda env: dsim.home_path(env.state()),
-                        label="Home", stop_on_success=False)
+        with controls_lock:
+            require_idle()
+            worker.run_task("move arms home", offline=True, targets=lambda env: dsim.home_path(env.state()),
+                            label="Home", stop_on_success=False)
         return {"ok": True}
 
     @app.post("/api/camera")

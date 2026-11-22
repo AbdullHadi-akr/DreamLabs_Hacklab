@@ -165,6 +165,8 @@ class SimWorker(threading.Thread):
         self.run_stats: dict = {}
         self.error: str | None = None
         self._run_ids = 0
+        self._run_lock = threading.Lock()
+        self._outstanding_runs: set[Future] = set()
         self._last = {"main": 0.0, "cams": 0.0, "state": 0.0}
         self._seq = 0
         self.env = None
@@ -183,12 +185,19 @@ class SimWorker(threading.Thread):
 
     def run_task(self, task: str, **options) -> Future:
         """Queue a run. Options: see RunRequest. Returns Future[RunResult]."""
-        self._run_ids += 1
-        request = RunRequest(task=task, id=self._run_ids, **options)
-        future: Future = Future()
-        self.jobs.put(("run", request, future))
+        with self._run_lock:
+            self._run_ids += 1
+            request = RunRequest(task=task, id=self._run_ids, **options)
+            future: Future = Future()
+            self._outstanding_runs.add(future)
+            future.add_done_callback(self._forget_run)
+            self.jobs.put(("run", request, future))
         self.bus.emit("run.queued", {"id": request.id, "task": task, "source": request.source, "label": request.label})
         return future
+
+    def _forget_run(self, future):
+        with self._run_lock:
+            self._outstanding_runs.discard(future)
 
     def stop(self) -> None:
         """Stop the current run (with Dream-1: after the pending reply)."""
@@ -216,7 +225,8 @@ class SimWorker(threading.Thread):
 
     @property
     def busy(self) -> bool:
-        return self.current is not None or any(job[0] == "run" for job in list(self.jobs.queue))
+        with self._run_lock:
+            return self.current is not None or any(not future.done() for future in self._outstanding_runs)
 
     def status(self) -> dict:
         run = None
