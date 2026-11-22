@@ -14,9 +14,8 @@ This page shows how the model "dreamlabs/dream-1-beta" did on each task, and wha
 
 | Task | Runs | Successes | Success rate | Cost | Cost per success |
 |---|---|---|---|---|---|
-| [[tasks/put-apple-into-the-bowl|put apple into the bowl]] | 9 | 0 | 0 % | $0.0630 | - |
-| [[tasks/put-the-apple-into-the-bowl|put the apple into the bowl]] | 1 | 0 | 0 % | $0.0098 | - |
-| [[tasks/put-the-banana-on-the-plate|put the banana on the plate]] | 2 | 0 | 0 % | $0.0028 | - |
+| [[tasks/apple-into-the-bowl|apple into the bowl]] | 10 | 0 | 0 % | $0.0728 | - |
+| [[tasks/banana-onto-the-plate|banana onto the plate]] | 2 | 0 | 0 % | $0.0028 | - |
 
 ## Sources
 
