@@ -32,7 +32,7 @@ def test_pages_counts_index_and_decisions(tmp_path):
     write_raw(tmp_path)
     result = build_wiki.build(tmp_path, now="2026-11-22 12:00")
     wiki = tmp_path / "wiki"
-    task = (wiki / "tasks" / "put-banana-on-the-plate.md").read_text(encoding="utf-8")
+    task = (wiki / "tasks" / "banana-onto-the-plate.md").read_text(encoding="utf-8")
     assert "successes: 1 (50 %)" in task and "cost: $0.0560" in task and "cost per success: $0.0560" in task
     assert "| time limit | 1 |" in task and "`raw/runs/2026-11-22.md`" in task
     model = (wiki / "models" / "dreamlabs-dream-1-beta.md").read_text(encoding="utf-8")
@@ -70,3 +70,21 @@ def test_dashboard_rebuilds_the_wiki_after_a_run(tmp_path, monkeypatch):
     brain.daily_summary(LabDB(tmp_path / "lab.db"))
     page = tmp_path / "brain" / "wiki" / "tasks" / "lift-the-apple.md"
     assert page.exists() and "successes: 1 (100 %)" in page.read_text(encoding="utf-8")
+
+
+def test_wordings_of_one_goal_share_a_page(tmp_path):
+    """All wordings of one goal (German too) go to one page that lists them."""
+    write_raw(tmp_path)
+    runs = tmp_path / "raw" / "runs" / "2026-11-22.md"
+    extra = ["| 11:00:00 | 4 | put apple into the bowl | p | dreamlabs/dream-1-beta | core | no | time limit | 8 | 0.0112 | 40 |",
+             "| 11:05:00 | 5 | place the apple in the bowl | p | dreamlabs/dream-1-beta | core | yes | success | 6 | 0.0084 | 20 |",
+             "| 11:10:00 | 6 | Leg den Apfel in die Schüssel | p | dreamlabs/dream-1-beta | core | yes | success | 4 | 0.0056 | 15 |"]
+    runs.write_text(runs.read_text(encoding="utf-8") + chr(10).join(extra) + chr(10), encoding="utf-8")
+    build_wiki.build(tmp_path, now="1")
+    tasks = sorted(p.name for p in (tmp_path / "wiki" / "tasks").glob("*.md"))
+    assert tasks == ["apple-into-the-bowl.md", "banana-onto-the-plate.md", "lift-the-apple.md"]
+    page = (tmp_path / "wiki" / "tasks" / "apple-into-the-bowl.md").read_text(encoding="utf-8")
+    assert "Dream-1 runs: 3" in page and "successes: 2 (67 %)" in page
+    assert "## Wordings" in page and "| Leg den Apfel in die Schüssel | 1 | 1 | 100 % |" in page
+    model = (tmp_path / "wiki" / "models" / "dreamlabs-dream-1-beta.md").read_text(encoding="utf-8")
+    assert "[[tasks/apple-into-the-bowl|apple into the bowl]]" in model and "put apple into the bowl" not in model

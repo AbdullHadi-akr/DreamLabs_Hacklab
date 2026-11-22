@@ -11,9 +11,11 @@ people ─────writes──> raw/notes/
 
 1. The dashboard writes every Dream-1 run, robustness campaign and export into `raw/` by itself.
 2. Team members put their own notes into `raw/notes/` (meeting notes, answers from Dream Labs, ideas).
-3. The script `build_wiki.py` makes the wiki pages from `raw/`: one page per task and per model (runs, success
-   rate, cost, cost per success, why runs stopped), the robustness campaigns, the exports, the team notes, and the
-   decisions. The dashboard runs it by itself after every run, campaign and export.
+3. The script `build_wiki.py` makes the wiki pages from `raw/`: one page per task goal and per model (runs, success
+   rate, cost, cost per success, why runs stopped). A task page is per goal, not per wording: "put apple into the
+   bowl", "place the apple in the bowl" and "Leg den Apfel in die Schüssel" all count for `tasks/apple-into-the-bowl`,
+   which lists the wordings and how each did. Tasks without a recognisable object and container keep their own
+   page. It also makes pages for the robustness campaigns, the exports, the team notes, and the decisions. The dashboard runs it by itself after every run, campaign and export.
 4. Everyone reads `wiki/`.
 
 Later, an AI agent (Claude Code, Codex or another one) can be added: it would read `AGENTS.md`, summarize the

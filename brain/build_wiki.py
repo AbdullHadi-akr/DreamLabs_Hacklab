@@ -11,11 +11,16 @@ What it reads (brain/raw/):
     notes/*.md               notes people write; a line "Decision: ..." goes onto the decisions page
 
 What it writes (brain/wiki/):
-    tasks/<task>.md, models/<model>.md, robustness/campaigns.md, fine-tuning/exports.md,
+    tasks/<goal>.md, models/<model>.md, robustness/campaigns.md, fine-tuning/exports.md,
     decisions/decisions.md, notes.md     pages made by this script; it rewrites them every time
     index.md                             every page of the wiki, also pages a person or an AI agent wrote
     log.md                               one entry each time a page changed
     .raw-hashes.json                     which raw files were read, to name the new or changed ones in the log
+
+Task pages are per goal, not per wording: "put apple into the bowl", "place the apple in the bowl" and
+"Leg den Apfel in die Schüssel" all go to tasks/apple-into-the-bowl.md, which lists the wordings used. The goal comes
+from the dashboard's own task recognition (dreamtool/scene.py, parse_task). A task it cannot read (e.g. "wave") keeps
+a page of its own wording.
 
 It never changes raw/ and never touches a page it did not make (overview.md, or pages an AI agent adds later).
 The pages depend only on raw/, so two laptops that run it on the same raw/ files make the same pages.
@@ -24,6 +29,7 @@ The pages depend only on raw/, so two laptops that run it on the same raw/ files
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import json
 import re
 import sys
@@ -172,6 +178,35 @@ def tally(runs: list[dict]) -> dict:
             "last": max(f"{r['day']} {r['time']}" for r in runs) if runs else "-"}
 
 
+# ---------------------------------------------------------------------------------------------------------------
+# Tasks by goal (object into/onto container)
+# ---------------------------------------------------------------------------------------------------------------
+def _load_parse_task():
+    """parse_task from dreamtool/scene.py, loaded by file (no package import, no simulator); None if unavailable."""
+    path = Path(__file__).resolve().parents[1] / "dreamtool" / "scene.py"
+    try:
+        spec = importlib.util.spec_from_file_location("_brain_scene", path)
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = module  # its dataclasses look themselves up there while the file runs
+        spec.loader.exec_module(module)
+        return module.parse_task
+    except Exception:  # without numpy or the repository, pages stay per wording, as before
+        return None
+
+
+_parse_task = _load_parse_task()
+_PREPOSITION = {"bowl": "into", "plate": "onto"}
+
+
+def goal(task: str) -> str:
+    """The page a task belongs to: "apple into the bowl" for every wording of that goal, else the wording itself."""
+    parsed = _parse_task(task) if _parse_task and task else None
+    if not parsed:
+        return task
+    obj, container = parsed
+    return f"{obj.replace('_', ' ')} {_PREPOSITION.get(container, 'into')} the {container}"
+
+
 def link(folder: str, name: str) -> str:
     return f"[[{folder}/{slug(name)}|{name}]]"
 
@@ -185,6 +220,14 @@ def sources(files) -> list[str]:
     return ["", "## Sources", ""] + ([f"- `{f}`" for f in files] or ["- none yet"])
 
 
+def merged(per_task: dict, task: str, keys) -> dict | None:
+    """The summary's per-wording numbers (episodes ready, take-overs) added up for one goal."""
+    rows = [v for k, v in per_task.items() if goal(k) == task]
+    if not rows:
+        return None
+    return {key: sum(int(float(r.get(key) or 0)) for r in rows) for key in keys}
+
+
 def task_page(task, runs, summary, campaigns, exports) -> str:
     total = tally(runs)
     body = ["## Measured", "",
@@ -192,7 +235,8 @@ def task_page(task, runs, summary, campaigns, exports) -> str:
             f"({total['rate']})",
             f"- Dream-1 calls: {total['calls']}; cost: {money(total['cost'])}; cost per success: {total['per_win']}",
             f"- Last run: {total['last']}", ""]
-    ready, taken = summary["ready"].get(task), summary["takeovers"].get(task)
+    ready = merged(summary["ready"], task, ("episodes", "seconds"))
+    taken = merged(summary["takeovers"], task, ("episodes", "taken_over"))
     if ready or taken:
         body += [f"- Episodes ready for a fine-tune: {ready['episodes'] if ready else 0}"
                  + (f" ({ready['seconds']} seconds)" if ready else ""),
@@ -207,15 +251,24 @@ def task_page(task, runs, summary, campaigns, exports) -> str:
         t = tally(by_model[model])
         body.append(f"| {link('models', model)} | {t['runs']} | {t['wins']} | {t['rate']} | {t['calls']} | "
                     f"{money(t['cost'])} | {t['per_win']} |")
+    wordings = defaultdict(list)
+    for r in runs:
+        wordings[r["task"]].append(r)
+    if len(wordings) > 1 or (wordings and next(iter(wordings)) != task):
+        body += ["", "## Wordings", "", "The same goal, said in different ways (the task text of each run).", "",
+                 "| Wording | Runs | Successes | Success rate |", "|---|---|---|---|"]
+        for wording, wruns in sorted(wordings.items(), key=lambda kv: (-len(kv[1]), kv[0])):
+            w = tally(wruns)
+            body.append(f"| {wording.replace('|', '/')} | {w['runs']} | {w['wins']} | {w['rate']} |")
     stops = defaultdict(int)
     for r in runs:
         stops[r["stop"]] += 1
     body += ["", "## Why the runs stopped", "", "| Stop reason | Runs |", "|---|---|"]
     body += [f"| {reason} | {n} |" for reason, n in sorted(stops.items(), key=lambda x: (-x[1], x[0]))]
-    mine = [c for c in campaigns if c["task"] == task]
+    mine = [c for c in campaigns if goal(c["task"]) == task]
     if mine:
         body += ["", "## Robustness campaigns", ""] + [f"- {c['id']}: {c['verdict']}" for c in mine]
-    shipped = [e for e in exports if e["task"] == task]
+    shipped = [e for e in exports if goal(e["task"]) == task]
     if shipped:
         body += ["", "## Exports for a fine-tune", ""] + [f"- {e['name']}: {e['episodes']} episodes" for e in shipped]
     files = [r["file"] for r in runs] + [summary["file"] if (ready or taken) else None]
@@ -234,7 +287,7 @@ def model_page(model, runs) -> str:
             "|---|---|---|---|---|---|"]
     by_task = defaultdict(list)
     for r in runs:
-        by_task[r["task"]].append(r)
+        by_task[goal(r["task"])].append(r)
     for task in sorted(by_task):
         t = tally(by_task[task])
         body.append(f"| {link('tasks', task)} | {t['runs']} | {t['wins']} | {t['rate']} | {money(t['cost'])} | "
@@ -245,7 +298,7 @@ def model_page(model, runs) -> str:
 
 def campaigns_page(campaigns) -> str:
     body = ["| Campaign | Task | Mode | Policy | State | Cost | Verdict |", "|---|---|---|---|---|---|---|"]
-    body += [f"| {c['id']} | {link('tasks', c['task'])} | {c['mode']} | {c['policy']} | {c['state']} | {c['cost']} | "
+    body += [f"| {c['id']} | {link('tasks', goal(c['task']))} | {c['mode']} | {c['policy']} | {c['state']} | {c['cost']} | "
              f"{c['verdict']} |" for c in campaigns] or ["| - | - | - | - | - | - | - |"]
     return page("Robustness campaigns", "This page lists every robustness campaign: a series of Dream-1 runs where "
                 "the dashboard changes the scene step by step to find where Dream-1 starts to fail.",
@@ -254,7 +307,7 @@ def campaigns_page(campaigns) -> str:
 
 def exports_page(exports) -> str:
     body = ["| Export | Task | Episodes | Uploaded |", "|---|---|---|---|"]
-    body += [f"| {e['name']} | {link('tasks', e['task'])} | {e['episodes']} | {e['uploaded']} |" for e in exports] \
+    body += [f"| {e['name']} | {link('tasks', goal(e['task']))} | {e['episodes']} | {e['uploaded']} |" for e in exports] \
         or ["| - | - | - | - |"]
     return page("Exports for fine-tuning", "This page lists every export: a folder of successful episodes of one "
                 "task, checked with Dream Labs' own dataset check, ready to train (fine-tune) Dream-1 further.",
@@ -315,9 +368,9 @@ def build(brain: Path, now: str | None = None) -> dict:
     pages: dict[str, str] = {}
     by_task, by_model = defaultdict(list), defaultdict(list)
     for r in runs:
-        by_task[r["task"]].append(r)
+        by_task[goal(r["task"])].append(r)
         by_model[r["model"]].append(r)
-    for task in set(by_task) | set(summary["ready"]) | set(summary["takeovers"]):
+    for task in set(by_task) | {goal(k) for k in (*summary["ready"], *summary["takeovers"])}:
         pages[f"tasks/{slug(task)}.md"] = task_page(task, by_task[task], summary, campaigns, exports)
     for model, mruns in by_model.items():
         pages[f"models/{slug(model)}.md"] = model_page(model, mruns)

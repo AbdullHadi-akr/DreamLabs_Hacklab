@@ -1,7 +1,7 @@
 <!-- made by brain/build_wiki.py: do not edit by hand, the script rewrites this page -->
-# Task: put the banana on the plate
+# Task: banana onto the plate
 
-This page shows how often the task "put the banana on the plate" succeeded, with which model, and what it cost.
+This page shows how often the task "banana onto the plate" succeeded, with which model, and what it cost.
 
 *Made by the script `brain/build_wiki.py` from `brain/raw/`. Changes by hand are lost at the next build.*
 
@@ -16,6 +16,14 @@ This page shows how often the task "put the banana on the plate" succeeded, with
 | Model | Runs | Successes | Success rate | Calls | Cost | Cost per success |
 |---|---|---|---|---|---|---|
 | [[models/dreamlabs-dream-1-beta|dreamlabs/dream-1-beta]] | 2 | 0 | 0 % | 2 | $0.0028 | - |
+
+## Wordings
+
+The same goal, said in different ways (the task text of each run).
+
+| Wording | Runs | Successes | Success rate |
+|---|---|---|---|
+| put the banana on the plate | 2 | 0 | 0 % |
 
 ## Why the runs stopped
 

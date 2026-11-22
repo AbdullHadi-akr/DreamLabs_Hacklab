@@ -106,3 +106,8 @@ What was read and changed, newest at the end. The script `brain/build_wiki.py` a
 
 - Raw files new or changed: `raw/robustness/20261122-112521-target_shift.md`
 - Pages changed: `robustness/campaigns.md`
+
+## 2026-11-22 11:40: build by the script
+
+- Raw files new or changed: none
+- Pages changed: `models/dreamlabs-dream-1-beta.md`, `robustness/campaigns.md`, `tasks/apple-into-the-bowl.md`, `tasks/banana-onto-the-plate.md`, `tasks/put-apple-into-the-bowl.md (removed)`, `tasks/put-the-apple-into-the-bowl.md (removed)`, `tasks/put-the-banana-on-the-plate.md (removed)`, `index.md`
