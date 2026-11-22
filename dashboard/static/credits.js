@@ -17,7 +17,9 @@ async function refreshTop() {
     prices = Object.fromEntries(s.models.map((m) => [m.id, m.price_usd]));
     const el = $("credit-left");
     el.textContent = `${usd(s.balance_usd)} left`;
-    el.classList.toggle("bad", s.month_left_usd <= 0 || s.balance_usd <= 0);
+    const out = s.month_left_usd <= 0 || s.balance_usd <= 0;
+    el.classList.toggle("bad", out);
+    el.hidden = !out;  // only when the money or the monthly limit is used up; Credits is in the Tools menu
     el.title = `Spent this month ${usd(s.spent_month_usd, 4)} of ${usd(s.monthly_limit_usd)}. Open Credits.`;
     return s;
   } catch { return null; }

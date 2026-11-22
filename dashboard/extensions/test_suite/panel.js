@@ -126,31 +126,28 @@ export async function mount(root, api) {
     ab: ["A/B Comparison", "Matched prompts"], reproduction: ["Failure Reproduction", "Replay a saved run"],
   };
   const mode = { value: "quick" };
-  const modeButtons = Object.entries(modes).map(([key, [name, description]]) => [
-    key, button([h("strong", {}, name), h("small", {}, description)], () => {
-      mode.value = key;
-      updatePlan();
-      if (key === "reproduction") loadFailures().catch(showError);
-    }, {class: "suite-mode", "aria-pressed": "false"}),
-  ]);
   // Other extensions can add builder modes. Report selection is independent.
   const extensions = api.workspace?.extensions() || [];
   const robustnessRoot = extensions.find((ext) => ext.id === "robustness")?.root;
-  const extensionTiles = extensions.flatMap((ext) => (ext.suite_modes || []).map((m) => [
-    `${ext.id}:${m.id}`, button([h("strong", {}, m.title), h("small", {}, m.subtitle)], () => {
-      mode.value = `${ext.id}:${m.id}`;
-      updatePlan();
-    }, {class: "suite-mode", "aria-pressed": "false", "aria-label": `${m.title}: ${m.subtitle}`}),
-  ]));
-  modeButtons.push(...extensionTiles);
+  // One dropdown (grouped: standard tests, then each extension's modes) instead of a grid of tiles.
+  const modeInfo = Object.fromEntries([
+    ...Object.entries(modes),
+    ...extensions.flatMap((ext) => (ext.suite_modes || []).map((m) => [`${ext.id}:${m.id}`, [m.title, m.subtitle]])),
+  ]);
+  const modeSelect = h("select", { class: "suite-mode-select", "aria-label": "Test type" },
+    h("optgroup", { label: "Standard tests" }, Object.entries(modes).map(([key, [name]]) => h("option", { value: key }, name))),
+    extensions.filter((ext) => (ext.suite_modes || []).length).map((ext) => h("optgroup", { label: ext.title },
+      ext.suite_modes.map((m) => h("option", { value: `${ext.id}:${m.id}` }, m.title)))));
+  const modeHint = h("small", { class: "suite-mode-hint" });
+  modeSelect.onchange = () => {
+    mode.value = modeSelect.value;
+    updatePlan();
+    if (mode.value === "reproduction") loadFailures().catch(showError);
+  };
   const extensionReports = Object.fromEntries(extensions.map((ext) =>
     [ext.id, h("div", { id: `${ext.id}-wide-report`, class: "suite-extension-report", hidden: true })]));
   const extensionOf = (key) => extensions.find((ext) => key.startsWith(`${ext.id}:`));
-  const modeGrid = h("div", {class: "suite-modes", role: "group", "aria-label": "Select test mode"},
-    h("div", {class: "suite-mode-group"}, "Standard tests"),
-    modeButtons.filter(([key]) => !key.includes(":")).map(([, node]) => node),
-    extensions.flatMap((ext) => [h("div", { class: "suite-mode-group" }, ext.title),
-      ...extensionTiles.filter(([key]) => key.startsWith(`${ext.id}:`)).map(([, node]) => node)]));
+  const modeGrid = h("label", { class: "suite-mode-field" }, h("span", {}, "Test type"), modeSelect, modeHint);
   const task = h("textarea", { required: true, maxlength: 300, rows: 2, placeholder: "Put the banana on the plate" }, "Put the banana on the plate");
   const repeats = integer(1, 1, 100);
   const position = h("input", {type: "range", value: 0, min: 0, max: 20});
@@ -253,7 +250,8 @@ export async function mount(root, api) {
 
   function updatePlan() {
     const external = extensionOf(mode.value);
-    for (const [key, node] of modeButtons) node.setAttribute("aria-pressed", String(key === mode.value));
+    modeSelect.value = mode.value;
+    modeHint.textContent = (modeInfo[mode.value] || [])[1] || "";
     form.hidden = Boolean(external);
     for (const ext of extensions) {
       ext.root.hidden = ext !== external;

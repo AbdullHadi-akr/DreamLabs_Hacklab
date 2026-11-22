@@ -14,19 +14,18 @@
     <div class="brand">
       <span class="brand-mark" aria-hidden="true"></span>
       <span>Dream-1 Lab</span>
-      <span class="brand-sub pixel">Sim Dashboard</span>
     </div>
     <nav class="tabs workspace-nav" aria-label="Workspace">
       <button class="tab active" id="workspace-dashboard" type="button" aria-pressed="true">Dashboard</button>
       <button class="tab" id="workspace-test-suite" type="button" aria-pressed="false" hidden>Test Suite</button>
     </nav>
     <div class="pills">
-      <span class="pill" id="pill-ws"><i></i><span>Connection</span></span>
-      <span class="pill" id="pill-sim"><i></i><span>Simulation</span></span>
-      <span class="pill" id="pill-key"><i></i><span>API key</span></span>
-      <span class="pill" id="pill-run"><i></i><span>Ready</span></span>
+      <span class="pill" id="pill-ws" hidden><i></i><span>Connection</span></span>
+      <span class="pill" id="pill-sim" hidden><i></i><span>Simulation</span></span>
+      <span class="pill" id="pill-key" hidden><i></i><span>API key</span></span>
+      <span class="pill" id="pill-run" hidden><i></i><span>Ready</span></span>
     </div>
-    <a href="#" class="credit-left" id="credit-left" title="Open Credits"></a>
+    <a href="#" class="credit-left" id="credit-left" title="Open Credits" hidden></a>
     <div class="viewport-actions" role="group" aria-label="Viewport controls">
       <button class="btn btn-outline btn-sm" id="btn-fullscreen" type="button" title="Use the dashboard in fullscreen">Fullscreen</button>
       <button class="btn btn-outline btn-sm" id="btn-orientation" type="button" title="Switch dashboard orientation">Rotate</button>
@@ -41,8 +40,11 @@
   <main class="layout">
     <aside class="col col-left">
       <section class="card tools" id="dashboard-tools">
-        <div class="section-head"><h2 class="pixel">Tools</h2></div>
-        <nav class="tabs" id="ext-tabs"></nav>
+        <div class="section-head tool-head">
+          <h2 class="pixel">Tools</h2>
+          <select id="tool-select" class="tool-select" aria-label="Choose a tool"></select>
+        </div>
+        <p class="tool-desc muted" id="tool-desc"></p>
         <div class="panels" id="ext-panels">
           <div class="empty">No extensions loaded.</div>
         </div>
@@ -51,32 +53,6 @@
     </aside>
 
     <section class="col col-center">
-      <form class="prompt card" id="taskbar">
-        <label for="task">Task prompt</label>
-        <input id="task" list="task-list" placeholder="e.g. Put the apple in the bowl" autocomplete="off">
-        <datalist id="task-list"></datalist>
-        <div class="prompt-tools">
-          <label class="mini model-field">Model <input id="model"></label>
-          <label class="mini">Duration (s) <input id="seconds" type="number" min="5" max="3600" step="5" value="60"></label>
-          <label class="mini" title="How each 48-step action chunk is executed (see dreamtool/inference.py)">Execution <select id="strategy"></select></label>
-        </div>
-        <div class="prompt-actions">
-          <div class="prompt-buttons" role="group" aria-label="Run actions">
-            <button type="submit" class="btn primary" id="btn-run">Run with Dream-1</button>
-            <button type="button" class="btn btn-outline" id="btn-demo" title="Test motion without the API (no credits)">Offline demo</button>
-            <button type="button" class="btn danger" id="btn-stop">Stop</button>
-          </div>
-          <div class="prompt-buttons scene-actions" role="group" aria-label="Scene controls">
-            <button type="button" class="btn btn-outline btn-sm" id="btn-home" title="Move the arms to their home pose">Home</button>
-            <button type="button" class="btn btn-outline btn-sm" id="btn-reset" title="Reset objects and arms">Reset</button>
-          </div>
-          <div class="prompt-buttons episode-actions" role="group" aria-label="Teaching">
-            <button type="button" class="btn btn-outline btn-sm" id="btn-takeover" hidden>Take over</button>
-            <button type="button" class="btn primary btn-sm" id="btn-ep-save" hidden>Save episode</button>
-            <button type="button" class="btn btn-outline btn-sm" id="btn-ep-discard" hidden>Discard</button>
-          </div>
-        </div>
-      </form>
       <section class="card" id="test-suite-results" hidden></section>
       <details class="simulation-preview" id="simulation-preview" open>
         <summary id="preview-summary" hidden>Simulation and cameras</summary>
@@ -107,13 +83,45 @@
             </div>
           </div>
 
+          <form class="prompt card" id="taskbar">
+            <div class="prompt-row">
+              <input id="task" list="task-list" placeholder="Tell Dream-1 what to do, e.g. put the apple in the bowl" autocomplete="off" aria-label="Task prompt">
+              <datalist id="task-list"></datalist>
+              <button type="submit" class="btn primary" id="btn-run">Run with Dream-1</button>
+              <button type="button" class="btn danger" id="btn-stop">Stop</button>
+            </div>
+            <div class="prompt-actions">
+              <details class="run-settings">
+                <summary title="Model, duration and how the action chunks are executed"><span id="settings-summary">Settings</span></summary>
+                <div class="prompt-tools">
+                  <label class="mini model-field">Model <input id="model"></label>
+                  <label class="mini">Duration (s) <input id="seconds" type="number" min="5" max="3600" step="5" value="60"></label>
+                  <label class="mini" title="How each 48-step action chunk is executed (see dreamtool/inference.py)">Execution <select id="strategy"></select></label>
+                </div>
+              </details>
+              <div class="prompt-buttons scene-actions" role="group" aria-label="Scene controls">
+                <button type="button" class="btn btn-outline btn-sm" id="btn-demo" title="Test motion without the API (no credits)">Offline demo</button>
+                <button type="button" class="btn btn-outline btn-sm" id="btn-home" title="Move the arms to their home pose">Home</button>
+                <button type="button" class="btn btn-outline btn-sm" id="btn-reset" title="Reset objects and arms">Reset</button>
+              </div>
+              <div class="prompt-buttons episode-actions" role="group" aria-label="Teaching">
+                <button type="button" class="btn btn-outline btn-sm" id="btn-takeover" hidden>Take over</button>
+                <button type="button" class="btn primary btn-sm" id="btn-ep-save" hidden>Save episode</button>
+                <button type="button" class="btn btn-outline btn-sm" id="btn-ep-discard" hidden>Discard</button>
+              </div>
+            </div>
+          </form>
+
           <div class="section-head"><h2 class="pixel">Robot cameras</h2><span class="muted">What Dream-1 sees</span></div>
           <div class="cams" id="cams"></div>
         </div>
       </details>
     </section>
 
-    <aside class="col col-right">
+    <aside class="col col-right" id="col-right">
+      <div class="col-right-head">
+        <button type="button" class="btn btn-outline btn-sm" id="right-collapse" title="Hide the run panel (more room for the simulation)" aria-controls="col-right" aria-expanded="true">Hide panel ›</button>
+      </div>
       <section class="card" id="test-suite-monitor" hidden></section>
       <section class="card">
         <div class="section-head"><h2 class="pixel" id="run-heading">Last run</h2></div>
@@ -134,7 +142,7 @@
           </dl>
         </details>
       </section>
-      <section class="card">
+      <section class="card" id="rtt-card" hidden>
         <div class="section-head"><h2 class="pixel">Response time</h2><span class="muted" id="rtt-scope">Current run</span></div>
         <canvas id="rtt-chart" height="90"></canvas>
       </section>
@@ -143,6 +151,7 @@
         <div id="global-log"></div>
       </section>
     </aside>
+    <button type="button" class="right-rail" id="right-rail" title="Show the run panel: last run, response time, log" aria-controls="col-right" aria-expanded="false">‹ <span>Run panel</span></button>
   </main>
 
   <dialog id="camera-dialog" aria-labelledby="camera-title">

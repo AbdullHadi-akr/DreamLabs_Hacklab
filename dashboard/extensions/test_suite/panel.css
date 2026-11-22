@@ -98,3 +98,10 @@
 @media (max-width: 760px) {
   .suite-form textarea, .suite-form input { scroll-margin-bottom: 10rem; }
 }
+.suite-mode-field { display: grid; gap: 4px; margin: 6px 0 14px; font-size: 13px; color: var(--ink-3); }
+.suite-mode-select {
+  border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 8px 10px; font: inherit; font-size: 15px;
+  font-weight: 500; color: var(--ink); background: var(--creamsicle-wash); cursor: pointer;
+}
+.suite-mode-select:hover { border-color: var(--ink); }
+.suite-mode-hint { color: var(--ink-3); }

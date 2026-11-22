@@ -69,7 +69,7 @@ class Strategy:
     def description(self) -> str:
         seconds = self.execute / HZ
         if self.id == "chunk":
-            return "Executes all 48 planned steps (2.4 s) before asking Dream-1 again. Default behaviour."
+            return "Executes all 48 planned steps (2.4 s) before asking Dream-1 again: the model's plain output."
         factor = "~{:.0f}× the requests".format(CHUNK / self.execute)
         if self.blend == "ensemble":
             return (f"Asks every {self.execute} steps ({seconds:g} s) and averages the arm joints of all plans that "

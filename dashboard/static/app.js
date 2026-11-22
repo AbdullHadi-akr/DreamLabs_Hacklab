@@ -30,10 +30,13 @@ function log(message, level = "info", source = "core") {
   debugLog.append({message, level, source, at: Date.now() / 1000});
 }
 
+// The top bar stays empty while all is well: a status pill only shows up for a problem (disconnected, simulation
+// error, no API key). Run state ("Ready", "Dream-1 running") is shown in the Simulation section instead.
 function setPill(id, state, text) {
   const el = $(id);
   el.className = `pill ${state}`;
   el.lastChild.textContent = text;
+  el.hidden = id === "pill-run" || !["bad", "warn"].includes(state);
 }
 
 async function action(promise, okMessage) {
@@ -154,6 +157,14 @@ function setupTaskbar(state) {
   for (const s of state.strategies || []) $("strategy").append(h("option", { value: s.id, title: s.description }, s.label));
   for (const task of state.tasks) $("task-list").append(h("option", { value: task }));
   $("task").value = state.tasks[0];
+  // the collapsed Settings row says what is set, so it rarely needs opening
+  const summarise = () => {
+    const model = $("model").value.trim().replace(/^.*\//, "");
+    const strategy = $("strategy").selectedOptions[0]?.textContent || "";
+    $("settings-summary").textContent = `Settings · ${model} · ${$("seconds").value} s · ${strategy}`;
+  };
+  for (const id of ["model", "seconds", "strategy"]) $(id).addEventListener("input", summarise);
+  summarise();
 
   $("taskbar").addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -232,6 +243,7 @@ function setChartRun(run) {
 
 function drawRtt() {
   const canvas = $("rtt-chart");
+  $("rtt-card").hidden = !chartRun;  // nothing to show before the first run
   const dpr = window.devicePixelRatio || 1;
   const w = canvas.clientWidth, hgt = canvas.clientHeight;
   canvas.width = w * dpr; canvas.height = hgt * dpr;
@@ -318,6 +330,23 @@ function setupEvents() {
   });
 }
 
+// ---------------- Right column (folds away into a rail) ----------------
+
+function setupRightPanel() {
+  const layout = document.querySelector(".layout");
+  const set = (collapsed) => {
+    layout.classList.toggle("right-collapsed", collapsed);
+    $("right-collapse").setAttribute("aria-expanded", String(!collapsed));
+    $("right-rail").setAttribute("aria-expanded", String(!collapsed));
+    try { localStorage.setItem("dream.rightCollapsed", collapsed ? "1" : "0"); } catch {}
+  };
+  $("right-collapse").onclick = () => set(true);
+  $("right-rail").onclick = () => set(false);
+  let saved = null;
+  try { saved = localStorage.getItem("dream.rightCollapsed"); } catch {}
+  set(saved === "1");
+}
+
 // ---------------- Extensions ----------------
 
 // Built-in panels next to the extension tabs (credits, recorded episodes, multiplayer).
@@ -327,9 +356,15 @@ const CORE_PANELS = [
   { id: "players", title: "Players", description: "Public link, access code, who holds which arm" },
 ];
 const GUEST_TABS = ["teleop", "scene_inspector", "players"]; // what a guest on another laptop sees
+// Groups of the tool dropdown (left column); a tool not listed here lands in "More".
+const TOOL_GROUPS = [
+  ["Robot and scene", ["scene_inspector", "teleop", "objects"]],
+  ["Checks", ["camera_check", "xray"]],
+  ["Data and account", ["episodes", "credits", "players"]],
+];
 
 async function loadExtensions(extensions) {
-  const tabs = $("ext-tabs"), panels = $("ext-panels");
+  const picker = $("tool-select"), panels = $("ext-panels");
   // slot "suite" lives in the Test Suite builder; without a Test Suite it falls back to a normal tab
   const hasSuite = extensions.some((e) => e.slot === "workspace");
   let left = [...extensions.filter((e) => e.slot !== "right" && e.slot !== "workspace" && !(hasSuite && e.slot === "suite")),
@@ -339,18 +374,24 @@ async function loadExtensions(extensions) {
   if (left.length) panels.innerHTML = "";
 
   const activate = (id) => {
-    for (const t of tabs.children) t.classList.toggle("active", t.dataset.id === id);
+    picker.value = id;
+    $("tool-desc").textContent = left.find((e) => e.id === id)?.description || "";
     for (const p of panels.children) p.hidden = p.dataset.id !== id;
     try { localStorage.setItem("dream.activeTab", id); } catch {}
   };
+  picker.onchange = () => activate(picker.value);
+  const grouped = new Set(TOOL_GROUPS.flatMap(([, ids]) => ids));
+  for (const [name, ids] of [...TOOL_GROUPS, ["More", left.map((e) => e.id).filter((id) => !grouped.has(id))]]) {
+    const items = ids.map((id) => left.find((e) => e.id === id)).filter(Boolean);
+    if (items.length) picker.append(h("optgroup", { label: name }, items.map((e) => h("option", { value: e.id }, e.title))));
+  }
+  picker.hidden = !left.length;
   core.activate = (id) => {  // used by Take over (opens Control) and the credit display (opens Credits)
     if ($("workspace-dashboard") && !$("workspace-dashboard").classList.contains("active")) $("workspace-dashboard").click();
     activate(id);
   };
 
   for (const ext of left) {
-    tabs.append(h("button", { class: "tab", "data-id": ext.id, title: ext.description, onclick: () => activate(ext.id) },
-      ext.title));
     const root = h("div", { class: "panel", "data-id": ext.id, hidden: true });
     panels.append(root);
     if (ext.id === "credits") creditsPanel(root, core, action, []);
@@ -397,6 +438,7 @@ async function main() {
   setupViewer(state.camera);
   setupCameras(state.cameras);
   setupViewportControls();
+  setupRightPanel();
   setupTaskbar(state);
   setupEpisodes(core, action, state.episode);
   if (!state.me || state.me.role !== "guest") setupCredits(core);
