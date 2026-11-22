@@ -394,12 +394,12 @@ const CORE_PANELS = [
   { id: "credits", title: "Credits", description: "Balance, spending, limits" },
   { id: "players", title: "Players", description: "Public link, access code, who holds which arm" },
 ];
-const GUEST_TABS = ["teleop", "scene_inspector", "players"]; // what a guest on another laptop sees
+const GUEST_TABS = ["teleop", "scene_inspector", "brain", "players"]; // what a guest on another laptop sees
 // Groups of the tool dropdown (left column); a tool not listed here lands in "More".
 const TOOL_GROUPS = [
   ["Robot and scene", ["scene_inspector", "teleop", "objects"]],
   ["Checks", ["camera_check", "xray"]],
-  ["Data and account", ["episodes", "credits", "players"]],
+  ["Data and account", ["brain", "episodes", "credits", "players"]],
 ];
 
 async function loadExtensions(extensions) {
