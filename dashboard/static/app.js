@@ -4,7 +4,7 @@ import { EventHub, createExtensionApi, h, request } from "./lib/api.js";
 import { episodesPanel, setupEpisodes } from "./episodes.js";
 import { creditsPanel, gateRun, setupCredits } from "./credits.js";
 import { playersPanel } from "./players.js";
-import { overlayViewer, previewImage } from "./lib/viewer-overlay.js";
+import { overlayViewer, watchViewport } from "./lib/viewer-overlay.js";
 
 const $ = (id) => document.getElementById(id);
 const core = {
@@ -55,7 +55,9 @@ async function action(promise, okMessage) {
 
 function setupViewer(camera) {
   const viewer = $("viewer");
-  overlayViewer(viewer);
+  overlayViewer(viewer);  // loads the big screen's stream; setupCameras picks what it shows
+  // Orbit, pan and zoom only work while the big screen shows the 3D view.
+  const is3d = () => (viewer.dataset?.view || "main") === "main";
 
   let cam = { ...camera };
   let drag = null;
@@ -71,7 +73,7 @@ function setupViewer(camera) {
 
   viewer.addEventListener("contextmenu", (e) => e.preventDefault());
   viewer.addEventListener("pointerdown", (e) => {
-    if (!e.isPrimary || (e.button !== 0 && e.button !== 2)) return;
+    if (!is3d() || !e.isPrimary || (e.button !== 0 && e.button !== 2)) return;
     drag = { x: e.clientX, y: e.clientY, pan: e.button === 2 || e.shiftKey };
     viewer.setPointerCapture(e.pointerId);
     viewer.classList.add("dragging");
@@ -97,48 +99,65 @@ function setupViewer(camera) {
     send();
   });
   viewer.addEventListener("wheel", (e) => {
-    if (!e.altKey || e.ctrlKey || e.metaKey) return;
+    if (!is3d() || !e.altKey || e.ctrlKey || e.metaKey) return;
     e.preventDefault();
     cam.distance = Math.max(0.2, Math.min(6, cam.distance * (e.deltaY > 0 ? 1.1 : 0.9)));
     send();
   }, { passive: false });
   viewer.addEventListener("dblclick", async () => {
+    if (!is3d()) return;
     cam = await request("POST", "/api/camera", { reset: true });
   });
 }
 
+// The three robot cameras sit in a row under the main view. Clicking one swaps it with the main view: the camera
+// fills the big screen and its place in the row shows the 3D view. Clicking the 3D view in the row swaps back.
+// All four streams keep running live the whole time.
 function setupCameras(names) {
-  const labels = { top: "Overhead", left: "Left wrist", right: "Right wrist" };
-  const dialog = $("camera-dialog");
-  const enlarged = $("camera-large");
-  const previews = [];
-  let largeSource = null;
-  const updateLarge = () => {
-    if (dialog.open && !document.hidden && largeSource) {
-      if (enlarged.getAttribute("src") !== largeSource) enlarged.src = largeSource;
-    } else enlarged.removeAttribute("src");
+  const labels = { main: "3D view", top: "Overhead", left: "Left wrist", right: "Right wrist" };
+  const viewer = $("viewer");
+  const view = overlayViewer(viewer);  // loads the big screen's stream (a camera's large stream when swapped)
+  const mainImg = $("main-view");
+  const badge = $("badge-view");
+  let big = "main";  // what the big screen shows: "main" (the 3D view) or a camera name
+  // A small screen loads its stream only while it is on screen and the tab is visible (as on main).
+  const load = (slot) => {
+    if (!slot.visible) slot.img.removeAttribute("src");
+    else if ((slot.img.getAttribute("src") || "").split("?")[0] !== slot.source) slot.img.src = slot.source;
   };
-  enlarged.onerror = () => setTimeout(() => {
-    enlarged.removeAttribute("src");
-    updateLarge();
-  }, 1500);
-  document.addEventListener("visibilitychange", updateLarge);
-  dialog.addEventListener("close", () => { updateLarge(); previews.forEach((sync) => sync()); });
-  for (const name of names) {
-    const label = labels[name] || name;
+  const slots = names.map((name) => {
     const img = h("img", { alt: "" });
-    const button = h("button", { type: "button", class: "cam", "aria-label": `Enlarge ${label} camera`,
-      onclick: () => {
-        $("camera-title").textContent = label;
-        enlarged.alt = `${label} camera feed`;
-        largeSource = `/stream/${name}-large.mjpg`;
-        dialog.showModal();
-        previews.forEach((sync) => sync());
-        updateLarge();
-      } }, h("span", { class: "cam-inner" }, img, h("span", { class: "cam-label" }, label)));
+    const label = h("span", { class: "cam-label" });
+    const button = h("button", { type: "button", class: "cam" }, h("span", { class: "cam-inner" }, img, label));
     $("cams").append(button);
-    previews.push(previewImage(img, button, `/stream/${name}.mjpg`, () => !dialog.open));
-  }
+    const slot = { name, img, label, button, source: `/stream/${name}.mjpg`, visible: false };
+    watchViewport(button, (visible) => { slot.visible = visible; load(slot); });
+    img.onerror = () => {
+      const failed = img.getAttribute("src");
+      setTimeout(() => {
+        if (slot.visible && failed && img.getAttribute("src") === failed) img.src = `${slot.source}?r=${Date.now()}`;
+      }, 1500);
+    };
+    return slot;
+  });
+  const render = () => {
+    view.show(big);
+    mainImg.alt = big === "main" ? "Simulation" : `${labels[big] || big} camera`;
+    viewer.dataset.view = big;
+    badge.hidden = big === "main";
+    badge.textContent = `${labels[big] || big} camera`;
+    for (const slot of slots) {
+      const shown = slot.name === big ? "main" : slot.name;
+      slot.source = `/stream/${shown}.mjpg`;
+      load(slot);
+      slot.label.textContent = labels[shown] || shown;
+      slot.button.classList.toggle("is-3d", shown === "main");
+      slot.button.setAttribute("aria-label", shown === "main" ? "Show the 3D view on the big screen"
+        : `Show the ${labels[shown] || shown} camera on the big screen`);
+      slot.button.onclick = () => { big = shown; render(); };
+    }
+  };
+  render();
 }
 
 function setupViewportControls() {

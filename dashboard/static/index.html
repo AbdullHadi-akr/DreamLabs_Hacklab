@@ -69,6 +69,8 @@
             </span>
           </div>
 
+          <!-- The main view and the three robot cameras under it; sized so all four fit on the screen without scrolling. -->
+          <div class="stage" id="stage">
           <div class="frame" id="viewer-frame">
             <div class="viewer" id="viewer">
               <img id="main-view" alt="Simulation" draggable="false">
@@ -76,6 +78,7 @@
                 <span class="chip-dark" id="badge-run" hidden><i class="dot live"></i><span>Live</span></span>
                 <span class="chip-dark" id="badge-rec" hidden></span>
                 <span class="chip-dark mono" id="badge-time">t = 0.0 s</span>
+                <span class="chip-dark" id="badge-view" hidden></span>
               </div>
               <div class="viewer-hint">Drag: orbit · Right/Shift: pan · Alt + scroll: zoom · Double-click: reset</div>
               <div class="caption">
@@ -83,6 +86,8 @@
                 <p id="caption-task">Waiting for the next prompt…</p>
               </div>
             </div>
+          </div>
+          <div class="cams" id="cams" aria-label="Robot cameras: what Dream-1 sees"></div>
           </div>
 
           <form class="prompt card" id="taskbar">
@@ -113,9 +118,6 @@
               </div>
             </div>
           </form>
-
-          <div class="section-head"><h2 class="pixel">Robot cameras</h2><span class="muted">What Dream-1 sees</span></div>
-          <div class="cams" id="cams"></div>
         </div>
       </details>
     </section>
@@ -156,10 +158,6 @@
     <button type="button" class="right-rail" id="right-rail" title="Show the run panel: last run, response time, log" aria-controls="col-right" aria-expanded="false">‹ <span>Run panel</span></button>
   </main>
 
-  <dialog id="camera-dialog" aria-labelledby="camera-title">
-    <div class="section-head"><h2 id="camera-title">Robot camera</h2><form method="dialog"><button class="btn btn-outline btn-sm">Close</button></form></div>
-    <img id="camera-large" alt="">
-  </dialog>
   <div class="toasts" id="toasts"></div>
   <script type="module" src="/static/app.js"></script>
 </body>

@@ -58,7 +58,7 @@ export function overlayViewer(viewer) {
   img.after(canvas);
   const context = canvas.getContext("2d");
   const callbacks = new Map();
-  let tool = null, controller = null, frame = null, state = null, visible = false;
+  let tool = null, controller = null, frame = null, state = null, visible = false, source = "main";
   const box = () => containedImage(canvas.getBoundingClientRect(), canvas.width, canvas.height);
   const redraw = () => { if (frame !== null) callbacks.get(tool)?.(state); };
   new ResizeObserver(redraw).observe(canvas);
@@ -97,24 +97,33 @@ export function overlayViewer(viewer) {
       tool = active ? kind : null;
       view.refresh();
     },
+    // What the big screen shows: "main" (the 3D view) or a robot camera name. A tool's drawn view only runs on the
+    // 3D view; while a camera is on the big screen the tool's layer hides (CSS: .interactive-view[hidden]).
+    show(name) {
+      if (name === source) return;
+      source = name;
+      view.refresh();
+    },
     refresh() {
       controller?.abort();
       frame = state = null;
       canvas.hidden = true;
-      img.hidden = Boolean(tool);
+      const drawn = toolView();
+      img.hidden = drawn;
       img.removeAttribute("src");
       if (!visible) return;
-      if (tool) {
+      if (drawn) {
         controller = new AbortController();
         read(tool, controller.signal);
       } else {
-        img.src = `/stream/main.mjpg?r=${Date.now()}`;
+        img.src = `/stream/${source === "main" ? "main" : `${source}-large`}.mjpg?r=${Date.now()}`;
       }
     },
   };
+  const toolView = () => Boolean(tool) && source === "main";
   img.onerror = () => {
     const failed = img.src;
-    setTimeout(() => { if (!tool && visible && failed && img.src === failed) view.refresh(); }, 1500);
+    setTimeout(() => { if (!toolView() && visible && failed && img.src === failed) view.refresh(); }, 1500);
   };
   watchViewport(viewer, (value) => {
     if (visible === value) return;
