@@ -203,10 +203,12 @@ consecutive plans are combined, is our choice (`dreamtool/inference.py`):
 
 | Strategy | What it does | Trade-off |
 | --- | --- | --- |
-| `chunk` (default) | execute all 48 rows, then ask again | open loop for 2.4 s; visible jump at every seam |
+| `chunk` | execute all 48 rows, then ask again | open loop for 2.4 s; visible jump at every seam |
 | `receding-N` | execute the first N rows, discard the rest, ask again | reacts faster to what the cameras see, but every new plan may start elsewhere |
 | `ensemble-N` | ask every N steps, average the arm joints of all plans covering a step (weight `exp(-0.05·steps ahead)`, as in ACT) | averages out plan-to-plan noise, follows a new plan with lag and can slow the arm down |
 | `crossfade-N` | ask every N steps, fade the arm joints linearly from the old plan to the new one over N rows | no seam jumps and fully on the new plan after N steps |
+
+The dashboard runs **`crossfade-30`** unless told otherwise (`inference.DEFAULT`); the library's `run_task()` keeps `chunk`, the model's plain output. Measured on 22.11.2026 with real Dream-1 on the same scenes (all campaigns pooled, [NIGHTLY_REPORT.md](NIGHTLY_REPORT.md)): crossfade-30 succeeded in 9 pairs where the full chunk failed and never the other way round (32 pairs, McNemar p = 0.004, progress +0.36 [+0.24, +0.48]); receding-24 +0.30 [+0.19, +0.40] over 62 pairs. The full chunk mostly fails before the grasp (38 of 52 apple trials). Horizons of 8 and 16 rows and the ensemble were no better or worse than the chunk and are no longer in the menu (any `<kind>-<rows>` still works).
 
 Blends never touch the gripper: it always follows the newest plan. (A first Dream-1 comparison averaged the gripper
 too; `ensemble-16` then lifted the apple and lost it on the way in 3 of 4 trials.)

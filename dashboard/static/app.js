@@ -120,7 +120,7 @@ function setupTaskbar(state) {
     const task = core.currentTask();
     if (!task) return toast("Please enter a task.", "error");
     action(request("POST", "/api/run", { task, model: $("model").value.trim(), seconds: Number($("seconds").value),
-      strategy: $("strategy").value || "chunk" }));
+      strategy: $("strategy").value || state.default_strategy }));
   });
   $("btn-stop").onclick = () => action(request("POST", "/api/stop"));
   $("btn-demo").onclick = () => action(request("POST", "/api/run", { task: core.currentTask() || "demo", offline: true }));

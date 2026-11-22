@@ -129,7 +129,7 @@ def test_robustness_strategy_comparison(client):
     app = client.app_ref
     wait_idle(app)
     presets = client.get("/api/ext/robustness/strategies").json()["presets"]
-    assert [p["id"] for p in presets][:3] == ["chunk", "receding-16", "ensemble-16"]
+    assert [p["id"] for p in presets][:3] == ["crossfade-30", "chunk", "receding-24"]
     body = {"task": "put apple into the bowl", "mode": "compare", "strategies": ["chunk", "ensemble-16"],
             "perturbation": "none", "trials": 1, "seconds": 5, "dry_run": True, "record": False}
     assert client.post("/api/ext/robustness/start", json={**body, "strategies": ["chunk"]}).status_code == 400
@@ -148,7 +148,8 @@ def test_robustness_strategy_comparison(client):
     assert status["analysis"]["pairs"][0]["n"] in (0, 1)
     csv_text = client.get(f"/api/ext/robustness/download/{status['id']}/trials.csv").text
     assert "strategy" in csv_text.splitlines()[0] and "ensemble-16" in csv_text
-    assert client.get("/api/state").json()["strategies"][0]["id"] == "chunk"
+    state = client.get("/api/state").json()
+    assert state["strategies"][0]["id"] == state["default_strategy"] == "crossfade-30"
     assert client.post("/api/run", json={"task": "x y", "strategy": "nope"}).status_code in (400, 409)
 
 

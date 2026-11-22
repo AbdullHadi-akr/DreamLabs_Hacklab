@@ -36,7 +36,13 @@ import numpy as np
 CHUNK = 48
 HZ = 20
 DEFAULT_DECAY = 0.05
-PRESETS = ["chunk", "receding-16", "ensemble-16", "crossfade-16", "receding-8", "ensemble-8", "crossfade-8"]
+## What the dashboard runs unless told otherwise, and the menu (default first). Measured on 22.11.2026 with real Dream-1
+## (measurements/2026-11-22, NIGHTLY_REPORT.md): against the full chunk on the same scenes, crossfade-30 succeeded in 9
+## pairs where the chunk failed and never the other way round (32 pairs, McNemar p = 0.004, progress +0.36
+## [+0.24, +0.48]); the full chunk mostly never grasps. Horizons of 8 and 16 rows were no better or worse than the
+## chunk, so they are left out of the menu (parse() still takes any "<kind>-<rows>").
+DEFAULT = "crossfade-30"
+PRESETS = [DEFAULT, "chunk", "receding-24", "receding-30", "crossfade-24", "receding-16", "ensemble-16", "crossfade-16"]
 BLENDS = {"receding": "none", "ensemble": "ensemble", "crossfade": "crossfade"}
 _PATTERN = re.compile(r"^(receding|ensemble|crossfade)-(\d{1,2})$")
 

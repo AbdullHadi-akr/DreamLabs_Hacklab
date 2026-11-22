@@ -14,7 +14,7 @@ const MEASURES = [
 ];
 
 const RANDOM_DEFAULTS = ["target_shift", "container_shift", "camera_tilt", "light_dim", "prompt_typos"];
-const COMPARE_DEFAULTS = ["chunk", "receding-16", "ensemble-16"];
+const COMPARE_DEFAULTS = ["chunk", "crossfade-30", "receding-24"];  // baseline first; measured best of 22.11.2026
 const VERDICT_TITLES = { sweep: null, adaptive: "Breaking point", random: "Random mix", compare: "Strategy A/B" };
 
 export async function mount(root, api) {

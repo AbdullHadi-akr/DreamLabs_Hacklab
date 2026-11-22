@@ -39,7 +39,7 @@ class RunBody(BaseModel):
     model: str = dsim.BETA_MODEL
     seconds: float = Field(60, gt=0, le=3600)
     offline: bool = False
-    strategy: str = "chunk"
+    strategy: str = inference.DEFAULT
 
 
 class CameraBody(BaseModel):
@@ -108,6 +108,7 @@ def create_app() -> FastAPI:
             "tasks": TASK_SUGGESTIONS,
             "cameras": list(CAMERAS),
             "strategies": [inference.parse(s).describe() for s in inference.PRESETS],
+            "default_strategy": inference.DEFAULT,
             "camera": worker.camera.get(),
             "status": worker.status(),
             "sim": worker.state_snapshot,

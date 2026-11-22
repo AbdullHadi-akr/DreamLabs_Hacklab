@@ -1,13 +1,15 @@
 | Prompt | Strategy | Trials | Success | 95% CI | Progress | No grasp | Lifted, lost | Placed next to | Final dist. (median) | Time to success (median) | Not counted |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| put the apple into the bowl | chunk | 40 | 9/40 (22%) | 12%–38% | 0.43 | 27 | 1 | 2 | 20.0 cm | 17.0 s | 0 |
+| place the apple in the bowl | chunk | 8 | 3/8 (38%) | 14%–69% | 0.53 | 5 | 0 | 0 | 17.8 cm | 35.8 s | 0 |
+| place the apple in the bowl | receding-24 | 8 | 2/8 (25%) | 7%–59% | 0.62 | 0 | 4 | 1 | 11.2 cm | 29.8 s | 0 |
+| put the apple into the bowl | chunk | 52 | 9/52 (17%) | 9%–30% | 0.39 | 38 | 1 | 3 | 20.0 cm | 17.0 s | 0 |
 | put the apple into the bowl | crossfade-16 | 6 | 0/6 (0%) | 0%–39% | 0.42 | 1 | 4 | 0 | 13.4 cm | – | 0 |
 | put the apple into the bowl | crossfade-24 | 14 | 5/14 (36%) | 16%–61% | 0.77 | 1 | 2 | 6 | 12.7 cm | 30.1 s | 0 |
-| put the apple into the bowl | crossfade-30 | 12 | 5/12 (42%) | 19%–68% | 0.77 | 0 | 4 | 3 | 11.3 cm | 24.1 s | 0 |
+| put the apple into the bowl | crossfade-30 | 24 | 11/24 (46%) | 28%–65% | 0.77 | 1 | 5 | 6 | 11.1 cm | 24.1 s | 0 |
 | put the apple into the bowl | crossfade-8 | 6 | 0/6 (0%) | 0%–39% | 0.38 | 4 | 1 | 1 | 18.8 cm | – | 0 |
 | put the apple into the bowl | ensemble-16 | 6 | 0/6 (0%) | 0%–39% | 0.54 | 0 | 5 | 1 | 16.2 cm | – | 0 |
 | put the apple into the bowl | receding-16 | 22 | 3/22 (14%) | 5%–33% | 0.51 | 5 | 8 | 3 | 14.5 cm | 34.5 s | 0 |
-| put the apple into the bowl | receding-24 | 34 | 11/34 (32%) | 19%–49% | 0.74 | 4 | 5 | 14 | 12.4 cm | 19.3 s | 0 |
+| put the apple into the bowl | receding-24 | 46 | 16/46 (35%) | 23%–49% | 0.72 | 7 | 8 | 15 | 12.4 cm | 19.3 s | 0 |
 | put the apple into the bowl | receding-30 | 20 | 8/20 (40%) | 22%–61% | 0.71 | 2 | 7 | 3 | 11.6 cm | 26.5 s | 0 |
 | put the apple into the bowl | receding-8 | 14 | 0/14 (0%) | 0%–22% | 0.23 | 6 | 2 | 0 | 19.2 cm | – | 0 |
 | put the banana on the plate | chunk | 6 | 0/6 (0%) | 0%–39% | 0.46 | 1 | 5 | 0 | 17.6 cm | – | 0 |
@@ -28,10 +30,10 @@ Paired against the full chunk (same prompt and seed, all campaigns):
 |---|---|---|---|---|---|---|---|
 | crossfade-16 | 16 | 12% | 0% | 2 | 0 | 0.500 | -0.047 [-0.20, +0.09] |
 | crossfade-24 | 14 | 29% | 36% | 2 | 3 | 1.000 | 0.339 [+0.16, +0.52] |
-| crossfade-30 | 20 | 10% | 25% | 0 | 3 | 0.250 | 0.275 [+0.16, +0.39] |
+| crossfade-30 | 32 | 6% | 34% | 0 | 9 | 0.004 | 0.359 [+0.24, +0.48] |
 | crossfade-8 | 6 | 17% | 0% | 1 | 0 | 1.000 | 0.042 [-0.29, +0.33] |
 | ensemble-16 | 16 | 12% | 0% | 2 | 0 | 0.500 | -0.094 [-0.20, +0.00] |
 | receding-16 | 33 | 18% | 9% | 6 | 3 | 0.508 | 0.015 [-0.12, +0.15] |
-| receding-24 | 42 | 17% | 26% | 6 | 10 | 0.454 | 0.31 [+0.17, +0.43] |
+| receding-24 | 62 | 16% | 29% | 8 | 16 | 0.152 | 0.298 [+0.19, +0.40] |
 | receding-30 | 28 | 18% | 29% | 3 | 6 | 0.508 | 0.179 [+0.03, +0.33] |
 | receding-8 | 14 | 29% | 0% | 4 | 0 | 0.125 | -0.196 [-0.41, +0.00] |
