@@ -7,8 +7,8 @@ This page lists the notes team members put into `brain/raw/notes/`. The script l
 
 | Date | Title | File |
 |---|---|---|
-| - | - | - |
+| 2026-11-22 | Fine-tuning: our four questions, answered from Dream Labs' documentation and code | `raw/notes/2026-11-22-fine-tuning-answers.md` |
 
 ## Sources
 
-- none yet
+- `raw/notes/2026-11-22-fine-tuning-answers.md`
