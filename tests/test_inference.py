@@ -146,7 +146,7 @@ class FakeEnv:
         return {"left": np.zeros(7), "right": np.zeros(7)}
 
 
-def run_fake(monkeypatch, strategy, max_steps=48, seconds=60):
+def run_fake(monkeypatch, strategy, max_steps=48, seconds=60, clock=time.monotonic):
     """run_task against a policy whose n-th reply is a chunk filled with n."""
     replies = []
 
@@ -156,7 +156,7 @@ def run_fake(monkeypatch, strategy, max_steps=48, seconds=60):
         value[:, 6] = 0.5
         return {"q_l_chunk": value, "q_r_chunk": value}
 
-    monkeypatch.setattr(runner, "time", SimpleNamespace(monotonic=time.monotonic, sleep=lambda s: None))
+    monkeypatch.setattr(runner, "time", SimpleNamespace(monotonic=clock, sleep=lambda s: None))
     monkeypatch.setattr(runner.sim, "FRAMES", 0)
     monkeypatch.setattr(runner.sim, "open_policy", lambda *_: SimpleNamespace(get_action=get_action, close=lambda: None))
     monkeypatch.setattr(runner.sim, "feed", lambda *a, **k: None)
@@ -281,7 +281,13 @@ def test_paused_physics_keeps_the_new_plan_from_row_0(monkeypatch):
 def test_wall_clock_cut_is_not_a_used_up_budget(monkeypatch):
     """Measured 22.11.2026: requests hung while the machine slept, the wall clock ended a trial after 240 of 800 steps
     and it was scored as a model failure. Under a simulated budget that is `wall_timeout`, which is never scored."""
-    result, _ = run_fake(monkeypatch, "chunk", max_steps=48, seconds=1e-9)
+    def slow_clock():  # every look at the clock: 1 s later (a hung request), independent of the timer resolution
+        slow_clock.now += 1.0
+        return slow_clock.now
+
+    slow_clock.now = 0.0
+    result, _ = run_fake(monkeypatch, "chunk", max_steps=48, seconds=5, clock=slow_clock)
     assert result.stop_reason == "wall_timeout" and result.steps < 48
-    result, _ = run_fake(monkeypatch, "chunk", max_steps=None, seconds=1e-9)
+    slow_clock.now = 0.0
+    result, _ = run_fake(monkeypatch, "chunk", max_steps=None, seconds=5, clock=slow_clock)
     assert result.stop_reason == "timeout", "without a simulated budget the wall clock is the budget"

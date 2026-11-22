@@ -104,7 +104,9 @@ def test_analyses_with_the_stand_in(frozen):
     lang = xray.run_language(prober, kin, repeats=1)
     assert [r["word"] for r in lang["rows"]] == list(xray.PROBE_WORDS)
     assert lang["warning"] is None
-    assert prober.calls == 3 + 3 + 3 + 40 + 5
+    assert prober.calls == 3 + 3 + 3 + 40 + 1 + 5, "language: the original prompt once, then each word"
+    assert rise["masked"] == ["top"] and rise["chance_cm"]["left"] is None, "masks only on the camera that matters"
+    assert set(lang["pull"]) == {"towards", "checked", "needed_cm"} and lang["pull"]["checked"] == 3
 
 
 def test_prober_retries_a_warming_model(frozen):
@@ -148,3 +150,29 @@ def test_rise_skips_the_masks_when_no_camera_matters(frozen, monkeypatch):
     assert rise["skipped"] and rise["masks"] == 0 and rise["looks_at"] == []
     assert prober.calls == 3 + 3, "only the unchanged and the blanked windows were asked"
     assert set(rise["reliance"]) == set(xray.CAMERAS) and "barely depends on the images" in rise["text"]
+
+
+def test_rise_can_still_mask_all_cameras(frozen):
+    _, snap, kin = frozen
+    prober = xray.Prober(snap, xray_fake.open_fake, workers=2)
+    rise = xray.run_rise(prober, kin, masks=16, camera="all")
+    assert rise["masked"] == list(xray.CAMERAS) and rise["p_visible"] == xray.RISE_P_ALL
+    assert all(rise["chance_cm"][c] is not None for c in xray.CAMERAS)
+
+
+def test_language_pull_needs_the_named_object_to_come_nearer_than_the_others():
+    base = {"apple": 20.0, "banana": 30.0, "orange": 30.0, "water_bottle": 40.0}
+    rows = [
+        {"word": "banana", "named": "banana", "closest": [{**base, "banana": 24.0}, {**base, "banana": 26.0}]},
+        {"word": "orange", "named": "orange", "closest": [{n: v - 5 for n, v in base.items()}]},  # everything nearer
+        {"word": "bottle", "named": "water_bottle", "closest": [{**base, "water_bottle": 39.5}]},  # within 1 cm
+        {"word": "apple", "named": "apple", "closest": [base]},  # the original word: the reference
+        {"word": "blicket", "named": None, "closest": [{**base, "orange": 10.0}]},
+    ]
+    pull = xray.language_pull(rows, base, original="apple")
+    by = {r["word"]: r for r in rows}
+    assert by["banana"]["pull_cm"] == 5.0 and by["banana"]["towards"]
+    assert by["orange"]["pull_cm"] == 5.0 and not by["orange"]["towards"], "not specific: every object came nearer"
+    assert not by["bottle"]["towards"], "0.5 cm is below the 1 cm floor"
+    assert by["apple"]["towards"] is None and by["blicket"]["towards"] is None and by["blicket"]["nearest"] == "orange"
+    assert pull == {"towards": 1, "checked": 3, "needed_cm": 1.0}

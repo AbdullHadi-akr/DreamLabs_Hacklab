@@ -467,6 +467,42 @@ def swap_object(prompt: str, word: str) -> str:
     return f"put the {word} into the {container}"
 
 
+## The plan "goes towards" a named object when its closest approach to it is this much nearer than with the original
+## prompt (or 3x the noise), and nearer than its change towards any other object. Measured on real Dream-1: the hard
+## target (a grasp within 8 cm, a 2 cm approach) was missing in the re-asked plan of two of three moments, so the
+## word could not be checked at all; the closest approach always exists.
+PULL_MIN_CM = 1.0
+
+
+def closest_approach_cm(kin_intent: dict, positions: dict) -> dict:
+    """Per object, how close either gripper gets to it along the planned 2.4 s path (cm)."""
+    pts = np.vstack([np.asarray(kin_intent["arms"][s]["path"]) for s in ("left", "right")])
+    return {n: round(float(np.linalg.norm(pts - np.asarray(p), axis=1).min()) * 100, 2) for n, p in positions.items()}
+
+
+def language_pull(rows: list[dict], base: dict, original: str | None, noise_cm: float = 0.0) -> dict:
+    """Per swapped word: how much nearer the plan gets to the named object than with the original prompt (`pull_cm`),
+    and whether that is more than towards any other object (`towards`).
+
+    rows: {word, named, closest: [{object: cm} per answer]}; base: {object: cm} for the original prompt."""
+    needed = max(3 * noise_cm, PULL_MIN_CM)
+    for r in rows:
+        if not r.get("closest"):
+            continue
+        mean = {n: float(np.mean([c[n] for c in r["closest"]])) for n in base}
+        gains = {n: round(base[n] - mean[n], 2) for n in base}  # > 0: nearer than with the original prompt
+        r["gain_cm"] = gains
+        r["nearest"] = min(mean, key=mean.get)
+        if r["named"] is None or r["named"] == original:
+            r["pull_cm"], r["towards"] = None, None
+            continue
+        others = [g for n, g in gains.items() if n != r["named"]]
+        r["pull_cm"] = gains[r["named"]]
+        r["towards"] = bool(gains[r["named"]] > needed and gains[r["named"]] > max(others, default=-np.inf))
+    checked = [r for r in rows if r.get("towards") is not None]
+    return {"towards": sum(r["towards"] for r in checked), "checked": len(checked), "needed_cm": round(needed, 2)}
+
+
 def language_summary(rows: list[dict]) -> dict:
     """rows: {word, named (body or None), targets: [body or None per repeat]}."""
     for r in rows:
@@ -539,29 +575,27 @@ def run_intent(prober: Prober, kin: Kinematics, repeats: int = 3, progress=None)
 ## this (or 3x the noise), every masked window changes even less and the heatmap is noise. Measured on real Dream-1
 ## (22.11.2026): at 3 s into a run blanking any camera moved the plan 0.4-0.5 cm and 200 masks stayed at chance level.
 MIN_RELIANCE_CM = 1.0
+## Masks go on one camera only: the one whose blanking moves the plan most. Masking all three at once (as first built)
+## hid half of every camera in every mask; on real Dream-1 the plan then changed a lot with every mask and no cell rose
+## above chance even with 200 masks. With the other cameras untouched, each mask's effect is the effect of that camera.
+RISE_P_ALL = 0.5  # visible share of a cell when all cameras are masked
+RISE_P_ONE = 0.75  # one camera: hide a quarter, so a mask removes a few regions rather than half the picture
 
 
-def run_rise(prober: Prober, kin: Kinematics, masks: int = 40, repeats: int = 3, seed: int = 0, progress=None) -> dict:
-    """RISE over all three cameras at once, plus camera reliance (each camera blanked) and the noise floor.
+def run_rise(prober: Prober, kin: Kinematics, masks: int = 40, repeats: int = 3, seed: int = 0, progress=None,
+             camera: str = "auto", p: float | None = None) -> dict:
+    """RISE heatmap, plus camera reliance (each camera blanked) and the noise floor.
 
-    The unchanged and blanked windows are asked first; when no camera matters at this moment (MIN_RELIANCE_CM) the
-    masks are skipped and the result says so instead of drawing a heatmap of noise."""
+    The unchanged and blanked windows are asked first. When no camera matters at this moment (MIN_RELIANCE_CM) the
+    masks are skipped and the result says so instead of drawing a heatmap of noise. `camera`: "auto" masks only the
+    camera whose blanking moved the plan most, a camera name masks that one, "all" masks all three at once."""
     snap = prober.snapshot
     rng = np.random.default_rng(seed)
     questions = [Question(snap.prompt, snap.windows, tag=("base", i)) for i in range(repeats)]
     for cam in CAMERAS:
         questions.append(Question(snap.prompt, {**snap.windows, cam: blank_window(snap.windows[cam])}, tag=("blank", cam)))
     first = len(questions)
-    small_masks = []
-    for k in range(masks):
-        windows, smalls = {}, {}
-        for cam in CAMERAS:
-            m = rise_mask(rng)
-            windows[cam] = masked_window(snap.windows[cam], m)
-            smalls[cam] = _small(m)
-        small_masks.append(smalls)
-        questions.append(Question(snap.prompt, windows, tag=("mask", k)))
-    total = len(questions)
+    total = first + masks
     done = [0]
 
     def answered(i, q, reply):
@@ -577,10 +611,29 @@ def run_rise(prober: Prober, kin: Kinematics, masks: int = 40, repeats: int = 3,
     noise = [plan_change_cm(b, reference) for b in base]
     blanked = [plan_change_cm(it, reference) for q, it in zip(questions, intents) if q.tag[0] == "blank" and it is not None]
     needed = max(3 * float(np.mean(noise)), MIN_RELIANCE_CM)
+    blank_change = {q.tag[1]: plan_change_cm(it, reference) for q, it in zip(questions, intents)
+                    if q.tag[0] == "blank" and it is not None}
+    if camera == "auto":
+        masked = [max(blank_change, key=blank_change.get)] if blank_change else list(CAMERAS)
+    elif camera == "all":
+        masked = list(CAMERAS)
+    elif camera in CAMERAS:
+        masked = [camera]
+    else:
+        raise ValueError(f"camera must be auto, all or one of {CAMERAS}")
+    p = p if p is not None else RISE_P_ONE if len(masked) == 1 else RISE_P_ALL
+    small_masks = []
     if blanked and max(blanked) <= needed:
-        questions = questions[:first]
         _progress(progress, first, first, "skipped the masks: no camera matters at this moment")
     else:
+        for k in range(masks):
+            windows, smalls = dict(snap.windows), {}
+            for cam in masked:
+                m = rise_mask(rng, p=p)
+                windows[cam] = masked_window(snap.windows[cam], m)
+                smalls[cam] = _small(m)
+            small_masks.append(smalls)
+            questions.append(Question(snap.prompt, windows, tag=("mask", k)))
         replies += prober.ask(questions[first:], lambda i, q, reply: answered(first + i, q, reply))
         intents += [None if r is None else intent(kin, snap, *chunk(r)) for r in replies[first:]]
     maps = {cam: RiseMap() for cam in CAMERAS}
@@ -593,7 +646,7 @@ def run_rise(prober: Prober, kin: Kinematics, masks: int = 40, repeats: int = 3,
             reliance[q.tag[1]] = {"change_cm": round(change, 2), "target": it["target"], "text": it["text"]}
         elif q.tag[0] == "mask":
             changes.append(change)
-            for cam in CAMERAS:
+            for cam in masked:
                 maps[cam].add(small_masks[q.tag[1]][cam], change)
     if not changes:  # masks skipped (or none answered)
         most = max(reliance.values(), key=lambda r: r["change_cm"])["change_cm"] if reliance else 0.0
@@ -603,13 +656,14 @@ def run_rise(prober: Prober, kin: Kinematics, masks: int = 40, repeats: int = 3,
         zeros = np.zeros((HEAT_H, HEAT_W)).tolist()
         return {"heat": {cam: zeros for cam in CAMERAS}, "peak_cm": {cam: 0.0 for cam in CAMERAS},
                 "chance_cm": {cam: None for cam in CAMERAS}, "looks_at": [], "reliance": reliance,
+                "masked": [], "p_visible": p,
                 "noise_cm": round(float(np.mean(noise)), 2), "mask_changes_cm": [], "masks": 0, "skipped": True,
                 "grid": [HEAT_H, HEAT_W], "reference_target": base[0]["target"], "text": text, "calls": prober.calls}
-    heat = {cam: np.round(maps[cam].importance(), 3).tolist() for cam in CAMERAS}
-    peak = {cam: round(float(np.max(maps[cam].importance())), 2) for cam in CAMERAS}
+    heat ={cam: np.round(maps[cam].importance(), 3).tolist() for cam in CAMERAS}
+    peak = {cam: round(float(np.max(maps[cam].importance())), 2) if cam in masked else 0.0 for cam in CAMERAS}
     used = [small_masks[q.tag[1]] for q, it in zip(questions, intents) if it is not None and q.tag[0] == "mask"]
-    chance = {cam: round(chance_level([u[cam] for u in used], changes), 2) for cam in CAMERAS}
-    looks_at = [c for c in CAMERAS if peak[c] > chance[c]]
+    chance = {cam: round(chance_level([u[cam] for u in used], changes), 2) if cam in masked else None for cam in CAMERAS}
+    looks_at = [c for c in masked if peak[c] > chance[c]]
     noise_cm = round(float(np.mean(noise)), 2)
     strongest = max(reliance, key=lambda c: reliance[c]["change_cm"]) if reliance else None
     text = (f"Blanking the {CAMERA_LABELS[strongest].lower()} camera changes the plan most "
@@ -617,12 +671,13 @@ def run_rise(prober: Prober, kin: Kinematics, masks: int = 40, repeats: int = 3,
     weak = [CAMERA_LABELS[c] for c, r in reliance.items() if r["change_cm"] <= 1.5 * noise_cm]
     if weak:
         text += f" {', '.join(weak)}: no clear effect, within the noise."
+    where = f"the {CAMERA_LABELS[masked[0]].lower()} camera" if len(masked) == 1 else "all three cameras"
     if looks_at:
-        text += f" Heatmap above chance: {', '.join(CAMERA_LABELS[c].lower() for c in looks_at)}."
+        text += f" Masks on {where}: heatmap above chance for {', '.join(CAMERA_LABELS[c].lower() for c in looks_at)}."
     else:
-        text += f" No heatmap rises above chance with {len(changes)} masks: try more masks."
+        text += f" Masks on {where}: no cell rises above chance with {len(changes)} masks."
     return {"heat": heat, "peak_cm": peak, "chance_cm": chance, "looks_at": looks_at, "reliance": reliance,
-            "noise_cm": noise_cm,
+            "masked": masked, "p_visible": p, "noise_cm": noise_cm,
             "mask_changes_cm": [round(c, 2) for c in changes], "masks": len(changes), "grid": [HEAT_H, HEAT_W],
             "reference_target": base[0]["target"], "text": text.strip(), "calls": prober.calls}
 
@@ -631,7 +686,8 @@ def run_language(prober: Prober, kin: Kinematics, repeats: int = 2, words=None, 
     """Swap the object word: does the plan go for the object the prompt names?"""
     snap = prober.snapshot
     words = words or PROBE_WORDS
-    questions = [Question(swap_object(snap.prompt, w), snap.windows, tag=(w, r)) for w in words for r in range(repeats)]
+    questions = [Question(snap.prompt, snap.windows, tag=(None, r)) for r in range(repeats)]  # the original prompt
+    questions += [Question(swap_object(snap.prompt, w), snap.windows, tag=(w, r)) for w in words for r in range(repeats)]
     done = [0]
 
     def answered(i, q, reply):
@@ -639,15 +695,36 @@ def run_language(prober: Prober, kin: Kinematics, repeats: int = 2, words=None, 
         _progress(progress, done[0], len(questions), f"prompt: {q.prompt}")
 
     replies = prober.ask(questions, answered)
-    rows = {w: {"word": w, "named": words[w], "prompt": swap_object(snap.prompt, w), "targets": [], "texts": []}
-            for w in words}
+    positions = {n: p for n, p in kin.positions(snap.qpos).items() if n in scene.OBJECTS}
+    rows = {w: {"word": w, "named": words[w], "prompt": swap_object(snap.prompt, w), "targets": [], "texts": [],
+                "closest": []} for w in words}
+    base_intents = []
     for q, reply in zip(questions, replies):
         if reply is None:
             continue
         it = intent(kin, snap, *chunk(reply))
+        if q.tag[0] is None:
+            base_intents.append(it)
+            continue
         rows[q.tag[0]]["targets"].append(it["target"])
         rows[q.tag[0]]["texts"].append(it["text"])
-    result = language_summary([r for r in rows.values() if r["targets"]])
+        rows[q.tag[0]]["closest"].append(closest_approach_cm(it, positions))
+    answered_rows = [r for r in rows.values() if r["targets"]]
+    result = language_summary(answered_rows)
+    if base_intents:
+        base_closest = [closest_approach_cm(it, positions) for it in base_intents]
+        base = {n: float(np.mean([c[n] for c in base_closest])) for n in positions}
+        noise = [plan_change_cm(a, b) for i, a in enumerate(base_intents) for b in base_intents[i + 1:]]
+        parsed = scene.parse_task(snap.prompt)
+        pull = language_pull(answered_rows, base, parsed[0] if parsed else None, float(np.mean(noise)) if noise else 0.0)
+        result.update(pull=pull, base_closest_cm={n: round(v, 2) for n, v in base.items()})
+        moved = ", ".join(f"{r['named'].replace('water_bottle', 'bottle')} {r['pull_cm']:+.1f} cm"
+                          for r in answered_rows if r.get("pull_cm") is not None)
+        verdict = (f"Towards the named object in {pull['towards']} of {pull['checked']} swapped words "
+                   f"(closest approach vs. the original prompt: {moved}; needs more than {pull['needed_cm']} cm and "
+                   f"more than towards any other object).")
+        hard = result["text"] if result["text"] and "cannot be checked" not in result["text"] else ""
+        result["text"] = (verdict + " " + hard).strip()
     held = [s for s in ("left", "right") if snap.state[s][6] < GRIP_THRESHOLD]
     result["warning"] = (f"The {held[0]} gripper is closed in this moment: the plan may be about placing what it holds, "
                          "not about which object to pick. Freeze a moment before the grasp." if held else None)

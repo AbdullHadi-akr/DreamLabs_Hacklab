@@ -38,7 +38,7 @@ export async function mount(root, api) {
   const stopBtn = h("button", { class: "btn small danger", hidden: true, onclick: () => api.post("/stop") }, "Stop");
   const updateCounts = () => {
     buttons.rise.textContent = `Run (${Number(masks.value) + 6} calls)`;
-    buttons.language.textContent = `Run (${5 * Number(repeats.value)} calls)`;
+    buttons.language.textContent = `Run (${6 * Number(repeats.value)} calls)`;  // 5 words + the original prompt
   };
   masks.oninput = repeats.oninput = updateCounts;
   updateCounts();
@@ -143,7 +143,8 @@ export async function mount(root, api) {
     out.rise.replaceChildren(
       h("div", { class: "xr-verdict" }, r.text),
       ...CAMS.map(([cam, label]) => h("figure", { class: "xr-heat-fig" }, heatCanvas(cam, r),
-        h("figcaption", {}, h("b", {}, label), r.skipped ? h("span", { class: "muted" }, " · masks skipped") : [
+        h("figcaption", {}, h("b", {}, label), r.skipped ? h("span", { class: "muted" }, " · masks skipped")
+          : r.masked && !r.masked.includes(cam) ? h("span", { class: "muted" }, " · not masked (left as it is)") : [
           ` peak ${r.peak_cm[cam]} cm · chance ${r.chance_cm[cam]} cm`,
           r.looks_at.includes(cam) ? h("span", { class: "good" }, " · above chance") : h("span", { class: "muted" }, " · noise")]))),
       h("p", { class: "muted" }, "Coloured cells: hiding them changes the planned path more than chance would (permutation test). " +
@@ -164,13 +165,17 @@ export async function mount(root, api) {
     if (!r) return out.language.replaceChildren();
     out.language.replaceChildren(
       h("div", { class: "xr-verdict" }, r.text),
-      r.warning ? h("p", { class: "warn" }, r.warning) : null,
+      ...(r.warning ? [h("p", { class: "warn" }, r.warning)] : []),
       h("table", { class: "table xr-table" },
-        h("thead", {}, h("tr", {}, ["Word in the prompt", "Goes for", "Same each time", ""].map((t) => h("th", {}, t)))),
+        h("thead", {}, h("tr", {}, ["Word in the prompt", "Goes for", "Nearest object", "Closer to it", "Same each time", ""].map((t) => h("th", {}, t)))),
         h("tbody", {}, r.rows.map((row) => h("tr", { title: row.prompt },
-          h("td", {}, row.word), h("td", {}, nice(row.mode)),
+          h("td", {}, row.word), h("td", {}, nice(row.mode)), h("td", {}, nice(row.nearest)),
+          h("td", { class: "num", title: "How much nearer the planned path gets to the named object than with the original prompt" },
+            row.pull_cm == null ? "–" : `${row.pull_cm > 0 ? "+" : ""}${row.pull_cm} cm`),
           h("td", { class: "num" }, `${Math.round(row.agreement * 100)}%`),
-          h("td", {}, row.named == null ? h("span", { class: "muted" }, "made up") : row.followed ? h("span", { class: "good" }, "follows") : h("span", { class: "bad" }, "ignores")))))));
+          h("td", {}, row.named == null ? h("span", { class: "muted" }, "made up")
+            : row.towards === null ? h("span", { class: "muted" }, "original word")
+            : (row.towards ?? row.followed) ? h("span", { class: "good" }, "follows") : h("span", { class: "bad" }, "ignores")))))));
   }
 
   function renderJob(job) {
@@ -210,7 +215,7 @@ export async function mount(root, api) {
       h("p", { class: "muted" }, "Where the gripper goes, where it closes, what it heads for, and how much that varies."),
       buttons.intent, out.intent),
     h("section", { class: "xr-section" }, h("h4", {}, "2 · Where it looks"),
-      h("p", { class: "muted" }, "RISE: random masks grey out parts of all three camera windows; the heatmap shows which parts the plan depends on."),
+      h("p", { class: "muted" }, "RISE: random masks grey out parts of the camera whose blanking moves the plan most (the other two stay as they are); the heatmap shows which parts the plan depends on."),
       h("div", { class: "row" }, h("label", { class: "field" }, h("span", {}, "Masks"), masks), buttons.rise), out.rise),
     h("section", { class: "xr-section" }, h("h4", {}, "3 · Does it follow the words?"),
       h("p", { class: "muted" }, "Same images, only the object word in the prompt is swapped (apple, banana, orange, bottle, a made-up word)."),

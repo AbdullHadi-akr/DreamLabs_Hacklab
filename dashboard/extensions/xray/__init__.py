@@ -40,6 +40,7 @@ class RunBody(BaseModel):
     snapshot: str
     kind: str = Field(pattern="^(intent|rise|language)$")
     masks: int = Field(40, ge=8, le=200)
+    camera: str = Field("auto", pattern="^(auto|all|top|left|right)$")  # rise: which camera gets the masks
     repeats: int = Field(0, ge=0, le=5)  # 0 = the analysis' default
     workers: int = Field(1, ge=1, le=6)  # Dream-1 refuses parallel sessions when at capacity (measured)
 
@@ -187,7 +188,8 @@ class ModelXRay(Extension):
             if body.kind == "intent":
                 result = xray.run_intent(prober, kin, repeats=body.repeats or 3, progress=progress)
             elif body.kind == "rise":
-                result = xray.run_rise(prober, kin, masks=body.masks, repeats=body.repeats or 3, progress=progress)
+                result = xray.run_rise(prober, kin, masks=body.masks, repeats=body.repeats or 3, progress=progress,
+                                       camera=body.camera)
             else:
                 result = xray.run_language(prober, kin, repeats=body.repeats or 2, progress=progress)
             result.update(finished=time.time(), simulated=self.fake, options=body.model_dump())
