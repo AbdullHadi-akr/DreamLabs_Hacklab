@@ -170,7 +170,10 @@ class CameraCheck(Extension):
             mu.update(camcheck.model_uses_cameras(prober, kin, repeats=body.repeats, progress=progress),
                       state="done", snapshot=snap.id, frames={c: snap.windows[c][-1] for c in camcheck.CAMERAS})
         except Exception as error:
-            mu.update(state="error", text=f"{type(error).__name__}: {error}")
+            if self.stopping:  # stopped on purpose: not an error
+                mu.update(state="stopped", text="Stopped before Dream-1 answered every question.")
+            else:
+                mu.update(state="error", text=f"{type(error).__name__}: {error}")
         self.ctx.emit("model_use", mu)
 
     # ---------- HTTP ----------

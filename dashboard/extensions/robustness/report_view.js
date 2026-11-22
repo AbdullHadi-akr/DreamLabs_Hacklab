@@ -116,7 +116,7 @@ export function renderReport(root, s, { standalone = true, historyControl = null
       s.strategies.some((x) => x.blend && x.blend !== "none" && !x.gripper)
         ? h("p", { class: "warn" }, "Recorded before the gripper fix: the blended strategies here also averaged the " +
           "gripper command, which can leave it half closed.") : null);
-    right = h("section", { class: "card" }, h("h2", {}, "Versus the default"), pairTable(s),
+    right = h("section", { class: "card" }, h("h2", {}, "Versus the baseline"), pairTable(s),
       h("h2", { style: { marginTop: "18px" } }, "All outcomes"),
       outcomeBar(countOutcomes(s.rows), s.outcome_labels), outcomeLegend(s.rows, s.outcome_labels));
   } else if (s.mode === "adaptive") {

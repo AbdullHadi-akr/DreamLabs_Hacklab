@@ -526,7 +526,7 @@ export function compareLegend() {
   return h("div", { class: "rb-chart-legend muted" },
     h("span", {}, h("i", { class: "rb-key-rate" }), "success rate ± 95% CI"),
     h("span", {}, h("i", { class: "rb-key-square" }), "progress score"),
-    h("span", {}, h("i", { class: "rb-key-base" }), "default strategy's rate"));
+    h("span", {}, h("i", { class: "rb-key-base" }), "baseline strategy's rate"));
 }
 
 const HEAD_TIPS = {
@@ -535,9 +535,9 @@ const HEAD_TIPS = {
   "Seam / step": "Jump of the command when a new execution starts, divided by a normal step inside a chunk: 1× = invisible",
   Jitter: "Share of the measured joint motion that is shaking (left over after a 0.45 s moving average) rather than going somewhere: 0% = smooth. A slower arm with the same shaking scores worse, not better",
   "Joint jerk": "Absolute RMS jerk of the measured arm joints, rad/s³ (mostly follows speed: a slow arm looks smooth)",
-  Seams: "Seam / step relative to the default",
+  Seams: "Seam / step relative to the baseline",
   "Sim / wall s": "Simulated seconds per trial / wall-clock seconds (incl. waiting for Dream-1)",
-  "Only default": "Pairs where only the default strategy succeeded",
+  "Only baseline": "Pairs where only the baseline strategy succeeded",
   "Only this": "Pairs where only this strategy succeeded",
   "p (McNemar)": "Exact paired test on the pairs that disagree; below 0.05 = significant",
   "Δ progress": "Mean paired difference of the progress score, 95% bootstrap interval",
@@ -551,7 +551,7 @@ export function strategyTable(summary, { detailed = false } = {}) {
   return h("table", { class: "table rb-table" },
     h("thead", {}, h("tr", {}, head.map((t) => h("th", { title: HEAD_TIPS[t] || null }, t)))),
     h("tbody", {}, per.map((s, i) => h("tr", { class: summary.analysis.verdict.best === s.id ? "rb-row-best" : "" },
-      h("td", {}, detailed ? s.label : s.id, i === 0 ? h("span", { class: "muted" }, " default") : ""),
+      h("td", {}, detailed ? s.label : s.id, i === 0 ? h("span", { class: "muted" }, " baseline") : ""),
       h("td", { class: "num" }, s.n ? `${s.successes}/${s.n}` : `– (${s.done})`),
       h("td", { class: "num" }, pct(s.progress)),
       h("td", { class: "num" }, num(s.requests)),
@@ -569,7 +569,7 @@ export function strategyTable(summary, { detailed = false } = {}) {
 /** Every strategy against the default, pair by pair. */
 export function pairTable(summary) {
   const pairs = summary.analysis.pairs;
-  const head = ["Versus default", "Pairs", "Only default", "Only this", "p (McNemar)", "Δ progress", "Speed", "Seams", "Jitter", "Requests"];
+  const head = ["Versus baseline", "Pairs", "Only baseline", "Only this", "p (McNemar)", "Δ progress", "Speed", "Seams", "Jitter", "Requests"];
   const signed = (v) => `${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(2)}`;
   return h("table", { class: "table rb-table" },
     h("thead", {}, h("tr", {}, head.map((t) => h("th", { title: HEAD_TIPS[t] || null }, t)))),

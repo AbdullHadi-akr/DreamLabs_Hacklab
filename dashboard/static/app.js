@@ -234,6 +234,10 @@ function updateControls(status) {
 
 let chartRun = null;
 function setChartRun(run) {
+  if (!run) {  // no run now: keep the last run's response times on screen until the next one starts
+    if (chartRun && !chartRun.finished) { chartRun = { ...chartRun, finished: true }; drawRtt(); }
+    return;
+  }
   if (chartRun?.id === run?.id && chartRun?.rtts_s === run?.rtts_s) return;
   if (chartRun?.id === run?.id && run?.rtts_s &&
       run.rtts_s.length === chartRun.rtts_s?.length && run.rtts_s.every((v, i) => v === chartRun.rtts_s[i])) return;
@@ -256,7 +260,7 @@ function drawRtt() {
   ctx.fillStyle = color("--ink-3");
   const rtts = chartRun?.rtts_s || [];
   const offline = chartRun?.offline || chartRun?.model === "offline";
-  $("rtt-scope").textContent = chartRun ? `Run #${chartRun.id} · ${offline ? "Offline" : "API RTT"}` : "Current run";
+  $("rtt-scope").textContent = chartRun ? `${chartRun.finished ? "Last run" : "Run"} #${chartRun.id} · ${offline ? "Offline" : "API RTT"}` : "Current run";
   if (!rtts.length) {
     ctx.fillText(offline ? "Offline run · no API requests" : chartRun ? "No requests yet" : "No active run", 4, hgt / 2);
     return;
@@ -310,7 +314,7 @@ function setupEvents() {
   });
   ev.on("run.cancelled", (d) => log(`Cancelled: ${d.label || d.task}`, "warn", d.source));
   ev.on("run.ended", (d) => {
-    if (chartRun?.id === d.id) setChartRun(null);
+    if (chartRun?.id === d.id) setChartRun(null);  // marks it finished, keeps it visible
     const r = d.result;
     const success = r.success === true ? "Success" : r.success === false ? "Unsuccessful" : "Unevaluated";
     $("run-heading").textContent = "Last run";
@@ -330,21 +334,24 @@ function setupEvents() {
   });
 }
 
-// ---------------- Right column (folds away into a rail) ----------------
+// ---------------- Side columns (each folds away into a rail) ----------------
 
-function setupRightPanel() {
+function setupSidePanels() {
   const layout = document.querySelector(".layout");
-  const set = (collapsed) => {
-    layout.classList.toggle("right-collapsed", collapsed);
-    $("right-collapse").setAttribute("aria-expanded", String(!collapsed));
-    $("right-rail").setAttribute("aria-expanded", String(!collapsed));
-    try { localStorage.setItem("dream.rightCollapsed", collapsed ? "1" : "0"); } catch {}
-  };
-  $("right-collapse").onclick = () => set(true);
-  $("right-rail").onclick = () => set(false);
-  let saved = null;
-  try { saved = localStorage.getItem("dream.rightCollapsed"); } catch {}
-  set(saved === "1");
+  for (const side of ["left", "right"]) {
+    const key = `dream.${side}Collapsed`;
+    const set = (collapsed) => {
+      layout.classList.toggle(`${side}-collapsed`, collapsed);
+      $(`${side}-collapse`).setAttribute("aria-expanded", String(!collapsed));
+      $(`${side}-rail`).setAttribute("aria-expanded", String(!collapsed));
+      try { localStorage.setItem(key, collapsed ? "1" : "0"); } catch {}
+    };
+    $(`${side}-collapse`).onclick = () => set(true);
+    $(`${side}-rail`).onclick = () => set(false);
+    let saved = null;
+    try { saved = localStorage.getItem(key); } catch {}
+    set(saved === "1");
+  }
 }
 
 // ---------------- Extensions ----------------
@@ -438,7 +445,7 @@ async function main() {
   setupViewer(state.camera);
   setupCameras(state.cameras);
   setupViewportControls();
-  setupRightPanel();
+  setupSidePanels();
   setupTaskbar(state);
   setupEpisodes(core, action, state.episode);
   if (!state.me || state.me.role !== "guest") setupCredits(core);

@@ -92,6 +92,14 @@ class CameraBody(BaseModel):
     reset: bool = False
 
 
+def _quiet_disconnects(loop, context):
+    """Windows' asyncio logs a traceback whenever a browser drops a connection (a closed camera stream, a reload):
+    ConnectionResetError [WinError 10054] while shutting the socket down. Harmless; every other error is logged."""
+    if isinstance(context.get("exception"), ConnectionResetError):
+        return
+    loop.default_exception_handler(context)
+
+
 def create_app() -> FastAPI:
     bus = EventBus()
     db = LabDB()
@@ -109,6 +117,7 @@ def create_app() -> FastAPI:
     @contextlib.asynccontextmanager
     async def lifespan(app: FastAPI):
         bus.bind(asyncio.get_running_loop())
+        asyncio.get_running_loop().set_exception_handler(_quiet_disconnects)
         worker.start()
         await asyncio.get_running_loop().run_in_executor(None, worker.ready.wait, 60)
         yield

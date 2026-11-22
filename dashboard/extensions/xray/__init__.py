@@ -199,9 +199,12 @@ class ModelXRay(Extension):
                             text=result.get("text") or result.get("intent", {}).get("text", ""))
             self.ctx.log(f"X-Ray {body.kind} on {snap.id}: {self.job['text']} ({prober.calls} Dream-1 calls)")
         except Exception as error:
-            self.job.update(state="stopped" if self.stopping else "error", text=f"{type(error).__name__}: {error}",
-                            calls=prober.calls)
-            self.ctx.log(f"X-Ray {body.kind} failed: {error}", "error")
+            if self.stopping:  # stopped on purpose: not an error
+                self.job.update(state="stopped", text="Stopped.", calls=prober.calls)
+                self.ctx.log(f"X-Ray {body.kind} stopped after {prober.calls} Dream-1 calls")
+            else:
+                self.job.update(state="error", text=f"{type(error).__name__}: {error}", calls=prober.calls)
+                self.ctx.log(f"X-Ray {body.kind} failed: {error}", "error")
         self.ctx.emit("job", self.job)
 
     # ---------- HTTP ----------

@@ -197,7 +197,9 @@ export async function mount(root, api) {
   const form = h("form", { class: "suite-form" }, taskField, candidateField, repeatField, variation, stressField, failedField,
     advanced, h("div", {class: "campaign-actions"}, dryField, plan, errorMessage,
       h("div", { class: "suite-actions" }, submit, stop, cancel)));
-  root.append(h("h2", { class: "pixel" }, "Test builder"), modeGrid, form, ...extensions.map((ext) => ext.root));
+  root.append(h("div", { class: "section-head" }, h("h2", { class: "pixel" }, "Test builder"),
+    h("button", { type: "button", class: "fold-btn", title: "Hide the side panel (more room for the simulation)",
+      onclick: () => find("left-collapse").click() }, "‹")), modeGrid, form, ...extensions.map((ext) => ext.root));
 
   const history = h("select", { "aria-label": "Campaign history" });
   results.tabIndex = -1;
@@ -248,6 +250,7 @@ export async function mount(root, api) {
     return parts.length ? parts.map(Number) : null;
   }
 
+  const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
   function updatePlan() {
     const external = extensionOf(mode.value);
     modeSelect.value = mode.value;
@@ -287,7 +290,7 @@ export async function mount(root, api) {
         const scenarios = stressChoices.filter(([, , input]) => input.checked).length;
         if (safety && scenarios === 0) stressChoices[0][2].setCustomValidity("Select a stress scenario.");
         plan.textContent = replay ? "One replay with the saved scene configuration."
-          : safety ? `${scenarios * 2 + Number(baseline.checked)} trials · ${execution}. Two directions per scenario${baseline.checked ? ", plus a baseline" : ""}.`
+          : safety ? `${plural(scenarios * 2 + Number(baseline.checked), "trial")} · ${execution}. Two directions per scenario${baseline.checked ? ", plus a baseline" : ""}.`
           : `1 trial · ${execution}`;
         return;
       }
@@ -296,9 +299,9 @@ export async function mount(root, api) {
         (values(tilts)?.length || (Number(camera.value) ? 2 : 1)) * (values(lights)?.length || 1) : 1;
       const total = n * count * (paired ? 2 : 1);
       if (total > 100) repeats.setCustomValidity("Reduce the campaign to 100 executions or fewer.");
-      plan.textContent = sweep ? `${total} trials · ${execution}. ${n} scene combinations × ${count} repetitions (max 100).`
-        : paired ? `${total} trials · ${execution}. ${count} pairs × 2 prompts (max 100).`
-        : `${total} trials · ${execution}`;
+      plan.textContent = sweep ? `${plural(total, "trial")} · ${execution}. ${plural(n, "scene combination")} × ${plural(count, "repetition")} (max 100).`
+        : paired ? `${plural(total, "trial")} · ${execution}. ${plural(count, "pair")} × 2 prompts (max 100).`
+        : `${plural(total, "trial")} · ${execution}`;
     } catch (error) {
       repeats.setCustomValidity(error.message);
       plan.textContent = error.message;
