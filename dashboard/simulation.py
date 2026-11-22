@@ -252,6 +252,7 @@ class SimWorker(threading.Thread):
             self.main_renderer = mujoco.Renderer(self.env.model, height=MAIN_SIZE[1], width=MAIN_SIZE[0])
             self.main_cam = mujoco.MjvCamera()
             self.hold = self.env.state()
+            self.publish(force=True)
             self.ready.set()
             self.bus.log("Simulation ready.")
         except Exception as error:
