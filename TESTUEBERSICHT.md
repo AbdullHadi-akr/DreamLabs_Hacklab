@@ -66,6 +66,39 @@ weil sie gemessen schlechter waren. Per Name lassen sie sich weiter nutzen.
 
 ---
 
+## 3a. Gelenkbewegung: wie ruhig fahren die Arme?
+
+Mediane über alle gepaarten Versuche der Nacht. Spalten:
+
+- **Sprung:** wie stark der Arm beim Wechsel auf einen neuen Plan springt.
+- **Sprung / Schritt:** derselbe Sprung im Verhältnis zu einem normalen Bewegungsschritt.
+- **Zittern:** der Anteil der Bewegung, der nach einer Glättung über 0,45 s übrig bleibt.
+
+| Strategie | Versuche | Sprung (rad) | größter Sprung (rad) | Sprung / Schritt | Zittern | Tempo (rad/s) | Anfragen pro Lauf |
+|---|---|---|---|---|---|---|---|
+| **chunk** | 104 | 0,026 | 0,045 | **2,7×** | 42 % | 0,092 | 17 |
+| **crossfade-30** | 56 | **0,010** | **0,018** | **1,2×** | 49 % | 0,106 | 27 |
+| crossfade-24 | 14 | 0,012 | 0,034 | 1,5× | 35 % | 0,089 | 34 |
+| receding-24 | 62 | 0,016 | 0,040 | 1,8× | 36 % | 0,095 | 34 |
+| receding-30 | 28 | 0,024 | 0,081 | 2,7× | 40 % | 0,090 | 27 |
+| receding-16 | 32 | 0,019 | 0,078 | 2,1× | 35 % | 0,107 | 50 |
+| crossfade-16 | 16 | 0,011 | 0,065 | 1,7× | **23 %** | 0,108 | 50 |
+| ensemble-16 | 16 | 0,014 | 0,047 | 2,1× | 29 % | 0,088 | 50 |
+| receding-8 | 15 | 0,013 | 0,079 | 2,9× | 53 % | 0,060 | 100 |
+
+**crossfade-30 gegen chunk:**
+
+- **Übergänge deutlich ruhiger:** Der Sprung beim Planwechsel ist etwa 60 % kleiner. chunk ruckt an jeder Grenze
+  (alle 2,4 s) um fast das Dreifache eines normalen Schritts, crossfade-30 kaum mehr als ein normaler Schritt.
+- **Etwas mehr Zittern** (49 % statt 42 %): Während der Überblendung fährt der Arm eine Mischung aus zwei Plänen.
+- **Etwa 15 % schneller**, weil der Arm direkter zum Ziel fährt.
+
+**Glätte und Erfolg hängen nicht automatisch zusammen.** Am ruhigsten ist crossfade-16 (23 % Zittern), aber es ist
+nicht erfolgreicher als chunk. Den Erfolg bringt das häufigere Neu-Planen, die Glätte die Überblendung.
+receding-24 ist ein Kompromiss aus weniger Zittern, kleineren Übergängen und 35 % Erfolg.
+
+---
+
 ## 4. Prompt-Varianten (Apfel, je 3 Versuche)
 
 | Prompt | chunk | receding-24 |
