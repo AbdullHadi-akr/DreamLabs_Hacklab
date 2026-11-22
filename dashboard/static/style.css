@@ -261,9 +261,11 @@ code { font-family: var(--font-mono); font-size: .9em; background: var(--grey-2)
   display: block; padding: 4px 6px; font-size: 13px; color: var(--white);
   background: #282522; text-align: center;
 }
-#camera-dialog { width: min(54rem, calc(100vw - 32px)); max-height: calc(100vh - 32px); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; }
-#camera-dialog::backdrop { background: #211a16a0; }
-#camera-dialog img { display: block; width: 100%; max-height: 74vh; object-fit: contain; margin-top: 12px; }
+.cam:hover { border-color: var(--ink); }
+.cam.is-3d { border-color: var(--creamsicle-deep); }
+/* a robot camera on the big screen: no orbit controls, so no grab cursor and no orbit hint */
+.viewer:not([data-view="main"]) { cursor: default; }
+.viewer:not([data-view="main"]) .viewer-hint { display: none; }
 .run-technical { margin-top: 12px; border-top: 1px solid var(--line-soft); padding-top: 8px; }
 .run-technical dl { margin-top: 8px; }
 /* ---------- Right column ---------- */

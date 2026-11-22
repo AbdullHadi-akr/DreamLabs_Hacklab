@@ -55,7 +55,9 @@ async function action(promise, okMessage) {
 function setupViewer(camera) {
   const viewer = $("viewer");
   const img = $("main-view");
-  img.src = "/stream/main.mjpg";
+  // The stream itself is set by setupCameras (the big screen can also show a robot camera).
+  // Orbit, pan and zoom only work while the big screen shows the 3D view.
+  const is3d = () => (viewer.dataset.view || "main") === "main";
   img.onerror = () => {
     const failed = img.src;
     setTimeout(() => {
@@ -77,6 +79,7 @@ function setupViewer(camera) {
 
   viewer.addEventListener("contextmenu", (e) => e.preventDefault());
   viewer.addEventListener("pointerdown", (e) => {
+    if (!is3d()) return;
     drag = { x: e.clientX, y: e.clientY, pan: e.button === 2 || e.shiftKey };
     viewer.setPointerCapture(e.pointerId);
     viewer.classList.add("dragging");
@@ -100,32 +103,56 @@ function setupViewer(camera) {
     send();
   });
   viewer.addEventListener("wheel", (e) => {
+    if (!is3d()) return;
     e.preventDefault();
     cam.distance = Math.max(0.2, Math.min(6, cam.distance * (e.deltaY > 0 ? 1.1 : 0.9)));
     send();
   }, { passive: false });
   viewer.addEventListener("dblclick", async () => {
+    if (!is3d()) return;
     cam = await request("POST", "/api/camera", { reset: true });
   });
 }
 
+// The three robot cameras sit in a row under the main view. Clicking one swaps it with the main view: the camera
+// fills the big screen and its place in the row shows the 3D view. Clicking the 3D view in the row swaps back.
+// All four streams keep running live the whole time.
 function setupCameras(names) {
-  const labels = { top: "Overhead", left: "Left wrist", right: "Right wrist" };
-  const dialog = $("camera-dialog");
-  const enlarged = $("camera-large");
-  dialog.addEventListener("close", () => enlarged.removeAttribute("src"));
-  for (const name of names) {
-    const label = labels[name] || name;
-    const img = h("img", { src: `/stream/${name}.mjpg`, alt: "" });
-    img.onerror = () => setTimeout(() => (img.src = `/stream/${name}.mjpg?r=${Date.now()}`), 1500);
-    $("cams").append(h("button", { type: "button", class: "cam", "aria-label": `Enlarge ${label} camera`,
-      onclick: () => {
-        $("camera-title").textContent = label;
-        enlarged.alt = `${label} camera feed`;
-        enlarged.src = img.src;
-        dialog.showModal();
-      } }, h("span", { class: "cam-inner" }, img, h("span", { class: "cam-label" }, label))));
-  }
+  const labels = { main: "3D view", top: "Overhead", left: "Left wrist", right: "Right wrist" };
+  const viewer = $("viewer");
+  const mainImg = $("main-view");
+  const badge = $("badge-view");
+  let big = "main";  // what the big screen shows: "main" (the 3D view) or a camera name
+  const reload = (img) => setTimeout(() => (img.src = `${img.src.split("?")[0]}?r=${Date.now()}`), 1500);
+  const show = (img, name) => {
+    const src = `/stream/${name}.mjpg`;
+    if (img.dataset.stream !== name) { img.dataset.stream = name; img.src = src; }
+  };
+  const slots = names.map((name) => {
+    const img = h("img", { alt: "" });
+    img.onerror = () => reload(img);
+    const label = h("span", { class: "cam-label" });
+    const button = h("button", { type: "button", class: "cam" }, h("span", { class: "cam-inner" }, img, label));
+    $("cams").append(button);
+    return { name, img, label, button };
+  });
+  const render = () => {
+    show(mainImg, big);
+    mainImg.alt = big === "main" ? "Simulation" : `${labels[big] || big} camera`;
+    viewer.dataset.view = big;
+    badge.hidden = big === "main";
+    badge.textContent = `${labels[big] || big} camera`;
+    for (const slot of slots) {
+      const shown = slot.name === big ? "main" : slot.name;
+      show(slot.img, shown);
+      slot.label.textContent = labels[shown] || shown;
+      slot.button.classList.toggle("is-3d", shown === "main");
+      slot.button.setAttribute("aria-label", shown === "main" ? "Show the 3D view on the big screen"
+        : `Show the ${labels[shown] || shown} camera on the big screen`);
+      slot.button.onclick = () => { big = shown; render(); };
+    }
+  };
+  render();
 }
 
 function setupViewportControls() {
