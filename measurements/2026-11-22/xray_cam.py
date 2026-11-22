@@ -34,21 +34,42 @@ def idle():
         time.sleep(3)
 
 
+old = sys.argv[5] if len(sys.argv) > 5 else None
+if old:
+    call("POST", "/api/ext/xray/run", {"snapshot": old, "kind": "rise", "masks": 200})
+    while True:
+        time.sleep(5)
+        job = call("GET", "/api/ext/xray/status")["job"]
+        if job["state"] != "running":
+            break
+    res = call("GET", f"/api/ext/xray/snapshots/{old}")["results"].get("rise", {})
+    log({"step": "rise_old_snapshot", "job": job, "result": {k: v for k, v in res.items() if k not in ("heat", "mask_changes_cm")}})
 idle()
 call("POST", "/api/reset")
 idle()
-call("POST", "/api/run", {"task": task, "seconds": 120, "strategy": "receding-24"})
+call("POST", "/api/run", {"task": task, "seconds": 120, "strategy": "crossfade-30"})
 time.sleep(5)
 idle()
 moments = call("GET", "/api/ext/xray/status")["moments"]
 log({"step": "moments", "moments": moments})
-pick = next((m for m in moments if m["target"]), moments[len(moments) // 2] if moments else None)
+import re
+
+
+def close_to_target(m):
+    """The plan closes the gripper at the object or ends within 5 cm of it: a moment where the arm really reaches."""
+    if not m["target"]:
+        return False
+    end = re.search(r"ends ([0-9.]+) cm", m["text"])
+    return "closes its gripper" in m["text"] and "not at any" not in m["text"] or (end is not None and float(end.group(1)) <= 5)
+
+
+pick = next((m for m in moments if close_to_target(m)), next((m for m in moments if m["target"]), None))
 if pick is None:
     log({"error": "no moments"})
     sys.exit(1)
 snap = call("POST", f"/api/ext/xray/moments/{pick['index']}/keep")["id"]
 log({"step": "frozen", "snapshot": snap, "moment": pick})
-for kind, extra in (("intent", {}), ("language", {"repeats": 2}), ("rise", {"masks": 60})):
+for kind, extra in (("intent", {}), ("language", {"repeats": 2}), ("rise", {"masks": int(sys.argv[4]) if len(sys.argv) > 4 else 60})):
     call("POST", "/api/ext/xray/run", {"snapshot": snap, "kind": kind, **extra})
     while True:
         time.sleep(5)
