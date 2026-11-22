@@ -105,6 +105,7 @@ class RunRequest:
     realtime: bool = True  # offline: play targets at 20 Hz wall clock; False = as fast as possible
     strategy: str = "chunk"  # how action chunks are executed (dreamtool/inference.py)
     max_steps: int | None = None  # budget in simulated control steps (20 per second), besides the wall-clock `seconds`
+    latency: str = "paused"  # see dreamtool.runner.LATENCY_MODES
     source: str = "core"  # who started the run (core or an extension id)
     label: str = ""
     id: int = 0
@@ -327,6 +328,7 @@ class SimWorker(threading.Thread):
                     request.task, model=request.model, seconds=request.seconds, env=env, hooks=hooks,
                     viewer=False, verbose=False, stop_on_success=request.stop_on_success, prompt=request.prompt,
                     max_requests=request.max_requests, strategy=request.strategy, max_steps=request.max_steps,
+                    latency=request.latency,
                     capture_each_step=request.capture_each_step,
                 )
         except Exception as error:

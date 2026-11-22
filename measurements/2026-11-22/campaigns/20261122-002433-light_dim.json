@@ -1,0 +1,299 @@
+{
+  "id": "20261122-002433-light_dim",
+  "state": "done",
+  "mode": "sweep",
+  "config": {
+    "task": "put the apple into the bowl",
+    "mode": "sweep",
+    "perturbation": "light_dim",
+    "strength": null,
+    "strategy": "chunk",
+    "strategies": [],
+    "values": [
+      0.0,
+      50.0,
+      75.0
+    ],
+    "factors": {},
+    "trials": 1,
+    "max_strength": null,
+    "measure": "success",
+    "baseline_trials": 3,
+    "seconds": 25.0,
+    "model": "dreamlabs/dream-1-beta",
+    "dry_run": false,
+    "record": false,
+    "seed": 32,
+    "budget": "sim"
+  },
+  "target": {
+    "object": "apple",
+    "container": "bowl"
+  },
+  "done": 3,
+  "total": 3,
+  "current": null,
+  "started": 1795303473.8078003,
+  "elapsed_s": 101.0,
+  "rows": [
+    {
+      "index": 1,
+      "trial": 1,
+      "params": {
+        "light_dim": 0.0
+      },
+      "prompt": "put the apple into the bowl",
+      "info": {},
+      "stop_reason": "timeout",
+      "steps": 500,
+      "seconds": 33.7,
+      "mean_rtt_s": 0.68,
+      "redraws": 0,
+      "video": null,
+      "strategy": "chunk",
+      "requests": 11,
+      "commands": {
+        "rows": 500,
+        "executions": 11,
+        "seams": 10,
+        "seam_jump_rad": 0.0274,
+        "max_seam_jump_rad": 0.0376,
+        "typical_step_rad": 0.0086,
+        "seam_ratio": 3.19,
+        "command_speed": 0.1417,
+        "command_jerk": 79.25,
+        "command_jitter": 0.686
+      },
+      "value": 0.0,
+      "outcome": "no_grasp",
+      "progress": 0.25,
+      "success": false,
+      "metrics": {
+        "min_reach_cm": 2.7,
+        "max_lift_cm": 0.1,
+        "target_moved_cm": 0.4,
+        "final_to_container_cm": 20.9,
+        "others_moved_cm": 0.0,
+        "time_to_success_s": null,
+        "joint_speed": 0.1095,
+        "joint_jerk": 20.25,
+        "joint_jitter": 0.362
+      }
+    },
+    {
+      "index": 2,
+      "trial": 1,
+      "params": {
+        "light_dim": 50.0
+      },
+      "prompt": "put the apple into the bowl",
+      "info": {},
+      "stop_reason": "timeout",
+      "steps": 500,
+      "seconds": 33.4,
+      "mean_rtt_s": 0.56,
+      "redraws": 0,
+      "video": null,
+      "strategy": "chunk",
+      "requests": 11,
+      "commands": {
+        "rows": 500,
+        "executions": 11,
+        "seams": 10,
+        "seam_jump_rad": 0.0243,
+        "max_seam_jump_rad": 0.0439,
+        "typical_step_rad": 0.0092,
+        "seam_ratio": 2.65,
+        "command_speed": 0.1362,
+        "command_jerk": 77.41,
+        "command_jitter": 0.708
+      },
+      "value": 50.0,
+      "outcome": "no_grasp",
+      "progress": 0.25,
+      "success": false,
+      "metrics": {
+        "min_reach_cm": 2.5,
+        "max_lift_cm": 0.2,
+        "target_moved_cm": 0.6,
+        "final_to_container_cm": 20.3,
+        "others_moved_cm": 0.0,
+        "time_to_success_s": null,
+        "joint_speed": 0.1032,
+        "joint_jerk": 18.99,
+        "joint_jitter": 0.385
+      }
+    },
+    {
+      "index": 3,
+      "trial": 1,
+      "params": {
+        "light_dim": 75.0
+      },
+      "prompt": "put the apple into the bowl",
+      "info": {},
+      "stop_reason": "timeout",
+      "steps": 500,
+      "seconds": 33.4,
+      "mean_rtt_s": 0.6,
+      "redraws": 0,
+      "video": null,
+      "strategy": "chunk",
+      "requests": 11,
+      "commands": {
+        "rows": 500,
+        "executions": 11,
+        "seams": 10,
+        "seam_jump_rad": 0.0287,
+        "max_seam_jump_rad": 0.0411,
+        "typical_step_rad": 0.0084,
+        "seam_ratio": 3.41,
+        "command_speed": 0.156,
+        "command_jerk": 79.09,
+        "command_jitter": 0.613
+      },
+      "value": 75.0,
+      "outcome": "no_grasp",
+      "progress": 0.25,
+      "success": false,
+      "metrics": {
+        "min_reach_cm": 2.9,
+        "max_lift_cm": 0.0,
+        "target_moved_cm": 0.1,
+        "final_to_container_cm": 20.9,
+        "others_moved_cm": 0.0,
+        "time_to_success_s": null,
+        "joint_speed": 0.1266,
+        "joint_jerk": 19.03,
+        "joint_jitter": 0.316
+      }
+    }
+  ],
+  "outcome_labels": {
+    "success": "Success",
+    "missed_container": "Placed next to container",
+    "carry_failed": "Lifted, lost on the way",
+    "no_grasp": "Reached, no grasp",
+    "pushed": "Pushed target away",
+    "wrong_object": "Went for wrong object",
+    "no_reach": "Never reached target",
+    "off_table": "Knocked off table",
+    "aborted": "Aborted",
+    "invalid": "Not counted (unfair setup / sim glitch)"
+  },
+  "policy": "dreamlabs/dream-1-beta",
+  "strategy": {
+    "id": "chunk",
+    "label": "Full chunk (48)",
+    "description": "Executes all 48 planned steps (2.4 s) before asking Dream-1 again. Default behaviour.",
+    "execute": 48,
+    "blend": "none",
+    "requests_factor": 1.0,
+    "gripper": "newest plan"
+  },
+  "perturbation": {
+    "id": "light_dim",
+    "label": "Dim lights",
+    "unit": "%",
+    "group": "visual",
+    "group_label": "Vision",
+    "defaults": [
+      0,
+      25,
+      50,
+      75
+    ],
+    "max": 75.0,
+    "neutral": 0.0,
+    "discrete": false,
+    "description": "Reduces all light (lamps, ambient and headlight) by value percent: a darker room than in training.",
+    "kind": "env"
+  },
+  "values": [
+    0.0,
+    50.0,
+    75.0
+  ],
+  "analysis": {
+    "per_value": [
+      {
+        "value": 0.0,
+        "n": 1,
+        "done": 1,
+        "successes": 0,
+        "rate": 0.0,
+        "ci": [
+          0.0,
+          0.7934567085261071
+        ],
+        "progress": 0.25,
+        "outcomes": {
+          "no_grasp": 1
+        },
+        "min_reach_cm": 2.7,
+        "max_lift_cm": 0.1,
+        "time_to_success_s": null
+      },
+      {
+        "value": 50.0,
+        "n": 1,
+        "done": 1,
+        "successes": 0,
+        "rate": 0.0,
+        "ci": [
+          0.0,
+          0.7934567085261071
+        ],
+        "progress": 0.25,
+        "outcomes": {
+          "no_grasp": 1
+        },
+        "min_reach_cm": 2.5,
+        "max_lift_cm": 0.2,
+        "time_to_success_s": null
+      },
+      {
+        "value": 75.0,
+        "n": 1,
+        "done": 1,
+        "successes": 0,
+        "rate": 0.0,
+        "ci": [
+          0.0,
+          0.7934567085261071
+        ],
+        "progress": 0.25,
+        "outcomes": {
+          "no_grasp": 1
+        },
+        "min_reach_cm": 2.9,
+        "max_lift_cm": 0.0,
+        "time_to_success_s": null
+      }
+    ],
+    "baseline": {
+      "value": 0.0,
+      "n": 1,
+      "done": 1,
+      "successes": 0,
+      "rate": 0.0,
+      "ci": [
+        0.0,
+        0.7934567085261071
+      ],
+      "progress": 0.25,
+      "outcomes": {
+        "no_grasp": 1
+      },
+      "min_reach_cm": 2.7,
+      "max_lift_cm": 0.1,
+      "time_to_success_s": null
+    },
+    "verdict": {
+      "breaking_point": null,
+      "metric": "progress",
+      "confident": false,
+      "text": "No clear drop up to 75 %. (Baseline never succeeds, so this uses the progress score.)"
+    }
+  }
+}

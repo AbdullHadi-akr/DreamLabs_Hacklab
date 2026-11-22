@@ -1,0 +1,243 @@
+{
+  "id": "20261122-002804-camera_shift",
+  "state": "done",
+  "mode": "sweep",
+  "config": {
+    "task": "put the apple into the bowl",
+    "mode": "sweep",
+    "perturbation": "camera_shift",
+    "strength": null,
+    "strategy": "chunk",
+    "strategies": [],
+    "values": [
+      0.0,
+      4.0
+    ],
+    "factors": {},
+    "trials": 1,
+    "max_strength": null,
+    "measure": "success",
+    "baseline_trials": 3,
+    "seconds": 25.0,
+    "model": "dreamlabs/dream-1-beta",
+    "dry_run": false,
+    "record": false,
+    "seed": 34,
+    "budget": "sim"
+  },
+  "target": {
+    "object": "apple",
+    "container": "bowl"
+  },
+  "done": 2,
+  "total": 2,
+  "current": null,
+  "started": 1795303684.0747502,
+  "elapsed_s": 58.2,
+  "rows": [
+    {
+      "index": 1,
+      "trial": 1,
+      "params": {
+        "camera_shift": 0.0
+      },
+      "prompt": "put the apple into the bowl",
+      "info": {
+        "camera_shift": {
+          "offset": "-0.0, -0.0, +0.0 cm"
+        }
+      },
+      "stop_reason": "success",
+      "steps": 339,
+      "seconds": 24.2,
+      "mean_rtt_s": 0.77,
+      "redraws": 0,
+      "video": null,
+      "strategy": "chunk",
+      "requests": 8,
+      "commands": {
+        "rows": 339,
+        "executions": 8,
+        "seams": 7,
+        "seam_jump_rad": 0.0277,
+        "max_seam_jump_rad": 0.0415,
+        "typical_step_rad": 0.0101,
+        "seam_ratio": 2.74,
+        "command_speed": 0.1539,
+        "command_jerk": 73.95,
+        "command_jitter": 0.63
+      },
+      "value": 0.0,
+      "outcome": "success",
+      "progress": 1.0,
+      "success": true,
+      "metrics": {
+        "min_reach_cm": 1.8,
+        "max_lift_cm": 14.0,
+        "target_moved_cm": 15.6,
+        "final_to_container_cm": 5.3,
+        "others_moved_cm": 0.0,
+        "time_to_success_s": 17.0,
+        "joint_speed": 0.1228,
+        "joint_jerk": 19.6,
+        "joint_jitter": 0.337
+      }
+    },
+    {
+      "index": 2,
+      "trial": 1,
+      "params": {
+        "camera_shift": 4.0
+      },
+      "prompt": "put the apple into the bowl",
+      "info": {
+        "camera_shift": {
+          "offset": "-2.3, -2.6, +2.0 cm"
+        }
+      },
+      "stop_reason": "timeout",
+      "steps": 500,
+      "seconds": 33.6,
+      "mean_rtt_s": 0.7,
+      "redraws": 0,
+      "video": null,
+      "strategy": "chunk",
+      "requests": 11,
+      "commands": {
+        "rows": 500,
+        "executions": 11,
+        "seams": 10,
+        "seam_jump_rad": 0.028,
+        "max_seam_jump_rad": 0.0636,
+        "typical_step_rad": 0.009,
+        "seam_ratio": 3.09,
+        "command_speed": 0.1407,
+        "command_jerk": 76.2,
+        "command_jitter": 0.67
+      },
+      "value": 4.0,
+      "outcome": "no_reach",
+      "progress": 0.0,
+      "success": false,
+      "metrics": {
+        "min_reach_cm": 4.0,
+        "max_lift_cm": 0.0,
+        "target_moved_cm": 0.0,
+        "final_to_container_cm": 20.8,
+        "others_moved_cm": 0.0,
+        "time_to_success_s": null,
+        "joint_speed": 0.1104,
+        "joint_jerk": 19.08,
+        "joint_jitter": 0.355
+      }
+    }
+  ],
+  "outcome_labels": {
+    "success": "Success",
+    "missed_container": "Placed next to container",
+    "carry_failed": "Lifted, lost on the way",
+    "no_grasp": "Reached, no grasp",
+    "pushed": "Pushed target away",
+    "wrong_object": "Went for wrong object",
+    "no_reach": "Never reached target",
+    "off_table": "Knocked off table",
+    "aborted": "Aborted",
+    "invalid": "Not counted (unfair setup / sim glitch)"
+  },
+  "policy": "dreamlabs/dream-1-beta",
+  "strategy": {
+    "id": "chunk",
+    "label": "Full chunk (48)",
+    "description": "Executes all 48 planned steps (2.4 s) before asking Dream-1 again. Default behaviour.",
+    "execute": 48,
+    "blend": "none",
+    "requests_factor": 1.0,
+    "gripper": "newest plan"
+  },
+  "perturbation": {
+    "id": "camera_shift",
+    "label": "Shift overhead camera",
+    "unit": "cm",
+    "group": "visual",
+    "group_label": "Vision",
+    "defaults": [
+      0,
+      1,
+      2,
+      4
+    ],
+    "max": 4.0,
+    "neutral": 0.0,
+    "discrete": false,
+    "description": "Moves the overhead camera by value cm, like a camera mount that got bumped on a real station.",
+    "kind": "env"
+  },
+  "values": [
+    0.0,
+    4.0
+  ],
+  "analysis": {
+    "per_value": [
+      {
+        "value": 0.0,
+        "n": 1,
+        "done": 1,
+        "successes": 1,
+        "rate": 1.0,
+        "ci": [
+          0.20654329147389294,
+          1.0
+        ],
+        "progress": 1.0,
+        "outcomes": {
+          "success": 1
+        },
+        "min_reach_cm": 1.8,
+        "max_lift_cm": 14.0,
+        "time_to_success_s": 17.0
+      },
+      {
+        "value": 4.0,
+        "n": 1,
+        "done": 1,
+        "successes": 0,
+        "rate": 0.0,
+        "ci": [
+          0.0,
+          0.7934567085261071
+        ],
+        "progress": 0.0,
+        "outcomes": {
+          "no_reach": 1
+        },
+        "min_reach_cm": 4.0,
+        "max_lift_cm": 0.0,
+        "time_to_success_s": null
+      }
+    ],
+    "baseline": {
+      "value": 0.0,
+      "n": 1,
+      "done": 1,
+      "successes": 1,
+      "rate": 1.0,
+      "ci": [
+        0.20654329147389294,
+        1.0
+      ],
+      "progress": 1.0,
+      "outcomes": {
+        "success": 1
+      },
+      "min_reach_cm": 1.8,
+      "max_lift_cm": 14.0,
+      "time_to_success_s": 17.0
+    },
+    "verdict": {
+      "breaking_point": 4.0,
+      "metric": "success",
+      "confident": true,
+      "text": "Breaks at 4 cm (success rate at half the baseline or below)"
+    }
+  }
+}

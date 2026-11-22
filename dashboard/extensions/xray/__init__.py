@@ -25,7 +25,8 @@ from dreamtool import sim, xray, xray_fake
 from dreamtool.runner import Hooks
 
 SNAPSHOT_ID = re.compile(r"^[0-9]{8}-[0-9]{6}-[0-9a-f]{4}$")
-MAX_MOMENTS = 12
+MAX_MOMENTS = 12  # latest moments kept
+FIRST_MOMENTS = 6  # and the first ones of the run
 COLORS = {"active": (1.0, 0.55, 0.15, 0.95), "other": (0.55, 0.55, 0.6, 0.6), "close": (0.9, 0.2, 0.2, 0.9),
           "open": (0.2, 0.75, 0.35, 0.9), "target": (1.0, 0.85, 0.2, 0.35)}
 
@@ -85,7 +86,12 @@ class XRayHook(Hooks):
         live["seconds"] = round(self.steps / 20, 1)
         self.ext.live = live
         if snap.windows:
-            self.ext.moments = (self.ext.moments + [{"snapshot": snap, "intent": live}])[-MAX_MOMENTS:]
+            # keep the start of the run (where the model decides what to pick: the moments the language probe needs)
+            # and the latest moments
+            moments = self.ext.moments + [{"snapshot": snap, "intent": live}]
+            if len(moments) > FIRST_MOMENTS + MAX_MOMENTS:
+                moments = moments[:FIRST_MOMENTS] + moments[-MAX_MOMENTS:]
+            self.ext.moments = moments
         self.ext.ctx.emit("live", {"text": live["text"], "seconds": live["seconds"], "target": live["target"],
                                    "moments": self.ext.moment_list()}, keep=False)
 

@@ -185,6 +185,17 @@ with one thing changed. The simulation does not move meanwhile; what is measured
 Results live in `out/extensions/xray/<moment>/`. `DREAM_XRAY_FAKE=1` swaps Dream-1 for a scripted stand-in
 (`dreamtool/xray_fake.py`) to try the tool without credits; the panel then says so.
 
+### Latency in the simulator (found in the night measurements, 22.11.)
+
+The Dream client smooths every new chunk onto the old one (`dream.smoothing`, always on). It assumes the robot kept
+moving while the request was in flight and replaces the first `round(round trip × action_hz)` rows of every new chunk
+with the rest of the old plan (about 11 rows at 0.55 s). The simulator pauses physics during every request, so that is
+an artificial reaction delay, and a random one because the round trip varies: with an identical scene and a
+deterministic Dream-1, "repeated" trials still came out differently, and re-planning every 8 rows never executed a
+single row of a new plan. The runner now tells the client that no rows run during a request (`latency="paused"`,
+`action_hz` ≈ 0, so the hand-over starts at row 0). `latency="client"` restores the old behaviour for comparison;
+results recorded before the fix are marked "client latency" in the run list. Details: `NIGHTLY_REPORT.md`.
+
 ### Inference strategies (better behaviour without fine-tuning)
 
 Dream-1 returns 48 joint targets per arm (2.4 s) per request. How much of that is executed before asking again, and how

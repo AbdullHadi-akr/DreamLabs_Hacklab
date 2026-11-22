@@ -69,6 +69,7 @@ class StartBody(BaseModel):
     dry_run: bool = True
     record: bool = True
     seed: int = 0
+    latency: Literal["paused", "client"] = "paused"  # dreamtool.runner.LATENCY_MODES ("client" = before 22.11.)
     budget: Literal["sim", "wall"] = "sim"  # what `seconds` limits: simulated time (default) or wall time (old runs)
 
 
@@ -301,7 +302,7 @@ class Campaign:
             body.task, prompt=prompt if prompt != body.task else None, model=body.model,
             # simulated-time budget: the wall clock only guards against a hanging API
             seconds=body.seconds * 6 + 60 if sim_budget else body.seconds, max_steps=steps if sim_budget else None,
-            strategy=strategy, offline=body.dry_run, realtime=not body.dry_run, targets=targets, teardown=teardown,
+            strategy=strategy, latency=body.latency, offline=body.dry_run, realtime=not body.dry_run, targets=targets, teardown=teardown,
             hooks=[monitor, *(h for e in effects for h in e.hooks)], source=ctx.id, label=label,
         ).result()
 

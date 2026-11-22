@@ -71,4 +71,6 @@ def test_policy_filter():
     dry = fake_result("20260101-000000-target_shift", [0], ["success"])
     live = fake_result("20260102-000000-target_shift", [0], ["no_reach"], dry_run=False)
     assert [data.matches(x, None, "dry run") for x in (dry, live)] == [True, False]
+    assert data.policy_key(live) == "dreamlabs/dream-1-beta · client latency"  # recorded before the latency fix
+    live["config"]["latency"] = "paused"
     assert data.policy_key(live) == "dreamlabs/dream-1-beta"

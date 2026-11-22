@@ -250,3 +250,29 @@ def test_runner_waits_out_a_full_pool(monkeypatch):
     monkeypatch.setattr(runner.sim, "validate_chunk", lambda env, reply, limit, **k: (reply["q_l_chunk"], reply["q_r_chunk"]))
     result = runner.run_task("wave the arms", env=FakeEnv(), api_key="test", seconds=60, verbose=False, max_steps=96)
     assert result.stop_reason == "timeout" and result.steps == 96 and result.retries == 1
+
+
+def test_paused_physics_keeps_the_new_plan_from_row_0(monkeypatch):
+    """Measured: the client replaces round(rtt x 20) rows of each new chunk with the old plan, assuming the robot kept
+    moving during the request. Physics is paused here, so the runner tells it so (action_hz ~ 0 -> clock row 0)."""
+    from dream import smoothing
+
+    previous = np.tile(np.linspace(0, 1, 48)[:, None], (1, 7))
+    assert smoothing.old_motion(previous, 20, 0.55 * 20)[0] == 11, "the client's default: 11 rows of the old plan"
+    assert smoothing.old_motion(previous, 20, 0.55 * runner.PAUSED_ACTION_HZ)[0] == 0
+
+    seen = {}
+
+    def open_policy(options, key):
+        seen.update(options)
+        raise RuntimeError("stop here")
+
+    monkeypatch.setattr(runner.sim, "FRAMES", 0)
+    monkeypatch.setattr(runner.sim, "open_policy", open_policy)
+    with pytest.raises(RuntimeError):
+        runner.run_task("wave the arms", env=FakeEnv(), api_key="test", verbose=False)
+    assert seen["action_hz"] == runner.PAUSED_ACTION_HZ
+    seen.clear()
+    with pytest.raises(RuntimeError):
+        runner.run_task("wave the arms", env=FakeEnv(), api_key="test", verbose=False, latency="client")
+    assert "action_hz" not in seen or seen["action_hz"] == 20

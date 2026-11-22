@@ -24,6 +24,15 @@ from . import inference, scene, sim
 
 MAX_RETRY_WAIT_S = 180.0  # per run: longer than that at capacity and the run ends with the error
 
+## How the Dream client should account for the time a request is in flight (`latency=`):
+##   "paused"  the loop runs no rows meanwhile, which is the truth here: physics pauses during every request. The
+##             client's seam smoothing then hands over from the old plan at row 0 of the new one.
+##   "client"  the client's own default: it assumes the loop kept running at 20 rows/s and replaces the first
+##             round-trip-many rows (about 11 at 0.55 s) of every new chunk with the rest of the old plan. In a paused
+##             simulation that is an artificial reaction delay, and a random one, since the round trip varies.
+LATENCY_MODES = ("paused", "client")
+PAUSED_ACTION_HZ = 1e-3  # rows per second the client may assume during a request: round(rtt * 1e-3) = 0 rows
+
 
 class Hooks:
     """Override what you need. All methods are optional."""
@@ -69,6 +78,7 @@ class RunResult:
     steps: int = 0
     requests: int = 0
     strategy: str = "chunk"
+    latency: str = "paused"
     retries: int = 0  # retryable refusals (Dream-1 at capacity) that were waited out
     commands: dict = field(default_factory=dict)  # smoothness of the executed commands (inference.CommandStats)
     rtts_s: list[float] = field(default_factory=list)
@@ -108,12 +118,14 @@ def run_task(
     capture_each_step: bool = True,
     strategy: "str | inference.Strategy" = "chunk",
     max_steps: int | None = None,
+    latency: str = "paused",
 ) -> RunResult:
     """Runs a task with Dream-1 in the simulator. Needs an API key (see README).
 
     `prompt` is the text Dream-1 receives (default: `task`). `task` still decides the success check, so a reworded
     or misspelled prompt is judged against the original goal.
-    `strategy` decides how each action chunk is executed (inference.py). `max_steps` ends the run after that many
+    `strategy` decides how each action chunk is executed (inference.py). `latency` tells the client whether rows run
+    while a request is in flight (LATENCY_MODES). `max_steps` ends the run after that many
     control steps (a budget in simulated time, independent of how long the requests take); `seconds` stays the
     wall-clock limit.
     """
@@ -132,7 +144,9 @@ def run_task(
     strategy = inference.parse(strategy)
     executor = inference.ChunkExecutor(strategy, actions_per_reply)
     stats = inference.CommandStats()
-    result = RunResult(task=task, model=model, success=False if check else None, strategy=strategy.id)
+    if latency not in LATENCY_MODES:
+        raise ValueError(f"latency must be one of {LATENCY_MODES}")
+    result = RunResult(task=task, model=model, success=False if check else None, strategy=strategy.id, latency=latency)
     log = print if verbose else (lambda *a, **k: None)
     policy = None
     started_at = time.monotonic()
@@ -141,6 +155,8 @@ def run_task(
 
     def open_policy(poses):
         options = sim.policy_config(model, gateway, poses)
+        if latency == "paused":
+            options["action_hz"] = PAUSED_ACTION_HZ
         if managed:
             options["timeout_ms"] = min(15000, max(1, int(1000 * (deadline - time.monotonic()))))
         client = sim.open_policy(options, key)

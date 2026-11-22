@@ -1,0 +1,299 @@
+{
+  "id": "20261122-002233-camera_tilt",
+  "state": "done",
+  "mode": "sweep",
+  "config": {
+    "task": "put the apple into the bowl",
+    "mode": "sweep",
+    "perturbation": "camera_tilt",
+    "strength": null,
+    "strategy": "chunk",
+    "strategies": [],
+    "values": [
+      0.0,
+      4.0,
+      8.0
+    ],
+    "factors": {},
+    "trials": 1,
+    "max_strength": null,
+    "measure": "success",
+    "baseline_trials": 3,
+    "seconds": 25.0,
+    "model": "dreamlabs/dream-1-beta",
+    "dry_run": false,
+    "record": false,
+    "seed": 31,
+    "budget": "sim"
+  },
+  "target": {
+    "object": "apple",
+    "container": "bowl"
+  },
+  "done": 3,
+  "total": 3,
+  "current": null,
+  "started": 1795303353.6405582,
+  "elapsed_s": 106.4,
+  "rows": [
+    {
+      "index": 1,
+      "trial": 1,
+      "params": {
+        "camera_tilt": 0.0
+      },
+      "prompt": "put the apple into the bowl",
+      "info": {},
+      "stop_reason": "timeout",
+      "steps": 500,
+      "seconds": 34.3,
+      "mean_rtt_s": 0.55,
+      "redraws": 0,
+      "video": null,
+      "strategy": "chunk",
+      "requests": 11,
+      "commands": {
+        "rows": 500,
+        "executions": 11,
+        "seams": 10,
+        "seam_jump_rad": 0.0298,
+        "max_seam_jump_rad": 0.0599,
+        "typical_step_rad": 0.0098,
+        "seam_ratio": 3.03,
+        "command_speed": 0.1373,
+        "command_jerk": 84.6,
+        "command_jitter": 0.746
+      },
+      "value": 0.0,
+      "outcome": "no_grasp",
+      "progress": 0.25,
+      "success": false,
+      "metrics": {
+        "min_reach_cm": 2.5,
+        "max_lift_cm": 1.4,
+        "target_moved_cm": 2.0,
+        "final_to_container_cm": 19.4,
+        "others_moved_cm": 0.0,
+        "time_to_success_s": null,
+        "joint_speed": 0.1013,
+        "joint_jerk": 21.1,
+        "joint_jitter": 0.406
+      }
+    },
+    {
+      "index": 2,
+      "trial": 1,
+      "params": {
+        "camera_tilt": 4.0
+      },
+      "prompt": "put the apple into the bowl",
+      "info": {},
+      "stop_reason": "timeout",
+      "steps": 500,
+      "seconds": 36.3,
+      "mean_rtt_s": 0.73,
+      "redraws": 0,
+      "video": null,
+      "strategy": "chunk",
+      "requests": 11,
+      "commands": {
+        "rows": 500,
+        "executions": 11,
+        "seams": 10,
+        "seam_jump_rad": 0.0282,
+        "max_seam_jump_rad": 0.0666,
+        "typical_step_rad": 0.0091,
+        "seam_ratio": 3.09,
+        "command_speed": 0.1646,
+        "command_jerk": 76.96,
+        "command_jitter": 0.603
+      },
+      "value": 4.0,
+      "outcome": "no_grasp",
+      "progress": 0.25,
+      "success": false,
+      "metrics": {
+        "min_reach_cm": 3.8,
+        "max_lift_cm": 0.2,
+        "target_moved_cm": 3.1,
+        "final_to_container_cm": 18.5,
+        "others_moved_cm": 0.0,
+        "time_to_success_s": null,
+        "joint_speed": 0.1343,
+        "joint_jerk": 19.8,
+        "joint_jitter": 0.32
+      }
+    },
+    {
+      "index": 3,
+      "trial": 1,
+      "params": {
+        "camera_tilt": 8.0
+      },
+      "prompt": "put the apple into the bowl",
+      "info": {},
+      "stop_reason": "timeout",
+      "steps": 500,
+      "seconds": 34.9,
+      "mean_rtt_s": 0.67,
+      "redraws": 0,
+      "video": null,
+      "strategy": "chunk",
+      "requests": 11,
+      "commands": {
+        "rows": 500,
+        "executions": 11,
+        "seams": 10,
+        "seam_jump_rad": 0.0263,
+        "max_seam_jump_rad": 0.05,
+        "typical_step_rad": 0.0104,
+        "seam_ratio": 2.53,
+        "command_speed": 0.1473,
+        "command_jerk": 82.16,
+        "command_jitter": 0.702
+      },
+      "value": 8.0,
+      "outcome": "no_reach",
+      "progress": 0.0,
+      "success": false,
+      "metrics": {
+        "min_reach_cm": 4.0,
+        "max_lift_cm": 0.1,
+        "target_moved_cm": 0.7,
+        "final_to_container_cm": 20.6,
+        "others_moved_cm": 0.0,
+        "time_to_success_s": null,
+        "joint_speed": 0.1132,
+        "joint_jerk": 20.44,
+        "joint_jitter": 0.378
+      }
+    }
+  ],
+  "outcome_labels": {
+    "success": "Success",
+    "missed_container": "Placed next to container",
+    "carry_failed": "Lifted, lost on the way",
+    "no_grasp": "Reached, no grasp",
+    "pushed": "Pushed target away",
+    "wrong_object": "Went for wrong object",
+    "no_reach": "Never reached target",
+    "off_table": "Knocked off table",
+    "aborted": "Aborted",
+    "invalid": "Not counted (unfair setup / sim glitch)"
+  },
+  "policy": "dreamlabs/dream-1-beta",
+  "strategy": {
+    "id": "chunk",
+    "label": "Full chunk (48)",
+    "description": "Executes all 48 planned steps (2.4 s) before asking Dream-1 again. Default behaviour.",
+    "execute": 48,
+    "blend": "none",
+    "requests_factor": 1.0,
+    "gripper": "newest plan"
+  },
+  "perturbation": {
+    "id": "camera_tilt",
+    "label": "Tilt overhead camera",
+    "unit": "\u00b0",
+    "group": "visual",
+    "group_label": "Vision",
+    "defaults": [
+      0,
+      2,
+      4,
+      8
+    ],
+    "max": 8.0,
+    "neutral": 0.0,
+    "discrete": false,
+    "description": "Tilts the overhead camera by value degrees around a random axis (mount drift, re-calibration error).",
+    "kind": "env"
+  },
+  "values": [
+    0.0,
+    4.0,
+    8.0
+  ],
+  "analysis": {
+    "per_value": [
+      {
+        "value": 0.0,
+        "n": 1,
+        "done": 1,
+        "successes": 0,
+        "rate": 0.0,
+        "ci": [
+          0.0,
+          0.7934567085261071
+        ],
+        "progress": 0.25,
+        "outcomes": {
+          "no_grasp": 1
+        },
+        "min_reach_cm": 2.5,
+        "max_lift_cm": 1.4,
+        "time_to_success_s": null
+      },
+      {
+        "value": 4.0,
+        "n": 1,
+        "done": 1,
+        "successes": 0,
+        "rate": 0.0,
+        "ci": [
+          0.0,
+          0.7934567085261071
+        ],
+        "progress": 0.25,
+        "outcomes": {
+          "no_grasp": 1
+        },
+        "min_reach_cm": 3.8,
+        "max_lift_cm": 0.2,
+        "time_to_success_s": null
+      },
+      {
+        "value": 8.0,
+        "n": 1,
+        "done": 1,
+        "successes": 0,
+        "rate": 0.0,
+        "ci": [
+          0.0,
+          0.7934567085261071
+        ],
+        "progress": 0.0,
+        "outcomes": {
+          "no_reach": 1
+        },
+        "min_reach_cm": 4.0,
+        "max_lift_cm": 0.1,
+        "time_to_success_s": null
+      }
+    ],
+    "baseline": {
+      "value": 0.0,
+      "n": 1,
+      "done": 1,
+      "successes": 0,
+      "rate": 0.0,
+      "ci": [
+        0.0,
+        0.7934567085261071
+      ],
+      "progress": 0.25,
+      "outcomes": {
+        "no_grasp": 1
+      },
+      "min_reach_cm": 2.5,
+      "max_lift_cm": 1.4,
+      "time_to_success_s": null
+    },
+    "verdict": {
+      "breaking_point": 8.0,
+      "metric": "progress",
+      "confident": false,
+      "text": "Robust up to 4 \u00b0, breaks at 8 \u00b0 (progress score at half the baseline or below) \u2014 few trials, treat as a hint (Baseline never succeeds, so this uses the progress score.)"
+    }
+  }
+}

@@ -46,7 +46,9 @@ def policy_key(result: dict) -> str:
     strategy inside the campaign, so it is keyed by the model alone."""
     base = "dry run" if result["config"]["dry_run"] else result["config"]["model"]
     strategy = result["config"].get("strategy", "chunk")
-    return base if result["mode"] == "compare" or strategy == "chunk" else f"{base} · {strategy}"
+    key = base if result["mode"] == "compare" or strategy == "chunk" else f"{base} · {strategy}"
+    # runs before the latency fix (no "latency" in the config) used the client's async compensation
+    return key if result["config"].get("latency", "client") == "paused" or result["config"]["dry_run"] else f"{key} · client latency"
 
 
 def label(result: dict) -> str:
