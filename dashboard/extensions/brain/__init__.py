@@ -89,7 +89,7 @@ def read_page(path: str, brain: Path = BRAIN_DIR) -> dict:
 class BrainExtension(Extension):
     title = "Brain"
     icon = ""
-    description = ("The second brain and Dream-1 Lab as one 3D brain. Regions light up when their part of the "
+    description = ("The second brain and Lab Rat as one 3D brain. Regions light up when their part of the "
                    "system works; click a point to read its page.")
     order = 90
 

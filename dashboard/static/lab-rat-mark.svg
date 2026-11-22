@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 22 22" role="img" aria-label="Lab Rat">
+  <defs>
+    <linearGradient id="square" gradientUnits="userSpaceOnUse" x1="2.21" y1="-1.55" x2="19.79" y2="23.55">
+      <stop stop-color="#ffb87b"/>
+      <stop offset="1" stop-color="#ffe885"/>
+    </linearGradient>
+  </defs>
+  <rect width="22" height="22" rx="7" fill="url(#square)"/>
+  <rect x=".5" y=".5" width="21" height="21" rx="6.5" fill="none" stroke="white" stroke-opacity=".6"/>
+  <g fill="none" stroke="#1c1c1c" stroke-width="1.05" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M6.9 14.6c-1.7 1.6-4.2.9-3.6-1.1"/>
+    <path d="M6.9 14.6c-1.5-1-1.8-3.2-.6-4.6.8-1 2-1.1 3.2-.8.4-1 1.1-1.7 2.2-1.8-.1-1.2.6-2.1 1.6-2.1 1.1 0 1.8.9 1.6 2 1 .4 1.5 1.2 2 2.1l1.5 1.8c.4.5.1.9-.5 1l-3 .5c-.9 1.8-2.5 2.6-4.5 2.6-1.7 0-2.7-.2-3.5-.7Z"/>
+  </g>
+</svg>
