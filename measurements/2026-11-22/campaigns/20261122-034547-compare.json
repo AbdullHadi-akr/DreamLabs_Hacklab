@@ -1,0 +1,1524 @@
+{
+  "id": "20261122-034547-compare",
+  "state": "done",
+  "mode": "compare",
+  "config": {
+    "task": "put the apple into the bowl",
+    "mode": "compare",
+    "perturbation": "target_shift",
+    "strength": 2.0,
+    "strategy": "chunk",
+    "strategies": [
+      "chunk",
+      "receding-16",
+      "receding-24"
+    ],
+    "values": [],
+    "factors": {},
+    "trials": 8,
+    "max_strength": null,
+    "measure": "success",
+    "baseline_trials": 3,
+    "seconds": 40.0,
+    "model": "dreamlabs/dream-1-beta",
+    "dry_run": false,
+    "record": false,
+    "seed": 71,
+    "latency": "client",
+    "budget": "sim"
+  },
+  "target": {
+    "object": "apple",
+    "container": "bowl"
+  },
+  "done": 24,
+  "total": 24,
+  "current": null,
+  "started": 1795315547.3397777,
+  "elapsed_s": 1393.7,
+  "rows": [
+    {
+      "index": 1,
+      "trial": 1,
+      "params": {
+        "target_shift": 2.0
+      },
+      "prompt": "put the apple into the bowl",
+      "info": {
+        "target_shift": {
+          "offset": "+1.8, -0.9 cm"
+        }
+      },
+      "stop_reason": "timeout",
+      "steps": 800,
+      "seconds": 53.2,
+      "mean_rtt_s": 0.66,
+      "redraws": 0,
+      "video": null,
+      "strategy": "chunk",
+      "requests": 17,
+      "commands": {
+        "rows": 800,
+        "executions": 17,
+        "seams": 16,
+        "seam_jump_rad": 0.0248,
+        "max_seam_jump_rad": 0.0402,
+        "typical_step_rad": 0.0095,
+        "seam_ratio": 2.6,
+        "command_speed": 0.1285,
+        "command_jerk": 76.4,
+        "command_jitter": 0.752
+      },
+      "value": 2.0,
+      "outcome": "no_grasp",
+      "progress": 0.25,
+      "success": false,
+      "metrics": {
+        "min_reach_cm": 2.8,
+        "max_lift_cm": 0.1,
+        "target_moved_cm": 0.7,
+        "final_to_container_cm": 22.1,
+        "others_moved_cm": 0.0,
+        "time_to_success_s": null,
+        "joint_speed": 0.0945,
+        "joint_jerk": 19.24,
+        "joint_jitter": 0.411,
+        "drops": 0,
+        "drop": null
+      }
+    },
+    {
+      "index": 2,
+      "trial": 1,
+      "params": {
+        "target_shift": 2.0
+      },
+      "prompt": "put the apple into the bowl",
+      "info": {
+        "target_shift": {
+          "offset": "+1.8, -0.9 cm"
+        }
+      },
+      "stop_reason": "timeout",
+      "steps": 800,
+      "seconds": 72.5,
+      "mean_rtt_s": 0.6,
+      "redraws": 0,
+      "video": null,
+      "strategy": "receding-16",
+      "requests": 50,
+      "commands": {
+        "rows": 800,
+        "executions": 50,
+        "seams": 49,
+        "seam_jump_rad": 0.0208,
+        "max_seam_jump_rad": 0.0643,
+        "typical_step_rad": 0.0105,
+        "seam_ratio": 1.97,
+        "command_speed": 0.1546,
+        "command_jerk": 86.09,
+        "command_jitter": 0.614
+      },
+      "value": 2.0,
+      "outcome": "carry_failed",
+      "progress": 0.5,
+      "success": false,
+      "metrics": {
+        "min_reach_cm": 2.3,
+        "max_lift_cm": 7.1,
+        "target_moved_cm": 10.7,
+        "final_to_container_cm": 12.3,
+        "others_moved_cm": 0.0,
+        "time_to_success_s": null,
+        "joint_speed": 0.1226,
+        "joint_jerk": 20.63,
+        "joint_jitter": 0.325,
+        "drops": 2,
+        "drop": {
+          "t_s": 17.8,
+          "side": "left",
+          "opening_held": 0.672,
+          "opening_at_drop": 0.661,
+          "cause": "slipped",
+          "to_container_cm": 19.0
+        }
+      }
+    },
+    {
+      "index": 3,
+      "trial": 1,
+      "params": {
+        "target_shift": 2.0
+      },
+      "prompt": "put the apple into the bowl",
+      "info": {
+        "target_shift": {
+          "offset": "+1.8, -0.9 cm"
+        }
+      },
+      "stop_reason": "success",
+      "steps": 237,
+      "seconds": 18.8,
+      "mean_rtt_s": 0.59,
+      "redraws": 0,
+      "video": null,
+      "strategy": "receding-24",
+      "requests": 10,
+      "commands": {
+        "rows": 237,
+        "executions": 10,
+        "seams": 9,
+        "seam_jump_rad": 0.0191,
+        "max_seam_jump_rad": 0.0319,
+        "typical_step_rad": 0.0113,
+        "seam_ratio": 1.69,
+        "command_speed": 0.1693,
+        "command_jerk": 63.9,
+        "command_jitter": 0.513
+      },
+      "value": 2.0,
+      "outcome": "success",
+      "progress": 1.0,
+      "success": true,
+      "metrics": {
+        "min_reach_cm": 2.7,
+        "max_lift_cm": 16.0,
+        "target_moved_cm": 20.0,
+        "final_to_container_cm": 1.6,
+        "others_moved_cm": 0.0,
+        "time_to_success_s": 11.9,
+        "joint_speed": 0.1445,
+        "joint_jerk": 16.57,
+        "joint_jitter": 0.281,
+        "drops": 0,
+        "drop": null
+      }
+    },
+    {
+      "index": 4,
+      "trial": 2,
+      "params": {
+        "target_shift": 2.0
+      },
+      "prompt": "put the apple into the bowl",
+      "info": {
+        "target_shift": {
+          "offset": "+1.8, +0.8 cm"
+        }
+      },
+      "stop_reason": "timeout",
+      "steps": 800,
+      "seconds": 51.0,
+      "mean_rtt_s": 0.55,
+      "redraws": 0,
+      "video": null,
+      "strategy": "chunk",
+      "requests": 17,
+      "commands": {
+        "rows": 800,
+        "executions": 17,
+        "seams": 16,
+        "seam_jump_rad": 0.0228,
+        "max_seam_jump_rad": 0.0456,
+        "typical_step_rad": 0.0093,
+        "seam_ratio": 2.44,
+        "command_speed": 0.1221,
+        "command_jerk": 70.95,
+        "command_jitter": 0.745
+      },
+      "value": 2.0,
+      "outcome": "no_reach",
+      "progress": 0.0,
+      "success": false,
+      "metrics": {
+        "min_reach_cm": 4.1,
+        "max_lift_cm": 0.1,
+        "target_moved_cm": 1.2,
+        "final_to_container_cm": 21.8,
+        "others_moved_cm": 0.0,
+        "time_to_success_s": null,
+        "joint_speed": 0.0903,
+        "joint_jerk": 17.66,
+        "joint_jitter": 0.411,
+        "drops": 0,
+        "drop": null
+      }
+    },
+    {
+      "index": 5,
+      "trial": 2,
+      "params": {
+        "target_shift": 2.0
+      },
+      "prompt": "put the apple into the bowl",
+      "info": {
+        "target_shift": {
+          "offset": "+1.8, +0.8 cm"
+        }
+      },
+      "stop_reason": "timeout",
+      "steps": 800,
+      "seconds": 70.2,
+      "mean_rtt_s": 0.55,
+      "redraws": 0,
+      "video": null,
+      "strategy": "receding-16",
+      "requests": 50,
+      "commands": {
+        "rows": 800,
+        "executions": 50,
+        "seams": 49,
+        "seam_jump_rad": 0.0164,
+        "max_seam_jump_rad": 0.0791,
+        "typical_step_rad": 0.0075,
+        "seam_ratio": 2.17,
+        "command_speed": 0.1379,
+        "command_jerk": 84.68,
+        "command_jitter": 0.669
+      },
+      "value": 2.0,
+      "outcome": "no_grasp",
+      "progress": 0.25,
+      "success": false,
+      "metrics": {
+        "min_reach_cm": 2.2,
+        "max_lift_cm": 0.6,
+        "target_moved_cm": 2.3,
+        "final_to_container_cm": 20.7,
+        "others_moved_cm": 0.0,
+        "time_to_success_s": null,
+        "joint_speed": 0.1055,
+        "joint_jerk": 20.19,
+        "joint_jitter": 0.351,
+        "drops": 0,
+        "drop": null
+      }
+    },
+    {
+      "index": 6,
+      "trial": 2,
+      "params": {
+        "target_shift": 2.0
+      },
+      "prompt": "put the apple into the bowl",
+      "info": {
+        "target_shift": {
+          "offset": "+1.8, +0.8 cm"
+        }
+      },
+      "stop_reason": "success",
+      "steps": 310,
+      "seconds": 25.0,
+      "mean_rtt_s": 0.62,
+      "redraws": 0,
+      "video": null,
+      "strategy": "receding-24",
+      "requests": 13,
+      "commands": {
+        "rows": 310,
+        "executions": 13,
+        "seams": 12,
+        "seam_jump_rad": 0.0211,
+        "max_seam_jump_rad": 0.038,
+        "typical_step_rad": 0.0101,
+        "seam_ratio": 2.08,
+        "command_speed": 0.1556,
+        "command_jerk": 65.76,
+        "command_jitter": 0.545
+      },
+      "value": 2.0,
+      "outcome": "success",
+      "progress": 1.0,
+      "success": true,
+      "metrics": {
+        "min_reach_cm": 1.6,
+        "max_lift_cm": 14.9,
+        "target_moved_cm": 19.5,
+        "final_to_container_cm": 3.5,
+        "others_moved_cm": 0.0,
+        "time_to_success_s": 15.5,
+        "joint_speed": 0.1301,
+        "joint_jerk": 16.96,
+        "joint_jitter": 0.295,
+        "drops": 0,
+        "drop": null
+      }
+    },
+    {
+      "index": 7,
+      "trial": 3,
+      "params": {
+        "target_shift": 2.0
+      },
+      "prompt": "put the apple into the bowl",
+      "info": {
+        "target_shift": {
+          "offset": "+0.7, -1.9 cm"
+        }
+      },
+      "stop_reason": "timeout",
+      "steps": 800,
+      "seconds": 52.2,
+      "mean_rtt_s": 0.63,
+      "redraws": 0,
+      "video": null,
+      "strategy": "chunk",
+      "requests": 17,
+      "commands": {
+        "rows": 800,
+        "executions": 17,
+        "seams": 16,
+        "seam_jump_rad": 0.0227,
+        "max_seam_jump_rad": 0.0358,
+        "typical_step_rad": 0.0082,
+        "seam_ratio": 2.75,
+        "command_speed": 0.1233,
+        "command_jerk": 73.25,
+        "command_jitter": 0.734
+      },
+      "value": 2.0,
+      "outcome": "no_grasp",
+      "progress": 0.25,
+      "success": false,
+      "metrics": {
+        "min_reach_cm": 3.2,
+        "max_lift_cm": 0.2,
+        "target_moved_cm": 1.3,
+        "final_to_container_cm": 19.3,
+        "others_moved_cm": 0.0,
+        "time_to_success_s": null,
+        "joint_speed": 0.0908,
+        "joint_jerk": 18.28,
+        "joint_jitter": 0.403,
+        "drops": 0,
+        "drop": null
+      }
+    },
+    {
+      "index": 8,
+      "trial": 3,
+      "params": {
+        "target_shift": 2.0
+      },
+      "prompt": "put the apple into the bowl",
+      "info": {
+        "target_shift": {
+          "offset": "+0.7, -1.9 cm"
+        }
+      },
+      "stop_reason": "success",
+      "steps": 593,
+      "seconds": 56.0,
+      "mean_rtt_s": 0.64,
+      "redraws": 0,
+      "video": null,
+      "strategy": "receding-16",
+      "requests": 38,
+      "commands": {
+        "rows": 593,
+        "executions": 38,
+        "seams": 37,
+        "seam_jump_rad": 0.0223,
+        "max_seam_jump_rad": 0.0751,
+        "typical_step_rad": 0.0095,
+        "seam_ratio": 2.34,
+        "command_speed": 0.1412,
+        "command_jerk": 88.79,
+        "command_jitter": 0.702
+      },
+      "value": 2.0,
+      "outcome": "success",
+      "progress": 1.0,
+      "success": true,
+      "metrics": {
+        "min_reach_cm": 1.9,
+        "max_lift_cm": 12.0,
+        "target_moved_cm": 13.5,
+        "final_to_container_cm": 6.8,
+        "others_moved_cm": 0.0,
+        "time_to_success_s": 29.6,
+        "joint_speed": 0.1052,
+        "joint_jerk": 21.11,
+        "joint_jitter": 0.375,
+        "drops": 0,
+        "drop": null
+      }
+    },
+    {
+      "index": 9,
+      "trial": 3,
+      "params": {
+        "target_shift": 2.0
+      },
+      "prompt": "put the apple into the bowl",
+      "info": {
+        "target_shift": {
+          "offset": "+0.7, -1.9 cm"
+        }
+      },
+      "stop_reason": "timeout",
+      "steps": 800,
+      "seconds": 61.0,
+      "mean_rtt_s": 0.54,
+      "redraws": 0,
+      "video": null,
+      "strategy": "receding-24",
+      "requests": 34,
+      "commands": {
+        "rows": 800,
+        "executions": 34,
+        "seams": 33,
+        "seam_jump_rad": 0.0188,
+        "max_seam_jump_rad": 0.0397,
+        "typical_step_rad": 0.0096,
+        "seam_ratio": 1.96,
+        "command_speed": 0.1285,
+        "command_jerk": 65.41,
+        "command_jitter": 0.646
+      },
+      "value": 2.0,
+      "outcome": "missed_container",
+      "progress": 0.75,
+      "success": false,
+      "metrics": {
+        "min_reach_cm": 1.5,
+        "max_lift_cm": 10.0,
+        "target_moved_cm": 10.8,
+        "final_to_container_cm": 13.0,
+        "others_moved_cm": 0.0,
+        "time_to_success_s": null,
+        "joint_speed": 0.1004,
+        "joint_jerk": 16.81,
+        "joint_jitter": 0.365,
+        "drops": 1,
+        "drop": {
+          "t_s": 35.45,
+          "side": "left",
+          "opening_held": 0.611,
+          "opening_at_drop": 0.613,
+          "cause": "slipped",
+          "to_container_cm": 13.2
+        }
+      }
+    },
+    {
+      "index": 10,
+      "trial": 4,
+      "params": {
+        "target_shift": 2.0
+      },
+      "prompt": "put the apple into the bowl",
+      "info": {
+        "target_shift": {
+          "offset": "-1.1, +1.7 cm"
+        }
+      },
+      "stop_reason": "timeout",
+      "steps": 800,
+      "seconds": 51.7,
+      "mean_rtt_s": 0.59,
+      "redraws": 0,
+      "video": null,
+      "strategy": "chunk",
+      "requests": 17,
+      "commands": {
+        "rows": 800,
+        "executions": 17,
+        "seams": 16,
+        "seam_jump_rad": 0.0256,
+        "max_seam_jump_rad": 0.0358,
+        "typical_step_rad": 0.0098,
+        "seam_ratio": 2.62,
+        "command_speed": 0.1299,
+        "command_jerk": 73.91,
+        "command_jitter": 0.731
+      },
+      "value": 2.0,
+      "outcome": "no_grasp",
+      "progress": 0.25,
+      "success": false,
+      "metrics": {
+        "min_reach_cm": 3.4,
+        "max_lift_cm": 0.0,
+        "target_moved_cm": 0.8,
+        "final_to_container_cm": 20.8,
+        "others_moved_cm": 0.0,
+        "time_to_success_s": null,
+        "joint_speed": 0.0973,
+        "joint_jerk": 18.62,
+        "joint_jitter": 0.399,
+        "drops": 0,
+        "drop": null
+      }
+    },
+    {
+      "index": 11,
+      "trial": 4,
+      "params": {
+        "target_shift": 2.0
+      },
+      "prompt": "put the apple into the bowl",
+      "info": {
+        "target_shift": {
+          "offset": "-1.1, +1.7 cm"
+        }
+      },
+      "stop_reason": "timeout",
+      "steps": 800,
+      "seconds": 69.8,
+      "mean_rtt_s": 0.54,
+      "redraws": 0,
+      "video": null,
+      "strategy": "receding-16",
+      "requests": 50,
+      "commands": {
+        "rows": 800,
+        "executions": 50,
+        "seams": 49,
+        "seam_jump_rad": 0.0203,
+        "max_seam_jump_rad": 0.0714,
+        "typical_step_rad": 0.0055,
+        "seam_ratio": 3.69,
+        "command_speed": 0.1183,
+        "command_jerk": 74.85,
+        "command_jitter": 0.689
+      },
+      "value": 2.0,
+      "outcome": "missed_container",
+      "progress": 0.75,
+      "success": false,
+      "metrics": {
+        "min_reach_cm": 2.5,
+        "max_lift_cm": 9.2,
+        "target_moved_cm": 12.2,
+        "final_to_container_cm": 12.8,
+        "others_moved_cm": 0.0,
+        "time_to_success_s": null,
+        "joint_speed": 0.0886,
+        "joint_jerk": 17.21,
+        "joint_jitter": 0.349,
+        "drops": 1,
+        "drop": {
+          "t_s": 10.65,
+          "side": "left",
+          "opening_held": 0.681,
+          "opening_at_drop": 0.716,
+          "cause": "slipped",
+          "to_container_cm": 12.7
+        }
+      }
+    },
+    {
+      "index": 12,
+      "trial": 4,
+      "params": {
+        "target_shift": 2.0
+      },
+      "prompt": "put the apple into the bowl",
+      "info": {
+        "target_shift": {
+          "offset": "-1.1, +1.7 cm"
+        }
+      },
+      "stop_reason": "timeout",
+      "steps": 800,
+      "seconds": 61.4,
+      "mean_rtt_s": 0.57,
+      "redraws": 0,
+      "video": null,
+      "strategy": "receding-24",
+      "requests": 34,
+      "commands": {
+        "rows": 800,
+        "executions": 34,
+        "seams": 33,
+        "seam_jump_rad": 0.0235,
+        "max_seam_jump_rad": 0.1069,
+        "typical_step_rad": 0.0096,
+        "seam_ratio": 2.45,
+        "command_speed": 0.1387,
+        "command_jerk": 80.85,
+        "command_jitter": 0.689
+      },
+      "value": 2.0,
+      "outcome": "missed_container",
+      "progress": 0.75,
+      "success": false,
+      "metrics": {
+        "min_reach_cm": 1.4,
+        "max_lift_cm": 8.8,
+        "target_moved_cm": 11.3,
+        "final_to_container_cm": 19.0,
+        "others_moved_cm": 0.0,
+        "time_to_success_s": null,
+        "joint_speed": 0.1047,
+        "joint_jerk": 20.22,
+        "joint_jitter": 0.385,
+        "drops": 2,
+        "drop": {
+          "t_s": 20.75,
+          "side": "left",
+          "opening_held": 0.649,
+          "opening_at_drop": 0.639,
+          "cause": "slipped",
+          "to_container_cm": 18.3
+        }
+      }
+    },
+    {
+      "index": 13,
+      "trial": 5,
+      "params": {
+        "target_shift": 2.0
+      },
+      "prompt": "put the apple into the bowl",
+      "info": {
+        "target_shift": {
+          "offset": "-1.8, -0.8 cm"
+        }
+      },
+      "stop_reason": "timeout",
+      "steps": 800,
+      "seconds": 54.2,
+      "mean_rtt_s": 0.74,
+      "redraws": 0,
+      "video": null,
+      "strategy": "chunk",
+      "requests": 17,
+      "commands": {
+        "rows": 800,
+        "executions": 17,
+        "seams": 16,
+        "seam_jump_rad": 0.0263,
+        "max_seam_jump_rad": 0.0572,
+        "typical_step_rad": 0.0089,
+        "seam_ratio": 2.96,
+        "command_speed": 0.1225,
+        "command_jerk": 78.82,
+        "command_jitter": 0.782
+      },
+      "value": 2.0,
+      "outcome": "no_grasp",
+      "progress": 0.25,
+      "success": false,
+      "metrics": {
+        "min_reach_cm": 3.0,
+        "max_lift_cm": 0.2,
+        "target_moved_cm": 0.7,
+        "final_to_container_cm": 18.5,
+        "others_moved_cm": 0.0,
+        "time_to_success_s": null,
+        "joint_speed": 0.0867,
+        "joint_jerk": 19.99,
+        "joint_jitter": 0.442,
+        "drops": 0,
+        "drop": null
+      }
+    },
+    {
+      "index": 14,
+      "trial": 5,
+      "params": {
+        "target_shift": 2.0
+      },
+      "prompt": "put the apple into the bowl",
+      "info": {
+        "target_shift": {
+          "offset": "-1.8, -0.8 cm"
+        }
+      },
+      "stop_reason": "timeout",
+      "steps": 800,
+      "seconds": 71.3,
+      "mean_rtt_s": 0.57,
+      "redraws": 0,
+      "video": null,
+      "strategy": "receding-16",
+      "requests": 50,
+      "commands": {
+        "rows": 800,
+        "executions": 50,
+        "seams": 49,
+        "seam_jump_rad": 0.0195,
+        "max_seam_jump_rad": 0.0679,
+        "typical_step_rad": 0.0112,
+        "seam_ratio": 1.74,
+        "command_speed": 0.1687,
+        "command_jerk": 93.23,
+        "command_jitter": 0.617
+      },
+      "value": 2.0,
+      "outcome": "carry_failed",
+      "progress": 0.5,
+      "success": false,
+      "metrics": {
+        "min_reach_cm": 1.7,
+        "max_lift_cm": 3.6,
+        "target_moved_cm": 6.8,
+        "final_to_container_cm": 13.3,
+        "others_moved_cm": 0.0,
+        "time_to_success_s": null,
+        "joint_speed": 0.1342,
+        "joint_jerk": 21.55,
+        "joint_jitter": 0.322,
+        "drops": 2,
+        "drop": {
+          "t_s": 16.1,
+          "side": "left",
+          "opening_held": 0.626,
+          "opening_at_drop": 0.625,
+          "cause": "slipped",
+          "to_container_cm": 15.4
+        }
+      }
+    },
+    {
+      "index": 15,
+      "trial": 5,
+      "params": {
+        "target_shift": 2.0
+      },
+      "prompt": "put the apple into the bowl",
+      "info": {
+        "target_shift": {
+          "offset": "-1.8, -0.8 cm"
+        }
+      },
+      "stop_reason": "timeout",
+      "steps": 800,
+      "seconds": 66.5,
+      "mean_rtt_s": 0.71,
+      "redraws": 0,
+      "video": null,
+      "strategy": "receding-24",
+      "requests": 34,
+      "commands": {
+        "rows": 800,
+        "executions": 34,
+        "seams": 33,
+        "seam_jump_rad": 0.0213,
+        "max_seam_jump_rad": 0.0898,
+        "typical_step_rad": 0.0083,
+        "seam_ratio": 2.56,
+        "command_speed": 0.134,
+        "command_jerk": 79.5,
+        "command_jitter": 0.699
+      },
+      "value": 2.0,
+      "outcome": "carry_failed",
+      "progress": 0.5,
+      "success": false,
+      "metrics": {
+        "min_reach_cm": 2.3,
+        "max_lift_cm": 5.6,
+        "target_moved_cm": 8.7,
+        "final_to_container_cm": 10.9,
+        "others_moved_cm": 0.0,
+        "time_to_success_s": null,
+        "joint_speed": 0.1004,
+        "joint_jerk": 19.53,
+        "joint_jitter": 0.388,
+        "drops": 1,
+        "drop": {
+          "t_s": 21.95,
+          "side": "left",
+          "opening_held": 0.674,
+          "opening_at_drop": 0.667,
+          "cause": "slipped",
+          "to_container_cm": 14.3
+        }
+      }
+    },
+    {
+      "index": 16,
+      "trial": 6,
+      "params": {
+        "target_shift": 2.0
+      },
+      "prompt": "put the apple into the bowl",
+      "info": {
+        "target_shift": {
+          "offset": "-1.8, +0.9 cm"
+        }
+      },
+      "stop_reason": "timeout",
+      "steps": 800,
+      "seconds": 52.0,
+      "mean_rtt_s": 0.61,
+      "redraws": 0,
+      "video": null,
+      "strategy": "chunk",
+      "requests": 17,
+      "commands": {
+        "rows": 800,
+        "executions": 17,
+        "seams": 16,
+        "seam_jump_rad": 0.0265,
+        "max_seam_jump_rad": 0.0456,
+        "typical_step_rad": 0.0104,
+        "seam_ratio": 2.55,
+        "command_speed": 0.1363,
+        "command_jerk": 78.01,
+        "command_jitter": 0.707
+      },
+      "value": 2.0,
+      "outcome": "no_grasp",
+      "progress": 0.25,
+      "success": false,
+      "metrics": {
+        "min_reach_cm": 3.0,
+        "max_lift_cm": 0.1,
+        "target_moved_cm": 0.4,
+        "final_to_container_cm": 20.0,
+        "others_moved_cm": 0.0,
+        "time_to_success_s": null,
+        "joint_speed": 0.1044,
+        "joint_jerk": 19.79,
+        "joint_jitter": 0.377,
+        "drops": 0,
+        "drop": null
+      }
+    },
+    {
+      "index": 17,
+      "trial": 6,
+      "params": {
+        "target_shift": 2.0
+      },
+      "prompt": "put the apple into the bowl",
+      "info": {
+        "target_shift": {
+          "offset": "-1.8, +0.9 cm"
+        }
+      },
+      "stop_reason": "timeout",
+      "steps": 800,
+      "seconds": 78.6,
+      "mean_rtt_s": 0.72,
+      "redraws": 0,
+      "video": null,
+      "strategy": "receding-16",
+      "requests": 50,
+      "commands": {
+        "rows": 800,
+        "executions": 50,
+        "seams": 49,
+        "seam_jump_rad": 0.0215,
+        "max_seam_jump_rad": 0.1144,
+        "typical_step_rad": 0.0083,
+        "seam_ratio": 2.6,
+        "command_speed": 0.1371,
+        "command_jerk": 90.89,
+        "command_jitter": 0.72
+      },
+      "value": 2.0,
+      "outcome": "carry_failed",
+      "progress": 0.5,
+      "success": false,
+      "metrics": {
+        "min_reach_cm": 2.5,
+        "max_lift_cm": 8.0,
+        "target_moved_cm": 9.3,
+        "final_to_container_cm": 11.3,
+        "others_moved_cm": 0.0,
+        "time_to_success_s": null,
+        "joint_speed": 0.0997,
+        "joint_jerk": 22.06,
+        "joint_jitter": 0.381,
+        "drops": 1,
+        "drop": {
+          "t_s": 16.95,
+          "side": "left",
+          "opening_held": 0.667,
+          "opening_at_drop": 0.678,
+          "cause": "slipped",
+          "to_container_cm": 12.3
+        }
+      }
+    },
+    {
+      "index": 18,
+      "trial": 6,
+      "params": {
+        "target_shift": 2.0
+      },
+      "prompt": "put the apple into the bowl",
+      "info": {
+        "target_shift": {
+          "offset": "-1.8, +0.9 cm"
+        }
+      },
+      "stop_reason": "timeout",
+      "steps": 800,
+      "seconds": 59.2,
+      "mean_rtt_s": 0.5,
+      "redraws": 0,
+      "video": null,
+      "strategy": "receding-24",
+      "requests": 34,
+      "commands": {
+        "rows": 800,
+        "executions": 34,
+        "seams": 33,
+        "seam_jump_rad": 0.0223,
+        "max_seam_jump_rad": 0.1047,
+        "typical_step_rad": 0.0103,
+        "seam_ratio": 2.17,
+        "command_speed": 0.155,
+        "command_jerk": 82.82,
+        "command_jitter": 0.627
+      },
+      "value": 2.0,
+      "outcome": "missed_container",
+      "progress": 0.75,
+      "success": false,
+      "metrics": {
+        "min_reach_cm": 2.2,
+        "max_lift_cm": 9.4,
+        "target_moved_cm": 10.7,
+        "final_to_container_cm": 18.8,
+        "others_moved_cm": 0.0,
+        "time_to_success_s": null,
+        "joint_speed": 0.1222,
+        "joint_jerk": 20.37,
+        "joint_jitter": 0.345,
+        "drops": 2,
+        "drop": {
+          "t_s": 12.1,
+          "side": "left",
+          "opening_held": 0.674,
+          "opening_at_drop": 0.675,
+          "cause": "slipped",
+          "to_container_cm": 17.0
+        }
+      }
+    },
+    {
+      "index": 19,
+      "trial": 7,
+      "params": {
+        "target_shift": 2.0
+      },
+      "prompt": "put the apple into the bowl",
+      "info": {
+        "target_shift": {
+          "offset": "+1.9, +0.5 cm"
+        }
+      },
+      "stop_reason": "success",
+      "steps": 713,
+      "seconds": 46.1,
+      "mean_rtt_s": 0.58,
+      "redraws": 0,
+      "video": null,
+      "strategy": "chunk",
+      "requests": 15,
+      "commands": {
+        "rows": 713,
+        "executions": 15,
+        "seams": 14,
+        "seam_jump_rad": 0.0264,
+        "max_seam_jump_rad": 0.0473,
+        "typical_step_rad": 0.0102,
+        "seam_ratio": 2.57,
+        "command_speed": 0.1474,
+        "command_jerk": 76.44,
+        "command_jitter": 0.657
+      },
+      "value": 2.0,
+      "outcome": "success",
+      "progress": 1.0,
+      "success": true,
+      "metrics": {
+        "min_reach_cm": 3.1,
+        "max_lift_cm": 12.8,
+        "target_moved_cm": 18.5,
+        "final_to_container_cm": 4.1,
+        "others_moved_cm": 0.0,
+        "time_to_success_s": 35.7,
+        "joint_speed": 0.1166,
+        "joint_jerk": 19.41,
+        "joint_jitter": 0.345,
+        "drops": 0,
+        "drop": null
+      }
+    },
+    {
+      "index": 20,
+      "trial": 7,
+      "params": {
+        "target_shift": 2.0
+      },
+      "prompt": "put the apple into the bowl",
+      "info": {
+        "target_shift": {
+          "offset": "+1.9, +0.5 cm"
+        }
+      },
+      "stop_reason": "timeout",
+      "steps": 800,
+      "seconds": 72.7,
+      "mean_rtt_s": 0.6,
+      "redraws": 0,
+      "video": null,
+      "strategy": "receding-16",
+      "requests": 50,
+      "commands": {
+        "rows": 800,
+        "executions": 50,
+        "seams": 49,
+        "seam_jump_rad": 0.0172,
+        "max_seam_jump_rad": 0.0798,
+        "typical_step_rad": 0.0087,
+        "seam_ratio": 1.98,
+        "command_speed": 0.146,
+        "command_jerk": 92.4,
+        "command_jitter": 0.69
+      },
+      "value": 2.0,
+      "outcome": "pushed",
+      "progress": 0.25,
+      "success": false,
+      "metrics": {
+        "min_reach_cm": 2.2,
+        "max_lift_cm": 1.5,
+        "target_moved_cm": 5.0,
+        "final_to_container_cm": 17.9,
+        "others_moved_cm": 0.0,
+        "time_to_success_s": null,
+        "joint_speed": 0.1104,
+        "joint_jerk": 22.21,
+        "joint_jitter": 0.361,
+        "drops": 0,
+        "drop": null
+      }
+    },
+    {
+      "index": 21,
+      "trial": 7,
+      "params": {
+        "target_shift": 2.0
+      },
+      "prompt": "put the apple into the bowl",
+      "info": {
+        "target_shift": {
+          "offset": "+1.9, +0.5 cm"
+        }
+      },
+      "stop_reason": "timeout",
+      "steps": 800,
+      "seconds": 61.0,
+      "mean_rtt_s": 0.55,
+      "redraws": 0,
+      "video": null,
+      "strategy": "receding-24",
+      "requests": 34,
+      "commands": {
+        "rows": 800,
+        "executions": 34,
+        "seams": 33,
+        "seam_jump_rad": 0.0193,
+        "max_seam_jump_rad": 0.0696,
+        "typical_step_rad": 0.0086,
+        "seam_ratio": 2.23,
+        "command_speed": 0.1212,
+        "command_jerk": 63.74,
+        "command_jitter": 0.655
+      },
+      "value": 2.0,
+      "outcome": "missed_container",
+      "progress": 0.75,
+      "success": false,
+      "metrics": {
+        "min_reach_cm": 2.1,
+        "max_lift_cm": 11.0,
+        "target_moved_cm": 18.6,
+        "final_to_container_cm": 12.3,
+        "others_moved_cm": 0.0,
+        "time_to_success_s": null,
+        "joint_speed": 0.0947,
+        "joint_jerk": 16.46,
+        "joint_jitter": 0.361,
+        "drops": 2,
+        "drop": {
+          "t_s": 21.75,
+          "side": "left",
+          "opening_held": 0.67,
+          "opening_at_drop": 0.672,
+          "cause": "slipped",
+          "to_container_cm": 15.0
+        }
+      }
+    },
+    {
+      "index": 22,
+      "trial": 8,
+      "params": {
+        "target_shift": 2.0
+      },
+      "prompt": "put the apple into the bowl",
+      "info": {
+        "target_shift": {
+          "offset": "-0.1, +2.0 cm"
+        }
+      },
+      "stop_reason": "timeout",
+      "steps": 800,
+      "seconds": 52.4,
+      "mean_rtt_s": 0.6,
+      "redraws": 0,
+      "video": null,
+      "strategy": "chunk",
+      "requests": 17,
+      "commands": {
+        "rows": 800,
+        "executions": 17,
+        "seams": 16,
+        "seam_jump_rad": 0.0271,
+        "max_seam_jump_rad": 0.0491,
+        "typical_step_rad": 0.0096,
+        "seam_ratio": 2.83,
+        "command_speed": 0.1365,
+        "command_jerk": 77.97,
+        "command_jitter": 0.714
+      },
+      "value": 2.0,
+      "outcome": "no_grasp",
+      "progress": 0.25,
+      "success": false,
+      "metrics": {
+        "min_reach_cm": 2.9,
+        "max_lift_cm": 0.0,
+        "target_moved_cm": 0.3,
+        "final_to_container_cm": 22.1,
+        "others_moved_cm": 0.0,
+        "time_to_success_s": null,
+        "joint_speed": 0.1028,
+        "joint_jerk": 19.15,
+        "joint_jitter": 0.387,
+        "drops": 0,
+        "drop": null
+      }
+    },
+    {
+      "index": 23,
+      "trial": 8,
+      "params": {
+        "target_shift": 2.0
+      },
+      "prompt": "put the apple into the bowl",
+      "info": {
+        "target_shift": {
+          "offset": "-0.1, +2.0 cm"
+        }
+      },
+      "stop_reason": "timeout",
+      "steps": 800,
+      "seconds": 74.2,
+      "mean_rtt_s": 0.63,
+      "redraws": 0,
+      "video": null,
+      "strategy": "receding-16",
+      "requests": 50,
+      "commands": {
+        "rows": 800,
+        "executions": 50,
+        "seams": 49,
+        "seam_jump_rad": 0.02,
+        "max_seam_jump_rad": 0.1123,
+        "typical_step_rad": 0.0084,
+        "seam_ratio": 2.38,
+        "command_speed": 0.1247,
+        "command_jerk": 84.95,
+        "command_jitter": 0.757
+      },
+      "value": 2.0,
+      "outcome": "carry_failed",
+      "progress": 0.5,
+      "success": false,
+      "metrics": {
+        "min_reach_cm": 2.6,
+        "max_lift_cm": 8.0,
+        "target_moved_cm": 13.0,
+        "final_to_container_cm": 11.8,
+        "others_moved_cm": 0.0,
+        "time_to_success_s": null,
+        "joint_speed": 0.0883,
+        "joint_jerk": 20.69,
+        "joint_jitter": 0.423,
+        "drops": 1,
+        "drop": {
+          "t_s": 22.55,
+          "side": "left",
+          "opening_held": 0.557,
+          "opening_at_drop": 0.591,
+          "cause": "slipped",
+          "to_container_cm": 17.0
+        }
+      }
+    },
+    {
+      "index": 24,
+      "trial": 8,
+      "params": {
+        "target_shift": 2.0
+      },
+      "prompt": "put the apple into the bowl",
+      "info": {
+        "target_shift": {
+          "offset": "-0.1, +2.0 cm"
+        }
+      },
+      "stop_reason": "timeout",
+      "steps": 800,
+      "seconds": 59.5,
+      "mean_rtt_s": 0.51,
+      "redraws": 0,
+      "video": null,
+      "strategy": "receding-24",
+      "requests": 34,
+      "commands": {
+        "rows": 800,
+        "executions": 34,
+        "seams": 33,
+        "seam_jump_rad": 0.0172,
+        "max_seam_jump_rad": 0.0739,
+        "typical_step_rad": 0.0099,
+        "seam_ratio": 1.74,
+        "command_speed": 0.1406,
+        "command_jerk": 66.15,
+        "command_jitter": 0.592
+      },
+      "value": 2.0,
+      "outcome": "carry_failed",
+      "progress": 0.5,
+      "success": false,
+      "metrics": {
+        "min_reach_cm": 2.2,
+        "max_lift_cm": 5.5,
+        "target_moved_cm": 5.6,
+        "final_to_container_cm": 16.6,
+        "others_moved_cm": 0.0,
+        "time_to_success_s": null,
+        "joint_speed": 0.1134,
+        "joint_jerk": 16.95,
+        "joint_jitter": 0.331,
+        "drops": 0,
+        "drop": null
+      }
+    }
+  ],
+  "outcome_labels": {
+    "success": "Success",
+    "missed_container": "Placed next to container",
+    "carry_failed": "Lifted, lost on the way",
+    "no_grasp": "Reached, no grasp",
+    "pushed": "Pushed target away",
+    "wrong_object": "Went for wrong object",
+    "no_reach": "Never reached target",
+    "off_table": "Knocked off table",
+    "aborted": "Aborted",
+    "invalid": "Not counted (unfair setup / sim glitch)"
+  },
+  "policy": "dreamlabs/dream-1-beta",
+  "strategy": null,
+  "perturbation": {
+    "id": "target_shift",
+    "label": "Move target object",
+    "unit": "cm",
+    "group": "scene",
+    "group_label": "Scene layout",
+    "defaults": [
+      0,
+      2,
+      4,
+      6,
+      8
+    ],
+    "max": 8.0,
+    "neutral": 0.0,
+    "discrete": false,
+    "description": "Moves the object to pick up by value cm in a random direction on the table. The core generalization test: does Dream-1 look where the object is, or replay a memorized motion?",
+    "kind": "env",
+    "strength": 2.0
+  },
+  "strategies": [
+    {
+      "id": "chunk",
+      "label": "Full chunk (48)",
+      "description": "Executes all 48 planned steps (2.4 s) before asking Dream-1 again. Default behaviour.",
+      "execute": 48,
+      "blend": "none",
+      "requests_factor": 1.0,
+      "gripper": "newest plan"
+    },
+    {
+      "id": "receding-16",
+      "label": "Receding horizon (16)",
+      "description": "Asks every 16 steps (0.8 s) and executes only the start of each new plan. Reacts faster, but every new plan may start somewhere else. ~3\u00d7 the requests.",
+      "execute": 16,
+      "blend": "none",
+      "requests_factor": 3.0,
+      "gripper": "newest plan"
+    },
+    {
+      "id": "receding-24",
+      "label": "Receding horizon (24)",
+      "description": "Asks every 24 steps (1.2 s) and executes only the start of each new plan. Reacts faster, but every new plan may start somewhere else. ~2\u00d7 the requests.",
+      "execute": 24,
+      "blend": "none",
+      "requests_factor": 2.0,
+      "gripper": "newest plan"
+    }
+  ],
+  "analysis": {
+    "per_strategy": [
+      {
+        "id": "chunk",
+        "label": "Full chunk (48)",
+        "n": 8,
+        "done": 8,
+        "successes": 1,
+        "rate": 0.125,
+        "ci": [
+          0.02241690886329617,
+          0.4708948057698615
+        ],
+        "progress": 0.312,
+        "outcomes": {
+          "success": 1,
+          "no_grasp": 6,
+          "no_reach": 1
+        },
+        "min_reach_cm": 3.188,
+        "max_lift_cm": 1.688,
+        "time_to_success_s": 35.7,
+        "requests": 16.75,
+        "seam_jump_rad": 0.025,
+        "seam_ratio": 2.665,
+        "command_jerk": 75.719,
+        "command_jitter": 0.728,
+        "joint_speed": 0.098,
+        "joint_jerk": 19.018,
+        "joint_jitter": 0.397,
+        "sim_seconds": 39.456,
+        "wall_seconds": 51.6
+      },
+      {
+        "id": "receding-16",
+        "label": "Receding horizon (16)",
+        "n": 8,
+        "done": 8,
+        "successes": 1,
+        "rate": 0.125,
+        "ci": [
+          0.02241690886329617,
+          0.4708948057698615
+        ],
+        "progress": 0.531,
+        "outcomes": {
+          "success": 1,
+          "missed_container": 1,
+          "carry_failed": 4,
+          "no_grasp": 1,
+          "pushed": 1
+        },
+        "min_reach_cm": 2.237,
+        "max_lift_cm": 6.25,
+        "time_to_success_s": 29.6,
+        "requests": 48.5,
+        "seam_jump_rad": 0.02,
+        "seam_ratio": 2.359,
+        "command_jerk": 86.985,
+        "command_jitter": 0.682,
+        "joint_speed": 0.107,
+        "joint_jerk": 20.706,
+        "joint_jitter": 0.361,
+        "sim_seconds": 38.706,
+        "wall_seconds": 70.662
+      },
+      {
+        "id": "receding-24",
+        "label": "Receding horizon (24)",
+        "n": 8,
+        "done": 8,
+        "successes": 2,
+        "rate": 0.25,
+        "ci": [
+          0.07147768885802763,
+          0.5907301208974108
+        ],
+        "progress": 0.75,
+        "outcomes": {
+          "success": 2,
+          "missed_container": 4,
+          "carry_failed": 2
+        },
+        "min_reach_cm": 2.0,
+        "max_lift_cm": 10.15,
+        "time_to_success_s": 13.7,
+        "requests": 28.375,
+        "seam_jump_rad": 0.02,
+        "seam_ratio": 2.11,
+        "command_jerk": 71.016,
+        "command_jitter": 0.621,
+        "joint_speed": 0.114,
+        "joint_jerk": 17.984,
+        "joint_jitter": 0.344,
+        "sim_seconds": 33.419,
+        "wall_seconds": 51.55
+      }
+    ],
+    "baseline": "chunk",
+    "pairs": [
+      {
+        "id": "receding-16",
+        "label": "Receding horizon (16)",
+        "n": 8,
+        "only_baseline": 1,
+        "only_this": 1,
+        "both": 0,
+        "p_value": 1.0,
+        "success_diff": 0.0,
+        "progress_diff": 0.219,
+        "progress_ci": [
+          -0.094,
+          0.469
+        ],
+        "seam_change": -0.115,
+        "jitter_change": -0.091,
+        "speed_change": 0.092,
+        "command_jerk_change": 0.149,
+        "joint_jerk_change": 0.089,
+        "requests_factor": 2.9
+      },
+      {
+        "id": "receding-24",
+        "label": "Receding horizon (24)",
+        "n": 8,
+        "only_baseline": 1,
+        "only_this": 2,
+        "both": 0,
+        "p_value": 1.0,
+        "success_diff": 0.125,
+        "progress_diff": 0.438,
+        "progress_ci": [
+          0.219,
+          0.656
+        ],
+        "seam_change": -0.208,
+        "jitter_change": -0.134,
+        "speed_change": 0.163,
+        "command_jerk_change": -0.062,
+        "joint_jerk_change": -0.054,
+        "requests_factor": 1.7
+      }
+    ],
+    "verdict": {
+      "best": "receding-24",
+      "significant": false,
+      "smoothest": "receding-24",
+      "text": "Receding horizon (24) wins: 2/8 successes vs 1/8 with the default \u2014 not significant yet (paired McNemar p = 1.00, 3 of 8 pairs disagree) \u00b7 seams 21% smaller, arms 16% faster, 1.7\u00d7 the API requests"
+    }
+  }
+}
