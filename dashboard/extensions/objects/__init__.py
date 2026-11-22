@@ -55,6 +55,7 @@ class DragBody(BaseModel):
     v: float = Field(ge=-0.5, le=1.5)
     mode: Literal["horizontal", "vertical"] = "horizontal"
     start: bool = False  # first event of a drag: the object is picked up, its position becomes the anchor
+    frame: int | None = None
 
 
 class TurnBody(BaseModel):
@@ -141,13 +142,15 @@ class Objects(Extension):
     def _queue(self, drag: DragBody | None = None, turn: TurnBody | None = None, release: bool = False) -> None:
         """Merge a command into the pending ones; at most one job waits on the sim thread at a time."""
         self._idle()
+        view = self.ctx.sim.interaction_view(drag.frame, self.id, self.view) if drag is not None else None
         with self.lock:
             cmd = self.pending
             if drag is not None:
                 previous = cmd["drag"] if cmd["drag"] and cmd["drag"]["name"] == drag.name else None
                 # where it was grabbed: kept when later positions replace this one before it is applied
-                grab = (drag.u, drag.v) if drag.start else (previous["grab"] if previous else None)
-                cmd["drag"] = {"name": drag.name, "uv": (drag.u, drag.v), "mode": drag.mode, "grab": grab}
+                grab = (view, drag.u, drag.v) if drag.start else (
+                    previous["grab"] if previous and previous["mode"] == drag.mode else None)
+                cmd["drag"] = {"name": drag.name, "uv": (drag.u, drag.v), "mode": drag.mode, "grab": grab, "view": view}
                 if drag.start:
                     cmd["release"] = False  # meant the previous grab, which a new one ends anyway
             if turn is not None:
@@ -208,7 +211,7 @@ class Objects(Extension):
             pending, self.pending, self.scheduled = self.pending, self._no_commands(), False
         self._ensure(env)
         drag = pending["drag"]
-        if drag is not None and self.view is not None:
+        if drag is not None and drag["view"] is not None:
             if self.held is not None and self.held["name"] != drag["name"]:
                 self._release(env)
             if self.held is None:
@@ -298,9 +301,10 @@ class Objects(Extension):
         if drag["grab"] is not None or held["anchor"] is None or held["mode"] != mode:
             # new drag (or Shift pressed/released): anchor where it is, remember where it was grabbed
             held["anchor"], held["mode"] = held["pos"].copy(), mode
-            grabbed = drag_point(self.view, *(drag["grab"] or drag["uv"]), held["anchor"], mode)
+            view, u, v = drag["grab"] or (drag["view"], *drag["uv"])
+            grabbed = drag_point(view, u, v, held["anchor"], mode)
             held["offset"] = held["anchor"] - grabbed if grabbed is not None else np.zeros(3)
-        point = drag_point(self.view, *drag["uv"], held["anchor"], mode)
+        point = drag_point(drag["view"], *drag["uv"], held["anchor"], mode)
         if point is None:
             return
         goal = point + held["offset"]  # grabbed off-center: no jump on the first move
@@ -402,14 +406,15 @@ class Objects(Extension):
             self._release(env)
         return None
 
+    def prepare_view(self, env):
+        self._ensure(env)
+        if self.held is not None and time.monotonic() - self.held["last"] > STALE_S:
+            self._release(env)  # the browser went away mid-drag
+
     def decorate(self, env, mjscene):
         """Every main-view frame: positions + image positions to the panel, a drop marker under a held object."""
-        self._ensure(env)
         self.view = view_from_scene(mjscene, *MAIN_SIZE)
         held = self.held
-        if held is not None and time.monotonic() - held["last"] > STALE_S:
-            self._release(env)  # the browser went away mid-drag
-            held = None
         width, height = MAIN_SIZE
         items = {}
         for name in NAMES:

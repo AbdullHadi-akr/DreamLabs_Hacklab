@@ -1,7 +1,10 @@
 """Model X-Ray: kinematics, intent, RISE statistics and the language probe, against a scripted stand-in for Dream-1."""
+from types import SimpleNamespace
+
 import numpy as np
 import pytest
 
+from dashboard.extensions.xray import ModelXRay
 from dreamtool import scene, sim, xray, xray_fake
 
 
@@ -57,6 +60,32 @@ def test_intent_reads_a_grasp(frozen):
     assert it["arm"] == "right" and it["event"] == "close" and it["event_step"] == 20 and it["target"] is None
     assert "not at any object" in it["text"]
     assert np.linalg.norm(banana) > 0
+
+
+def test_intent_uses_the_frozen_position_of_a_moved_container(frozen, monkeypatch):
+    env, snap, kin = frozen
+    before = np.array(snap.scene_positions["plate"])
+    model_pos = env.model.body("plate").pos
+    original = model_pos.copy()
+    monkeypatch.setattr(xray, "pick_target", lambda *args: ("plate", 0., "fixture"))
+    try:
+        model_pos[0] += .2
+        assert np.linalg.norm(kin.positions(snap.qpos)["plate"] - before) > .1
+        rows = [np.tile(snap.state[side], (48, 1)) for side in ("left", "right")]
+        assert np.allclose(xray.intent(kin, snap, *rows)["target_position"], before)
+    finally:
+        model_pos[:] = original
+
+
+def test_previous_live_path_is_hidden_during_a_different_run():
+    worker = SimpleNamespace(busy=True, current=SimpleNamespace(id=2))
+    tool = ModelXRay(SimpleNamespace(sim=worker))
+    tool.setup()
+    tool.live_run = 1
+    tool.live = {"target": "apple"}
+    assert tool._shown_intent(None) is None
+    worker.current.id = 1
+    assert tool._shown_intent(None) == tool.live
 
 
 def test_swap_object_keeps_the_wording():

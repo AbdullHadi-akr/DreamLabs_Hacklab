@@ -170,6 +170,10 @@ class SimulatorReserved(RuntimeError):
     """An exclusive experiment currently owns the simulator."""
 
 
+class ExpiredView(RuntimeError):
+    """A pointer event references a frame outside the retained view history."""
+
+
 class SimWorker(threading.Thread):
     def __init__(self, bus, extensions: list | None = None, db=None, recorder=None):
         super().__init__(name="sim-worker", daemon=True)
@@ -184,6 +188,9 @@ class SimWorker(threading.Thread):
         self.shutdown_event = threading.Event()
         self.frames: dict[str, tuple[int, bytes]] = {}
         self.teleop_viewers = 0  # Updated by MJPEG subscriptions on the dashboard event loop.
+        self.teleop_frame_until = 0.0
+        self.low_frame_until = 0.0
+        self.interaction_views = {}
         self.state_snapshot: dict = {}
         self.current: RunRequest | None = None
         self.run_stats: dict = {}
@@ -475,6 +482,13 @@ class SimWorker(threading.Thread):
         if force or now - self._last["main"] >= 1 / MAIN_FPS:
             self._last["main"] = now
             self.camera.apply(self.main_cam)
+            for ext in self.extensions:
+                prepare = getattr(ext, "prepare_view", None)
+                if prepare:
+                    try:
+                        prepare(self.env)
+                    except Exception as error:
+                        self.bus.log(f"prepare_view of {ext.id}: {error}", "error", ext.id)
             self.main_renderer.update_scene(self.env.data, camera=self.main_cam)
             _stage_floor(self.env.model, self.main_renderer.scene)
             for ext in self.extensions:
@@ -482,11 +496,14 @@ class SimWorker(threading.Thread):
                     ext.decorate(self.env, self.main_renderer.scene)
                 except Exception as error:
                     self.bus.log(f"decorate of {ext.id}: {error}", "error", ext.id)
+            interaction = {ext.id: (ext.info, ext.view) for ext in self.extensions
+                           if ext.id in ("teleop", "objects") and ext.view is not None}
             frame = self.main_renderer.render()
-            self._store("main", frame)
-            if self.low_viewers > 0:
-                self._store("main-low", cv2.resize(frame, LOW_SIZE, interpolation=cv2.INTER_AREA), LOW_QUALITY)
-            if self.teleop_viewers:
+            self._store("main", frame, interaction=interaction)
+            if self.low_viewers > 0 or now < self.low_frame_until:
+                self._store("main-low", cv2.resize(frame, LOW_SIZE, interpolation=cv2.INTER_AREA), LOW_QUALITY,
+                            interaction=interaction)
+            if self.teleop_viewers or now < self.teleop_frame_until:
                 for ext in self.extensions:
                     decorate = getattr(ext, "decorate_teleop", None)
                     if decorate:
@@ -494,7 +511,7 @@ class SimWorker(threading.Thread):
                             decorate(self.env, self.main_renderer.scene)
                         except Exception as error:
                             self.bus.log(f"decorate_teleop of {ext.id}: {error}", "error", ext.id)
-                self._store("main-teleop", self.main_renderer.render())
+                self._store("main-teleop", self.main_renderer.render(), interaction=interaction)
         if force or now - self._last["cams"] >= 1 / CAM_FPS:
             self._last["cams"] = now
             images = images or self.env.images()
@@ -514,11 +531,24 @@ class SimWorker(threading.Thread):
             }
             self.bus.emit("sim.state", self.state_snapshot, keep=False)
 
-    def _store(self, name: str, rgb: np.ndarray, quality: int = JPEG_QUALITY) -> None:
+    def _store(self, name: str, rgb: np.ndarray, quality: int = JPEG_QUALITY, interaction=None) -> None:
         ok, jpeg = cv2.imencode(".jpg", cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR), [cv2.IMWRITE_JPEG_QUALITY, quality])
         if ok:
             self._seq += 1
-            self.frames[name] = (self._seq, jpeg.tobytes())
+            if interaction:
+                self.interaction_views[self._seq] = {tool: view for tool, (_, view) in interaction.items()}
+                if len(self.interaction_views) > MAIN_FPS * 18:
+                    self.interaction_views.pop(next(iter(self.interaction_views)))
+            self.frames[name] = (self._seq, jpeg.tobytes(), interaction)
+
+    def interaction_view(self, frame, tool, fallback):
+        """Unproject against the frame the user clicked, even if the camera has since moved."""
+        if frame is None:  # older clients may omit a frame
+            return fallback
+        view = self.interaction_views.get(frame, {}).get(tool)
+        if view is None:
+            raise ExpiredView("The displayed frame expired. Wait for the live view and try again.")
+        return view
 
 
 def _hold_targets(result) -> dict:

@@ -158,7 +158,7 @@ code { font-family: var(--font-mono); font-size: .9em; background: var(--grey-2)
   touch-action: none;
 }
 .viewer.dragging { cursor: grabbing; }
-.viewer img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.viewer img, .viewer .interactive-view { width: 100%; height: 100%; object-fit: contain; display: block; }
 .viewer-badges { position: absolute; top: 12px; left: 12px; display: flex; gap: 6px; }
 .chip-dark {
   display: inline-flex; align-items: center; gap: 6px;

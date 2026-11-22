@@ -54,6 +54,7 @@ function setupViewer(camera) {
   const img = $("main-view");
   img.src = "/stream/main.mjpg";
   img.onerror = () => {
+    if (!img.hasAttribute("src")) return;
     const failed = img.src;
     setTimeout(() => {
       if (img.src === failed) img.src = `${failed.split("?")[0]}?r=${Date.now()}`;

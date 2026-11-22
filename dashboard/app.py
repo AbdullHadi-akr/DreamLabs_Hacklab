@@ -8,6 +8,7 @@ import json
 import mimetypes
 import threading
 import secrets
+import time
 from pathlib import Path
 from typing import Annotated
 
@@ -27,7 +28,7 @@ from .events import EventBus
 from .extension import describe, load_extensions
 from .lab_db import LabDB
 from .multiplayer import ARM_POSTS, GUEST_POSTS, HOST_ONLY_GETS, OPEN_PATHS, PlayerError, Players, is_remote
-from .simulation import CAMERAS, MAIN_FPS, SimulatorReserved, SimWorker, demo_motion
+from .simulation import CAMERAS, MAIN_FPS, ExpiredView, SimulatorReserved, SimWorker, demo_motion
 
 ## Windows reads MIME types from the registry, which often maps .js to text/plain -> browsers refuse ES modules.
 mimetypes.add_type("text/javascript", ".js")
@@ -123,6 +124,7 @@ def create_app() -> FastAPI:
     app = FastAPI(title="Dream-1 Dashboard", lifespan=lifespan)
 
     @app.exception_handler(SimulatorReserved)
+    @app.exception_handler(ExpiredView)
     async def simulator_reserved(request, error):
         return JSONResponse({"detail": str(error)}, status_code=409)
     app.state.bus, app.state.sim, app.state.extensions = bus, worker, extensions
@@ -425,6 +427,31 @@ def create_app() -> FastAPI:
         if not frame:
             raise HTTPException(404)
         return Response(frame[1], media_type="image/jpeg", headers={"Cache-Control": "no-store"})
+
+    @app.get("/api/view-frame/{tool}")
+    async def view_frame(tool: str, request: Request, after: int = -1):
+        if tool not in ("teleop", "objects"):
+            raise HTTPException(404)
+        teleop = tool == "teleop"
+        remote = is_remote(request.headers)
+        if teleop:
+            worker.teleop_frame_until = time.monotonic() + 1
+        elif remote:
+            worker.low_frame_until = time.monotonic() + 1
+        source = "main-teleop" if teleop else "main-low" if remote else "main"
+        if remote:
+            await asyncio.sleep(1 / 12)
+        if after == -1 and source != "main":
+            after = worker.frames.get(source, (-1,))[0]
+        headers = {"Cache-Control": "no-store"}
+        for _ in range(25):
+            frame = worker.frames.get(source)
+            if frame and frame[0] != after and frame[2] and tool in frame[2]:
+                headers["X-View-Frame"] = str(frame[0])
+                headers["X-View-State"] = json.dumps(frame[2][tool][0], separators=(",", ":"), ensure_ascii=True)
+                return Response(frame[1], media_type="image/jpeg", headers=headers)
+            await asyncio.sleep(.02)
+        return Response(status_code=204, headers=headers)
 
     @app.get("/stream/{name}.mjpg")
     async def stream(name: str, request: Request):

@@ -74,7 +74,9 @@ export async function mount(root, api) {
 
   async function select(id) {
     selected = id;
-    detail = id ? await api.get(`/snapshots/${id}`).catch(() => null) : null;
+    const next = id ? await api.get(`/snapshots/${id}`).catch(() => null) : null;
+    if (selected !== id) return;
+    detail = next;
     if (overlay.checked) api.post("/overlay", { enabled: true, snapshot: selected });
     render();
   }

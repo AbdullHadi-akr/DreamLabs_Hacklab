@@ -21,7 +21,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from dashboard.extension import Extension, overlay_line, overlay_sphere
-from dreamtool import sim, xray, xray_fake
+from dreamtool import scene, sim, xray, xray_fake
 from dreamtool.runner import Hooks
 
 SNAPSHOT_ID = re.compile(r"^[0-9]{8}-[0-9]{6}-[0-9a-f]{4}$")
@@ -78,6 +78,7 @@ class XRayHook(Hooks):
         snap = xray.Snapshot(prompt=self.run.get("prompt") or self.run["task"], model=self.run["model"],
                              state={s: np.asarray(state[s], float).tolist() for s in ("left", "right")},
                              qpos=env.data.qpos.tolist(), windows=self.window.copy() if self.window.full else {},
+                             scene_positions={name: pos.tolist() for name, pos in scene.positions(env).items()},
                              steps=self.steps, source="run", reply=_jsonable_reply(reply))
         try:
             live = xray.intent(self.kin, snap, *xray.chunk(reply))
@@ -86,6 +87,7 @@ class XRayHook(Hooks):
             return
         live["seconds"] = round(self.steps / 20, 1)
         self.ext.live = live
+        self.ext.live_run = self.run["id"]
         if snap.windows:
             # keep the start of the run (where the model decides what to pick: the moments the language probe needs)
             # and the latest moments
@@ -106,6 +108,7 @@ class ModelXRay(Extension):
     def setup(self):
         self.moments: list[dict] = []
         self.live: dict | None = None
+        self.live_run: int | None = None
         self.overlay = True
         self.overlay_snapshot: str | None = None
         self.job: dict | None = None
@@ -274,15 +277,23 @@ class ModelXRay(Extension):
     def _shown_intent(self, env) -> dict | None:
         if not self.overlay:
             return None
-        if self.ctx.sim.busy and self.live is not None:
+        current = self.ctx.sim.current
+        if current is not None and current.id == self.live_run:
             return self.live
         if self.overlay_snapshot:
             try:
-                _, results = self._cached(self.overlay_snapshot)
-                return (results.get("intent") or {}).get("intent")
+                snapshot, results = self._cached(self.overlay_snapshot)
+                intent = (results.get("intent") or {}).get("intent")
+                if intent and "target_position" not in intent:
+                    target = intent["target"]
+                    position = snapshot.scene_positions.get(target)
+                    if position is None and target in scene.OBJECTS:
+                        position = xray.Kinematics(env.model).positions(snapshot.qpos)[target].tolist()
+                    intent["target_position"] = position
+                return intent
             except Exception:
                 return None
-        return self.live
+        return None if self.ctx.sim.busy else self.live
 
     _cache: dict = {}
 
@@ -308,8 +319,8 @@ class ModelXRay(Extension):
             overlay_sphere(scene, arm["path"][-1], radius=0.008, rgba=color)
         if shown.get("point"):
             overlay_sphere(scene, shown["point"], radius=0.014, rgba=COLORS["close" if shown["event"] == "close" else "open"])
-        if shown.get("target"):
-            overlay_sphere(scene, env.data.body(shown["target"]).xpos, radius=0.05, rgba=COLORS["target"])
+        if shown.get("target_position") is not None:
+            overlay_sphere(scene, shown["target_position"], radius=0.05, rgba=COLORS["target"])
 
     def shutdown(self):
         self.stopping = True
