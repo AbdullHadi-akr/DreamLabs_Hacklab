@@ -54,7 +54,6 @@ def test_static_files_have_js_mime(client):
 
 
 def test_snapshot_and_camera(client):
-    time.sleep(0.3)
     response = client.get("/snapshot/main.jpg")
     assert response.status_code == 200 and response.content[:2] == b"\xff\xd8"
     assert client.post("/api/camera", json={"azimuth": 10}).json()["azimuth"] == 10
