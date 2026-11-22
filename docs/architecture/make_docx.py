@@ -111,8 +111,10 @@ def table(header, rows, widths, new_page=False):
 # Content
 # =====================================================================================================
 p("Dream-1 Lab: architecture diagrams", style="Title")
-p(run("State on 21 November 2026. Code: branch design/minimal-dashboard, commit dfc1d6a (multiplayer, credits, "
-      "success rules, report additions, simulated seconds, second brain). The pictures are drawn by "
+p(run("State on 22 November 2026. Code: branch main, commit b8aa2ff (with the teammates' execution strategies, "
+      "Strategy A/B, Model X-Ray, camera check, Objects tool, one run at a time and the lean layout), plus two "
+      "branches that are not merged yet: design/camera-row (pull request #5: the camera row under the view, click a "
+      "camera to swap it onto the big screen) and design/brain-view (the Brain view). The pictures are drawn by "
       "docs/architecture/diagrams.py; run it again after a change.", color="555555"))
 
 h2("What this document holds")
@@ -124,6 +126,7 @@ table(["Part", "Diagram", "The question it answers"], [
     ["3.1", "Architecture: layers", "Which layers does the system have, and what sits in each layer?"],
     ["3.2", "Architecture: teaching loop", "How does an episode move from a Dream-1 try to a fine-tune?"],
     ["3.3", "Architecture: Test Suite", "How does a test campaign run, and where do its results go?"],
+    ["3.4", "Architecture: Brain view", "Which event lights which part of the 3D brain, and what does each part stand for?"],
     ["4", "Built and planned", "Which parts work today, and which parts are planned?"],
 ], [600, 3200, 10000])
 
@@ -178,13 +181,16 @@ h2("2.2 Level 2: containers", page_break=True)
 image("3-c4-containers.png", "C4 containers: web page, dashboard application, lab database, episode store, "
       "second brain")
 table(["Container", "Technology", "Job"], [
-    ["Web page", "HTML, CSS, JavaScript in a web browser", "Shows the view and the cameras, takes tasks, has the "
-     "buttons Take over, Save episode, Discard, and the menu panels Control, Scene, Robustness, Episodes, Credits, "
-     "Players. Each viewer has an own copy. A guest first sees the join page and then only Control, Scene and "
-     "Players."],
+    ["Web page", "HTML, CSS, JavaScript in a web browser", "Shows the view with the three robot cameras in a row "
+     "under it (a click puts a camera on the big screen), takes tasks, has the buttons Take over, Save episode, "
+     "Discard, the Settings line (model, duration, execution strategy) and a tool menu: Scene, Control, Objects, "
+     "Cameras, X-Ray, Brain, Episodes, Credits, Players. The Test Suite is its own workspace; the Brain view is also "
+     "a full page. Each viewer has an own copy. A guest first sees the join page and then only Control, Scene, "
+     "Brain and Players."],
     ["Dashboard application", "Python 3.12, FastAPI web server, MuJoCo simulator, one process",
-     "Runs the simulation, talks to Dream-1, runs the extensions, records episodes, counts credits, checks guests, "
-     "writes notes for the second brain."],
+     "Runs the simulation (one run at a time), talks to Dream-1 with the chosen execution strategy, runs the "
+     "tools, records episodes, counts credits, checks guests, writes notes for the second brain and serves its "
+     "pages to the Brain view."],
     ["Lab database", "SQLite: one file, out/lab.db, no server program",
      "One row per run, per episode and per export, and the credit settings. Answers: which episodes to train on, "
      "success and cost per model, where a person took over, how much credit is left. Not in GitHub."],
@@ -193,7 +199,8 @@ table(["Container", "Technology", "Job"], [
     ["Second brain", "Markdown files in the folder brain/, in git", "raw/: notes the dashboard writes by itself "
      "(every Dream-1 run, every robustness test, every export, a daily summary) and notes people write. wiki/: "
      "pages the script brain/build_wiki.py makes from raw/: per task, per model, robustness, exports, notes, "
-     "decisions. People read it in Obsidian or on GitHub. An AI agent that adds summaries is planned."],
+     "decisions. People read it in Obsidian, on GitHub, or as the 3D Brain view in the dashboard. An AI agent that "
+     "adds summaries is planned."],
 ], [2600, 4200, 7000], new_page=True)
 
 h2("2.3 Level 3: components of the dashboard application", page_break=True)
@@ -213,11 +220,26 @@ table(["Component", "File", "Job"], [
     ["Event bus", "dashboard/events.py", "Sends each event (run started, episode state, log line) to every open "
      "browser."],
     ["Sim worker", "dashboard/simulation.py", "The one thread that owns the simulator. Between runs it holds the "
-     "arms and keeps drawing pictures; it carries out runs and other jobs one after the other."],
+     "arms and keeps drawing pictures; it carries out runs and other jobs one after the other. Only one run is "
+     "admitted at a time; the credit check and the execution strategy are decided inside that admission."],
     ["Run loop", "dreamtool/runner.py", "Collects camera pictures, asks Dream-1 for arm moves, carries them out 20 "
      "times per second, stops on success, time limit, monthly credit limit or Stop. The time limit counts "
      "simulated seconds, so waiting for Dream-1 does not use it up. It talks to Dream Labs through the dream "
      "library from the dreamlabs clone."],
+    ["Execution strategies", "dreamtool/inference.py", "Dream-1 plans 48 steps (2.4 s) per call. The strategy decides "
+     "how much of a plan is carried out before the next call and how two plans are joined: the whole chunk, "
+     "receding horizon, averaging (ensemble), or crossfade. The default is crossfade-30: a new plan every 1.5 s, "
+     "faded in over those steps. It was chosen from the night measurements in measurements/2026-11-22."],
+    ["Model X-Ray", "dreamtool/xray.py, dashboard/extensions/xray/", "Explains why Dream-1 acts as it does: it "
+     "freezes one moment and asks Dream-1 about that moment again and again, each time with one thing changed "
+     "(parts of the camera pictures greyed out, other words in the task), and measures how the planned path "
+     "changes."],
+    ["Camera check", "dreamtool/camcheck.py, dashboard/extensions/camera_check/", "Compares every frame that was "
+     "sent to Dream-1 with the simulator's own picture of each camera: right camera, right way up, right moment, "
+     "not black."],
+    ["Brain view", "dashboard/extensions/brain/ (branch design/brain-view)", "Draws the second brain and Dream-1 "
+     "Lab as one 3D brain: wiki pages and raw files are points, their links are lines, and each part of the brain "
+     "lights up when its part of the project works (section 3.4)."],
     ["Simulator wrapper", "dreamtool/sim.py", "Makes the YAM simulator from the dreamlabs clone usable: physics and "
      "the 3 cameras."],
     ["Success check", "dreamtool/scene.py", "Reads object positions and decides if a task is done. Task types: put "
@@ -233,8 +255,9 @@ table(["Component", "File", "Job"], [
      "(contacts, joint limits, distance to the target), judges success, failure category and safety, and saves a "
      "report in out/extensions/test_suite/. The Robustness tests appear in it as tiles."],
     ["Extensions", "dashboard/extension.py, dashboard/extensions/",
-     "Loads the tools: Control (move the arms by hand, with inverse kinematics), Scene, Robustness tests. The "
-     "robustness report shows Dream-1 calls and cost per trial and downloads as one HTML file."],
+     "Loads the tools: Control (move the arms by hand, with inverse kinematics), Scene, Objects (move the objects "
+     "with the mouse), Cameras, X-Ray, Brain, and the Robustness tests (Sweep, Breaking Point, Perturbation Mix, "
+     "Strategy A/B). The robustness report shows Dream-1 calls and cost per trial and downloads as one HTML file."],
 ], [3000, 3800, 7000], new_page=True)
 
 # ---------------- 3 architecture ----------------
@@ -256,15 +279,25 @@ p("Steps 1 to 6 and step 8 work today. Step 7, the upload and the fine-tune at D
 h2("3.3 The Test Suite", page_break=True)
 image("7-test-suite.png", "Test Suite: choose a test, plan the cases, run each case, collect evidence, judge, save "
       "the report, read the results; Breaking Point picks the next strength")
-p("The Test Suite was built by teammates and joined into this branch on 21 November 2026. Its runs use the same "
+p("The Test Suite was built by teammates and is in main since 21 November 2026. Its runs use the same "
   "simulation thread as the dashboard, so they wait while another run is going, and their Dream-1 calls appear in "
   "the lab database and in Credits. Unlike normal runs, a Test Suite case stops at a deadline in clock time and at "
   "a limit of Dream-1 calls.")
 
+h2("3.4 The Brain view", page_break=True)
+image("8-brain-view.png", "Brain view: dashboard events, the part of the brain each one lights, and the part of the "
+      "project that part stands for")
+p("The Brain view is in the tool menu (Data and account, Brain) and as a full page at /ext/brain/brain.html. It "
+  "reads no new data: it listens to the events the dashboard already sends, and it reads the files in brain/ "
+  "through two read-only addresses. Guests can open it. It is on the branch design/brain-view and not yet merged "
+  "into main.")
+
 # ---------------- 4 status ----------------
 h1("4. Built and planned")
 table(["Part", "Status", "Where"], [
-    ["Dashboard: view, cameras, camera swap, task bar, menu, status dot", "Built", "dashboard/static/"],
+    ["Dashboard: view, task bar, tool menu, run panel that folds away, status dot", "Built", "dashboard/static/"],
+    ["Camera row under the view; click a camera to put it on the big screen", "Built, pull request #5 not merged yet",
+     "dashboard/static/ (branch design/camera-row)"],
     ["Dream-1 runs with success check and reply times", "Built", "dreamtool/runner.py, dreamtool/scene.py"],
     ["Control: move the arms by hand (teammate's extension)", "Built", "dashboard/extensions/teleop/"],
     ["Take over, episode recording in LeRobot format, Save, Discard", "Built", "dashboard/episodes.py"],
@@ -284,6 +317,15 @@ table(["Part", "Status", "Where"], [
     ["Robustness: breaking-point search, inside the Test Suite (teammates)", "Built",
      "dashboard/extensions/robustness/adaptive.py"],
     ["Task recognition for natural sentences and German (teammates)", "Built", "dreamtool/scene.py"],
+    ["Execution strategies, default crossfade-30 (teammates)", "Built", "dreamtool/inference.py"],
+    ["Strategy A/B: the same trials under two strategies, compared pair by pair (teammates)", "Built",
+     "dashboard/extensions/robustness/compare.py"],
+    ["Model X-Ray: why Dream-1 acts as it does (teammates)", "Built", "dreamtool/xray.py"],
+    ["Camera check: the frames Dream-1 gets, against the simulator (teammates)", "Built", "dreamtool/camcheck.py"],
+    ["Objects: move the scene's objects with the mouse (teammates)", "Built", "dashboard/extensions/objects/"],
+    ["One run at a time; first picture before ready (teammates)", "Built", "dashboard/simulation.py"],
+    ["Brain view: the second brain and the system as one live 3D brain", "Built, branch not merged yet",
+     "dashboard/extensions/brain/ (branch design/brain-view)"],
     ["Upload of exports and fine-tuning at Dream Labs", "Planned", "waits for 4 answers from Dream Labs"],
 ], [7800, 1600, 4400])
 
