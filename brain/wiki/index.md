@@ -14,6 +14,14 @@ Every page of the wiki, one line each. The script `brain/build_wiki.py` rewrites
 
 - [[fine-tuning/exports]]: This page lists every export: a folder of successful episodes of one task, checked with Dream Labs' own dataset check, ready to train (fine-tune) Dream-1 further.
 
+## models
+
+- [[models/dreamlabs-dream-1-beta]]: This page shows how the model "dreamlabs/dream-1-beta" did on each task, and what it cost.
+
 ## robustness
 
 - [[robustness/campaigns]]: This page lists every robustness campaign: a series of Dream-1 runs where the dashboard changes the scene step by step to find where Dream-1 starts to fail.
+
+## tasks
+
+- [[tasks/put-apple-into-the-bowl]]: This page shows how often the task "put apple into the bowl" succeeded, with which model, and what it cost.
