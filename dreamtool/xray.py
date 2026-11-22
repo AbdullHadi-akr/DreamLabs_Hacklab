@@ -228,6 +228,7 @@ def intent(kin: Kinematics, snapshot: Snapshot, left, right) -> dict:
     containers = {n: now[n] for n in scene.CONTAINERS}
     target, distance, how = pick_target(now[f"{active}_tcp"], path, a["event"], point, objects, containers)
     return {
+        "prompt": snapshot.prompt,
         "arm": active, "arms": arms, "target": target, "distance_cm": distance, "how": how,
         "target_position": (now[target].tolist() if target in scene.OBJECTS or target in snapshot.scene_positions
                             else None),
@@ -236,6 +237,19 @@ def intent(kin: Kinematics, snapshot: Snapshot, left, right) -> dict:
         "point": None if point is None else np.round(point, 4).tolist(),
         "text": describe_intent(active, a, target, distance, how),
     }
+
+
+def target_marker(plan: dict):
+    """Only highlight a guessed fruit if it agrees with the prompt's named fruit."""
+    prompt = plan.get("prompt", "")
+    target = plan.get("target")
+    objects = scene.named_objects(prompt)
+    if target in scene.OBJECTS and objects and target not in objects:
+        return None
+    placement = scene.parse_task(prompt)
+    if target in scene.CONTAINERS and (not placement or target != placement[1]):
+        return None
+    return plan.get("target_position")
 
 
 def describe_intent(arm, a, target, distance, how) -> str:

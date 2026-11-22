@@ -68,11 +68,14 @@ function setupViewer(camera) {
 
   viewer.addEventListener("contextmenu", (e) => e.preventDefault());
   viewer.addEventListener("pointerdown", (e) => {
+    if (!e.isPrimary || (e.button !== 0 && e.button !== 2)) return;
     drag = { x: e.clientX, y: e.clientY, pan: e.button === 2 || e.shiftKey };
     viewer.setPointerCapture(e.pointerId);
     viewer.classList.add("dragging");
   });
-  viewer.addEventListener("pointerup", () => { drag = null; viewer.classList.remove("dragging"); });
+  const endDrag = () => { drag = null; viewer.classList.remove("dragging"); };
+  viewer.addEventListener("pointerup", endDrag);
+  viewer.addEventListener("pointercancel", endDrag);
   viewer.addEventListener("pointermove", (e) => {
     if (!drag) return;
     const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
@@ -91,6 +94,7 @@ function setupViewer(camera) {
     send();
   });
   viewer.addEventListener("wheel", (e) => {
+    if (!e.altKey || e.ctrlKey || e.metaKey) return;
     e.preventDefault();
     cam.distance = Math.max(0.2, Math.min(6, cam.distance * (e.deltaY > 0 ? 1.1 : 0.9)));
     send();

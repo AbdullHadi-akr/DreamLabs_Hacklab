@@ -57,3 +57,21 @@ await new Script(source.replaceAll(/^export /gm, "") + test).runInNewContext({
   },
 });
 console.log("Overlay frame ordering and letterboxed pointer mapping passed");
+
+const app = await readFile(new URL("../dashboard/static/app.js", import.meta.url), "utf8");
+const handlers = {}, messages = [];
+new Script(app.slice(app.indexOf("function setupViewer("), app.indexOf("function setupCameras(")) +
+  "setupViewer({distance: 1})").runInNewContext({
+  $: () => ({addEventListener: (event, callback) => { handlers[event] = callback; }}),
+  overlayViewer() {}, requestAnimationFrame: (callback) => callback(),
+  core: {events: {send: (message) => messages.push(message)}},
+});
+let prevented = 0;
+const wheel = {deltaY: 10, preventDefault() { prevented++; }};
+handlers.wheel(wheel);
+handlers.wheel({...wheel, altKey: true, ctrlKey: true});
+assert.equal(prevented, 0);
+handlers.wheel({...wheel, altKey: true});
+assert.equal(prevented, 1);
+assert.equal(messages[0].distance, 1.1);
+console.log("Plain scrolling and browser zoom gestures remain native over the viewport");

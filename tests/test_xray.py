@@ -86,6 +86,19 @@ def test_previous_live_path_is_hidden_during_a_different_run():
     assert tool._shown_intent(None) is None
     worker.current.id = 1
     assert tool._shown_intent(None) == tool.live
+    worker.current = None
+    worker.busy = False
+    assert tool._shown_intent(None) is None
+
+
+def test_pickup_marker_hides_a_conflicting_guess_without_changing_the_plan():
+    point = [0.1, 0.2, 0.8]
+    plan = {"prompt": "Pick up apple", "target": "orange", "target_position": point}
+    assert xray.target_marker(plan) is None
+    assert plan["target"] == "orange"
+    assert xray.target_marker({**plan, "target": "apple"}) == point
+    assert xray.target_marker({**plan, "prompt": "pick up the orange"}) == point
+    assert xray.target_marker({**plan, "prompt": "put apple in the orange bowl"}) is None
 
 
 def test_swap_object_keeps_the_wording():

@@ -280,10 +280,14 @@ class ModelXRay(Extension):
         current = self.ctx.sim.current
         if current is not None and current.id == self.live_run:
             return self.live
+        if self.ctx.sim.busy:
+            return None
         if self.overlay_snapshot:
             try:
                 snapshot, results = self._cached(self.overlay_snapshot)
                 intent = (results.get("intent") or {}).get("intent")
+                if intent:
+                    intent.setdefault("prompt", snapshot.prompt)
                 if intent and "target_position" not in intent:
                     target = intent["target"]
                     position = snapshot.scene_positions.get(target)
@@ -293,7 +297,7 @@ class ModelXRay(Extension):
                 return intent
             except Exception:
                 return None
-        return None if self.ctx.sim.busy else self.live
+        return None
 
     _cache: dict = {}
 
@@ -319,8 +323,9 @@ class ModelXRay(Extension):
             overlay_sphere(scene, arm["path"][-1], radius=0.008, rgba=color)
         if shown.get("point"):
             overlay_sphere(scene, shown["point"], radius=0.014, rgba=COLORS["close" if shown["event"] == "close" else "open"])
-        if shown.get("target_position") is not None:
-            overlay_sphere(scene, shown["target_position"], radius=0.05, rgba=COLORS["target"])
+        marker = xray.target_marker(shown)
+        if marker is not None:
+            overlay_sphere(scene, marker, radius=0.05, rgba=COLORS["target"])
 
     def shutdown(self):
         self.stopping = True

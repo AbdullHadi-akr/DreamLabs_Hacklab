@@ -79,7 +79,7 @@ export async function mount(root, api) {
     ["W A S D", h("span", {}, "forward / left / back / right, as seen from ", seenFrom)],
     ["E / Q", "up / down"],
     ["Z / X", "rotate the gripper about its axis (left / right)"],
-    ["Wheel on ball", "rotate the gripper"],
+    ["Alt + scroll on ball", "rotate the gripper"],
     ["R / F", "tilt the fingertips forward / back"],
     ["Shift (held)", "slow"],
     ["Space", "open / close the gripper"],
@@ -231,6 +231,7 @@ export async function mount(root, api) {
 
   // Mouse wheel on a ball rotates that gripper instead of zooming.
   viewer.addEventListener("wheel", (e) => {
+    if (!e.altKey || e.ctrlKey || e.metaKey) return;
     const side = handleAt(e);
     if (!side) return;
     e.stopPropagation();

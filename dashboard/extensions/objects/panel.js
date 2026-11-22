@@ -56,7 +56,7 @@ export async function mount(root, api) {
   const keys = [
     ["Drag an object", "slide it over the table (its height stays, it stays above what lies below)"],
     ["Shift + drag", "lift / lower it"],
-    ["Wheel on object", "turn it (Shift: finer)"],
+    ["Alt + scroll on object", "turn it (Shift: finer)"],
     ["Let go", "it drops and physics takes over"],
     ["Bowl / plate", "drag and lift them the same way: what lies in or on them comes along, and when you let go they are put straight down (they are fixed in the model, physics does not move them)"],
   ];
@@ -106,7 +106,7 @@ export async function mount(root, api) {
   layer.append(tag);
   viewer.append(layer);
   const hint = document.querySelector(".viewer-hint");
-  const objectsHint = h("span", {}, " · Object: drag / Shift lift / wheel turn");
+  const objectsHint = h("span", {}, " · Object: drag / Shift lift / Alt + scroll to turn");
   if (hint) hint.append(objectsHint);
 
   const fmt = (value) => value.toFixed(3);
@@ -332,6 +332,7 @@ export async function mount(root, api) {
 
   // Mouse wheel on an object turns it instead of zooming (bowl and plate are round: the wheel zooms there).
   viewer.addEventListener("wheel", (e) => {
+    if (!e.altKey || e.ctrlKey || e.metaKey) return;
     if (e.defaultPrevented) return; // Teleop turned a gripper
     const name = drag?.name || itemAt(e);
     if (!name || isContainer(name)) return;
