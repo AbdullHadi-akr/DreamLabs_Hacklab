@@ -7,15 +7,15 @@ This page shows how often the task "apple into the bowl" succeeded, with which m
 
 ## Measured
 
-- Dream-1 runs: 10; with a success check: 10; successes: 0 (0 %)
-- Dream-1 calls: 52; cost: $0.0728; cost per success: -
-- Last run: 2026-11-22 11:17:40
+- Dream-1 runs: 11; with a success check: 11; successes: 0 (0 %)
+- Dream-1 calls: 62; cost: $0.0868; cost per success: -
+- Last run: 2026-11-22 12:17:51
 
 ## Per model
 
 | Model | Runs | Successes | Success rate | Calls | Cost | Cost per success |
 |---|---|---|---|---|---|---|
-| [[models/dreamlabs-dream-1-beta|dreamlabs/dream-1-beta]] | 10 | 0 | 0 % | 52 | $0.0728 | - |
+| [[models/dreamlabs-dream-1-beta|dreamlabs/dream-1-beta]] | 11 | 0 | 0 % | 62 | $0.0868 | - |
 
 ## Wordings
 
@@ -23,7 +23,7 @@ The same goal, said in different ways (the task text of each run).
 
 | Wording | Runs | Successes | Success rate |
 |---|---|---|---|
-| put apple into the bowl | 9 | 0 | 0 % |
+| put apple into the bowl | 10 | 0 | 0 % |
 | put the apple into the bowl | 1 | 0 | 0 % |
 
 ## Why the runs stopped
@@ -31,6 +31,7 @@ The same goal, said in different ways (the task text of each run).
 | Stop reason | Runs |
 |---|---|
 | timeout | 10 |
+| stopped | 1 |
 
 ## Robustness campaigns
 

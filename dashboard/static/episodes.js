@@ -76,7 +76,9 @@ export function episodesPanel(root, core, action) {
     exportButton.onclick = async () => {
       const result = await action(request("POST", "/api/episodes/export", { task: task.value, name: name.value.trim() }));
       if (result) {
-        core.toast(`Exported ${result.episodes} episodes to ${result.folder}. Dream Labs' check passed.`, "good", 8000);
+        const extra = (result.notes || []).join(" ");  // e.g. episodes cut at the take-over, or left out as too short
+        core.toast(`Exported ${result.episodes} episodes to ${result.folder}. Dream Labs' check passed. ${extra}`,
+          "good", 10000);
         refreshPanel();
       }
     };
