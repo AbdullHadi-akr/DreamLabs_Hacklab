@@ -209,6 +209,7 @@ code { font-family: var(--font-mono); font-size: .9em; background: var(--grey-2)
 .prompt-row { display: flex; gap: 8px; align-items: center; }
 .prompt-row input { flex: 1; min-width: 0; font-size: 15px; padding: 9px 12px !important; }
 .prompt { min-width: 0; }
+.prompt > * { min-width: 0; }  /* grid rows must not grow to the input's natural width */
 .run-settings { font-size: 13px; color: var(--ink-3); min-width: 0; max-width: 100%; }
 #settings-summary { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .run-settings > summary { max-width: 100%; }
@@ -417,3 +418,10 @@ body.guest #btn-run, body.guest #btn-demo, body.guest #btn-reset, body.guest #wo
 .join { width: min(380px, calc(100vw - 32px)); padding: 28px; border: 1px solid var(--line); border-radius: var(--radius, 16px); background: var(--white); }
 .join h1 { margin: 0 0 6px; font-size: 22px; }
 .join form { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+@media (max-width: 440px) {
+  /* very narrow windows: the run buttons stack, the model field takes the whole line */
+  .prompt-row .btn { flex-basis: 100%; }
+  .model-field { flex-wrap: wrap; }
+  .mini #model { width: 100%; max-width: 100%; }
+  .prompt-tools .mini { max-width: 100%; }
+}

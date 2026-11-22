@@ -49,3 +49,16 @@ def test_page_reads_only_markdown_inside_brain(tmp_path):
     for path in ("../secret.md", "wiki/../../secret.md", "CLAUDE", "wiki/missing.md"):
         with pytest.raises(HTTPException):
             read_page(path, brain)
+
+
+def test_page_refuses_odd_paths_without_a_server_error():
+    """Found by an API sweep: a null byte in the path raised ValueError, answered as 500."""
+    import pytest
+    from fastapi import HTTPException
+
+    from dashboard.extensions.brain import read_page
+
+    for path in ["wiki/x\x00.md", "../../dashboard/app.py", "wiki/nope.md", "README", "C:/Windows/win.ini"]:
+        with pytest.raises(HTTPException) as caught:
+            read_page(path)
+        assert caught.value.status_code == 404, path

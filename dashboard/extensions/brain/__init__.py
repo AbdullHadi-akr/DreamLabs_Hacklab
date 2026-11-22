@@ -76,8 +76,12 @@ def _safety_failures(suite_dir: Path) -> int:
 
 
 def read_page(path: str, brain: Path = BRAIN_DIR) -> dict:
-    target = (brain / path).resolve()
-    if target.suffix != ".md" or brain.resolve() not in target.parents or not target.is_file():
+    try:
+        target = (brain / path).resolve()
+        found = target.suffix == ".md" and brain.resolve() in target.parents and target.is_file()
+    except (ValueError, OSError):  # a null byte or an impossible path: not a page, not a server error
+        found = False
+    if not found:
         raise HTTPException(404, "No such page in the second brain.")
     return {"path": path, "text": target.read_text(encoding="utf-8", errors="replace")}
 
