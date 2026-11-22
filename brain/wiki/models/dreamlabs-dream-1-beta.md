@@ -7,14 +7,16 @@ This page shows how the model "dreamlabs/dream-1-beta" did on each task, and wha
 
 ## Measured
 
-- Dream-1 runs: 9; successes: 0 (0 % of the runs with a success check)
-- Calls: 45; cost: $0.0630; cost per success: -
+- Dream-1 runs: 12; successes: 0 (0 % of the runs with a success check)
+- Calls: 54; cost: $0.0756; cost per success: -
 
 ## Per task
 
 | Task | Runs | Successes | Success rate | Cost | Cost per success |
 |---|---|---|---|---|---|
 | [[tasks/put-apple-into-the-bowl|put apple into the bowl]] | 9 | 0 | 0 % | $0.0630 | - |
+| [[tasks/put-the-apple-into-the-bowl|put the apple into the bowl]] | 1 | 0 | 0 % | $0.0098 | - |
+| [[tasks/put-the-banana-on-the-plate|put the banana on the plate]] | 2 | 0 | 0 % | $0.0028 | - |
 
 ## Sources
 
