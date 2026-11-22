@@ -174,13 +174,16 @@ with one thing changed. The simulation does not move meanwhile; what is measured
   the gripper closes, yellow = the object it heads for. Every moment of the run can be frozen afterwards.
 - **1 · Intent** (3 calls): the plan for the frozen moment, asked three times. The spread between identical questions
   is the **noise floor** every other number is read against (Dream-1 is not necessarily deterministic).
-- **2 · Where it looks** (masks + 6 calls): **RISE**. Random smooth masks grey out parts of all three camera windows;
-  per pixel, importance = mean path change when it was hidden − when it was visible (cm). A permutation test gives each
-  camera's **chance level**; only cells above it are coloured. Plus **camera reliance**: the change when one camera is
-  blanked completely.
-- **3 · Does it follow the words?** (5 × repeats calls): same images, only the object word swapped (apple, banana,
-  orange, bottle, the made-up "blicket"). Table: word in the prompt vs. the object the plan goes for. Freeze a moment
-  where the arm already reaches out; at rest no plan heads anywhere within 2.4 s and the tool says so.
+- **2 · Where it looks** (masks + 6 calls): first **camera reliance**, the change when one camera is blanked
+  completely. If no camera moves the plan by more than max(3 × noise, 1 cm), the masks are skipped (the heatmap would
+  only show noise). Otherwise **RISE** on the camera whose blanking matters most, the other two left as they are: random
+  smooth masks grey out a quarter of its window; per cell, importance = mean path change when it was hidden − when it
+  was visible (cm). A permutation test gives the **chance level**; only cells above it are coloured. (Masking all
+  three cameras at once, `camera="all"`, gave no signal on real Dream-1 even with 200 masks.)
+- **3 · Does it follow the words?** (6 × repeats calls): same images, the original prompt and then only the object
+  word swapped (apple, banana, orange, bottle, the made-up "blicket"). Per word: how much nearer the gripper paths get
+  to the named object than with the original prompt; it "follows" when that is more than max(3 × noise, 1 cm) and more
+  than towards any other object. This needs no grasp or clear approach in the plan, so it answers at any moment.
 
 Results live in `out/extensions/xray/<moment>/`. `DREAM_XRAY_FAKE=1` swaps Dream-1 for a scripted stand-in
 (`dreamtool/xray_fake.py`) to try the tool without credits; the panel then says so.

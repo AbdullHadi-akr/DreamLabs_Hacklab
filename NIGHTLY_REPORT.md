@@ -44,7 +44,7 @@ und drei X-Ray-Analysen (zusammen ≈ 700 weitere Dream-1-Anfragen), 00:09–07:
 | Latenz-Fix | `dreamtool/runner.py` (`latency="paused"`) | siehe V3 |
 | Messwerkzeuge | `measurements/analyze.py`, `measurements/pool.py` | Tabellen pro Kampagne / über alle Kampagnen |
 
-Tests: 161 bestanden (`python -m pytest`).
+Tests: 163 bestanden (`python -m pytest`).
 
 ## Methodik
 
@@ -217,6 +217,22 @@ Erkenntnisse:
 - Ganze Kameras ausblenden ist aussagekräftig (bis 9,5 cm), RISE mit gleichzeitigen Masken auf allen drei Kameras
   nicht: jede Maske verdeckt die Hälfte *jeder* Kamera, der Effekt einzelner Zellen geht im Gesamteffekt unter.
 
+Nachmessung nach V10/V11 (morgens, [`log_xray4.jsonl`](measurements/2026-11-22/log_xray4.jsonl),
+`xray_real/results_*_v2.json`), dieselben zwei Momente:
+
+| Moment | RISE, nur meistgenutzte Kamera, 200 Masken (¼ verdeckt) | Sprach-Probe (Annäherung an das genannte Objekt vs. Original-Prompt) |
+|---|---|---|
+| 78 s, Greifer am Apfel | Overhead: Peak 0,61 cm, Zufallsniveau 0,39 cm → **über Zufall** (vorher mit allen Kameras: 0,57 vs. 0,56) | Banane −0,0 cm, Orange −0,5 cm, Flasche +0,2 cm → **0 von 3**: ignoriert das Wort, bleibt beim Apfel |
+| 4,5 s, schließt 5,7 cm vor dem Apfel | linkes Handgelenk: 0,58 vs. 0,58 → genau auf Zufallsniveau | Banane −0,1 cm, Orange −0,2 cm, Flasche −1,3 cm → **0 von 3** |
+
+![RISE Overhead, 78 s](measurements/2026-11-22/xray_real/rise_overhead_ff71.png)
+
+Die Heatmap (rechts, orange = Verdecken ändert den Plan mehr als Zufall) liegt vor allem auf der **Schüssel** – dem Ziel
+des nächsten Schritts, denn der linke Greifer ist bereits am Apfel – und auf der Greiferspitze; dazu ein Band entlang des
+rechten Arms und ein kleiner Fleck im Hintergrund (vermutlich Zufall). Erstmals ein plausibles RISE-Signal auf echtem
+Dream-1. Die Sprach-Probe gibt jetzt eine Antwort statt „nicht prüfbar“: Kurz vor und während des Griffs entscheidet
+das Bild, nicht das Wort. Ob Dream-1 das Wort *früher* in der Annäherung nutzt, ist noch offen (Problem 6).
+
 ## Verbesserungen (jeweils durch eine Messung begründet und erneut gemessen)
 
 | # | Schwachpunkt (Messung) | Änderung | Nachmessung |
@@ -227,9 +243,10 @@ Erkenntnisse:
 | V4 | Sprach-Probe auf einem zu späten Moment | X-Ray behält die ersten 6 Momente eines Laufs (`FIRST_MOMENTS`) statt nur der letzten | siehe X-Ray-Wiederholung |
 | V5 | Greifer-Blend > 1 und Blend des Greifers verzögert das Schließen | Greifer immer aus dem neuesten Plan, nur Armgelenke werden geblendet | Unit-Tests |
 | V6 | Jerk-Index bevorzugte langsame Strategien | Jitter-Anteil (Residuum nach gleitendem Mittel) statt Jerk für „smoothest“ | Serie 1 ff. |
-
 | V7 | Voller Chunk scheitert meist vor dem Greifen; crossfade-30 signifikant besser (Serien 1–6) | Dashboard-Standard `inference.DEFAULT = "crossfade-30"`, Menü nach Messung sortiert, 8er/16er-Varianten aus dem Menü (per Name weiter nutzbar); `run_task()` behält `chunk` | Serie 7 unter drei neuen Bedingungen: jeweils besser, gepoolt p = 0,035 |
 | V8 | RISE auf einem Moment, an dem der Plan kaum von den Bildern abhängt: 200 Masken (206 API-Aufrufe), alles auf Zufallsniveau | RISE fragt zuerst unverändert + je Kamera ausgeblendet; ändert das den Plan um ≤ max(3 × Rauschen, 1 cm), werden die Masken übersprungen und der Grund angezeigt | Unit-Test; Nachmessung auf Dream-1 siehe X-Ray |
+| V10 | RISE mit Masken auf allen drei Kameras: auf Dream-1 auch mit 200 Masken kein Signal | Masken nur auf der Kamera, deren Ausblenden den Plan am stärksten ändert (die anderen bleiben unverändert), ¼ statt ½ verdeckt; `camera="all"` hält den alten Weg | 78 s: über Zufallsniveau, Schüssel und Greifer markiert; 4,5 s: auf Zufallsniveau |
+| V11 | Sprach-Probe: harte Ziel-Erkennung (Greifen ≤ 8 cm) fehlte im neu erfragten Plan in 2 von 3 Momenten → „nicht prüfbar“ | Original-Prompt wird mitgefragt; pro Wort zählt, wie viel näher die Greiferbahn dem genannten Objekt kommt – mehr als max(3 × Rauschen, 1 cm) und mehr als jedem anderen Objekt | beide Momente liefern eine Antwort (0 von 3); Unit-Test mit synthetischen Abständen |
 | V9 | Ein Chunk-Trial endete nach 240 von 800 Schritten, weil Anfragen ~14 min hingen (Rechner im Standby), und wurde als „nicht gegriffen“ gezählt (Datenprüfung: RTT 854 s) | Bei Simulationsbudget heißt ein Abbruch durch die Wanduhr jetzt `wall_timeout` → Ergebnis „aborted“, nie gewertet; `analyze.py` erkennt alte Fälle (timeout mit weniger Schritten als Budget) | in der ganzen Nacht genau dieser eine Trial betroffen; Serie 7 neu ausgewertet |
 
 ## Offene Probleme
@@ -243,13 +260,12 @@ Erkenntnisse:
 4. **Render-Rauschen:** Für exakt reproduzierbare Wiederholungen müsste das Rendering deterministisch gemacht werden
    (CPU-Renderer/OSMesa oder Rundung vor dem JPEG). Bewusst nicht umgesetzt: das Rauschen wirkt wie echtes
    Sensorrauschen und macht Wiederholungen zu echten Stichproben.
-5. **RISE-Heatmaps erreichen auf echtem Dream-1 kein Signal** (auch mit 200 Masken). Vorschlag: nur die Kamera mit der
-   größten Ausblend-Wirkung maskieren (die anderen unverändert) und feinere Masken (p = 0,75 sichtbar) – das
-   verkleinert den Gesamteffekt pro Maske und macht Zellen unterscheidbar. Nicht mehr umgesetzt, weil jede Prüfung
-   ~200 Aufrufe kostet und vorher validiert werden sollte.
-6. **X-Ray-Sprach-Probe** braucht einen Moment, in dem auch der *neu erfragte* Plan ein Ziel hat. Vorschlag: statt eines
-   harten Ziel-Schwellwerts das nächstgelegene Objekt am Greif-Ereignis vergleichen, und die Session mit dem
-   aufgezeichneten Vorplan anwärmen (eine Anfrage auf dem vorherigen Fenster), damit die Glättung wie im Live-Lauf ist.
+5. **RISE** zeigt jetzt in einem von zwei Momenten ein Signal; bei kleinen Planänderungen (linkes Handgelenk, 4,5 s)
+   reichen 200 Masken nicht. Ein Lauf kostet ~200 Aufrufe; mehr Masken oder ein gröberes Raster wären der nächste Schritt.
+6. **Sprach-Probe** wurde nur an Momenten nahe am Apfel gemessen (0 von 3). Offen ist, ob Dream-1 das Objektwort am
+   *Anfang* der Annäherung nutzt – dafür einen Moment mit großem Abstand zu allen Objekten einfrieren. Eine echte
+   Live-Anwärmung (der Plan vor dem Moment als Ausgangspunkt der Client-Glättung) bräuchte den vorherigen Plan im
+   Snapshot; der Re-Ask weicht deshalb weiter 2,3–5,9 cm vom aufgezeichneten Plan ab.
 7. **Dream Input-Check:** Der Client warnt „no one has checked what the model sees …“. Die Aufzeichnung per
    `python -m dream.input_check` ist laut Dream einer Person vorbehalten („never an agent“) – bitte selbst ausführen.
    Der Kamera-Check liefert dafür die Belege.
