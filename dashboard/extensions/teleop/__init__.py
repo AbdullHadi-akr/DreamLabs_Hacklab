@@ -150,9 +150,10 @@ class Teleop(Extension):
 
     def _queue(self, side: str, delta=None, drag=None, gripper=None, rotate=0.0, tilt=None) -> None:
         """Merge a command into the pending ones; at most one teleop job waits on the sim thread at a time."""
-        if self.ctx.sim.busy:
-            raise HTTPException(409, "A run is active. Teleop works between runs: stop the run first.")
-        with self.lock:
+        worker = self.ctx.sim
+        with worker.controls_lock, self.lock:
+            if worker.busy:
+                raise HTTPException(409, "A run is active. Teleop works between runs: stop the run first.")
             cmd = self.pending[side]
             if delta is not None:
                 cmd["delta"] = cmd["delta"] + delta
@@ -169,7 +170,7 @@ class Teleop(Extension):
             if self.scheduled:
                 return
             self.scheduled = True
-        self.ctx.sim.call(self._apply, hold=True).add_done_callback(self._report)
+            worker.call(self._apply, hold=True).add_done_callback(self._report)
 
     def _report(self, future) -> None:
         if not future.cancelled() and future.exception() is not None:

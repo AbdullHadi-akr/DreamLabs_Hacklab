@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { Script } from "node:vm";
 
 const files = ["dashboard/static/lib/api.js", "dashboard/static/lib/log_panel.js",
+  "dashboard/extensions/test_suite/fork_panel.js",
   "dashboard/extensions/test_suite/run_analysis.js", "dashboard/extensions/test_suite/panel.js"];
 const sources = await Promise.all(files.map((file) => readFile(new URL("../" + file, import.meta.url), "utf8")));
 const css = await readFile(new URL("../dashboard/extensions/test_suite/panel.css", import.meta.url), "utf8");

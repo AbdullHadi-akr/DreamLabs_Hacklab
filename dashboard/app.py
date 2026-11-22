@@ -27,7 +27,7 @@ from .events import EventBus
 from .extension import describe, load_extensions
 from .lab_db import LabDB
 from .multiplayer import ARM_POSTS, GUEST_POSTS, HOST_ONLY_GETS, OPEN_PATHS, PlayerError, Players, is_remote
-from .simulation import CAMERAS, MAIN_FPS, SimWorker, demo_motion
+from .simulation import CAMERAS, MAIN_FPS, SimulatorReserved, SimWorker, demo_motion
 
 ## Windows reads MIME types from the registry, which often maps .js to text/plain -> browsers refuse ES modules.
 mimetypes.add_type("text/javascript", ".js")
@@ -102,6 +102,7 @@ def create_app() -> FastAPI:
     worker.extensions = extensions
     campaigns = getattr(worker, "campaign_recovery", None)
     controls_lock = campaigns.lock if campaigns else threading.RLock()
+    worker.controls_lock = controls_lock
 
     def campaign_active():
         return campaigns is not None and campaigns.active is not None
@@ -120,6 +121,10 @@ def create_app() -> FastAPI:
         await asyncio.get_running_loop().run_in_executor(None, worker.join, 5)
 
     app = FastAPI(title="Dream-1 Dashboard", lifespan=lifespan)
+
+    @app.exception_handler(SimulatorReserved)
+    async def simulator_reserved(request, error):
+        return JSONResponse({"detail": str(error)}, status_code=409)
     app.state.bus, app.state.sim, app.state.extensions = bus, worker, extensions
     ## Set by the server on Ctrl+C (see __main__.py): ends the endless video streams, otherwise shutdown waits forever.
     app.state.closing = closing = threading.Event()
@@ -154,6 +159,12 @@ def create_app() -> FastAPI:
                 client = new_client = "h-" + secrets.token_hex(6)
         request.state.client, request.state.role = client, role
         players.seen(client, role)
+        if worker.exclusive and request.method == "POST" and (
+            path.startswith("/api/ext/xray/")
+            or path in ("/api/stop", "/api/reset", "/api/episodes/take-over", "/api/episodes/save",
+                        "/api/episodes/discard", "/api/episodes/record")
+        ):
+            return JSONResponse({"detail": "A Fork Here comparison owns the simulator."}, status_code=409)
         if path in ARM_POSTS and request.method == "POST":
             try:
                 side = json.loads((await request.body()) or b"{}").get("side")
@@ -339,10 +350,13 @@ def create_app() -> FastAPI:
 
     @app.post("/api/credits/settings")
     def credits_settings(body: CreditSettingsBody):
-        try:
-            return credits.save_settings(db, **body.model_dump())
-        except ValueError as error:
-            raise HTTPException(400, str(error)) from None
+        with controls_lock:
+            if worker.exclusive:
+                raise SimulatorReserved("A Fork Here comparison owns the simulator.")
+            try:
+                return credits.save_settings(db, **body.model_dump())
+            except ValueError as error:
+                raise HTTPException(400, str(error)) from None
 
     # ---------- Players (multiplayer) ----------
 

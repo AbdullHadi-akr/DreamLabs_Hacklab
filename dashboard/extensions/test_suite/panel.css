@@ -98,3 +98,6 @@
 @media (max-width: 760px) {
   .suite-form textarea, .suite-form input { scroll-margin-bottom: 10rem; }
 }
+.suite-fork { margin: 12px 0; }
+.suite-fork-branches { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); gap: 12px; }
+.suite-fork-branches article { overflow-wrap: anywhere; }

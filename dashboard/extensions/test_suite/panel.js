@@ -1,5 +1,6 @@
 import { logPanel } from "/static/lib/log_panel.js";
 import { request } from "/static/lib/api.js";
+import { forkPanel } from "./fork_panel.js";
 import { progressChart, runComparison, runDisplacement, runSelector, snapshotEntries } from "./run_analysis.js";
 
 export async function mount(root, api) {
@@ -199,7 +200,16 @@ export async function mount(root, api) {
   const dryField = checkbox("Dry run", dry);
   const form = h("form", { class: "suite-form" }, taskField, candidateField, repeatField, variation, stressField, failedField,
     advanced, h("div", {class: "campaign-actions"}, dryField, plan, errorMessage,
-      h("div", { class: "suite-actions" }, submit, stop, cancel)));
+      h("div", { class: "suite-actions" }, submit, stop, cancel,
+        button("Run Fork Here demo (offline)", async () => {
+          try {
+            selected = (await api.post("/fork-demo")).id;
+            displayed = null;
+            reportType = "";
+            setView("report");
+            await refresh();
+          } catch (error) { showError(error); }
+        }))));
   root.append(h("h2", { class: "pixel" }, "Test builder"), modeGrid, form, ...extensions.map((ext) => ext.root));
 
   const history = h("select", { "aria-label": "Campaign history" });
@@ -513,6 +523,7 @@ export async function mount(root, api) {
         phases.map(({stage, at}) => h("li", {}, `${status(stage)} · +${secondsText(at - phases[0].at)}`)))),
       run.api_events?.length ? detail("API requests, latencies and errors", run.api_events) : null, timeline,
       frames.length > 0 && snapshotTimeline,
+      forkPanel({h, api, button, base, run}),
       run.video && h("details", {}, h("summary", {}, "Video replay"),
         h("video", {controls: true, preload: "none", src: `${path}${base}/video/${run.number}`})),
       !run.video && frames.length === 0 && h("p", { class: "muted" }, "No camera recording for this run."),

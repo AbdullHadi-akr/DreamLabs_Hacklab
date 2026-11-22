@@ -109,6 +109,7 @@ class RunRequest:
     strategy: str = "chunk"  # how action chunks are executed (dreamtool/inference.py)
     max_steps: int | None = None  # budget in simulated control steps (20 per second), besides the wall-clock `seconds`
     latency: str = "paused"  # see dreamtool.runner.LATENCY_MODES
+    experiment: object | None = None
     source: str = "core"  # who started the run (core or an extension id)
     label: str = ""
     id: int = 0
@@ -135,6 +136,8 @@ class _CoreHook(Hooks):
         self.worker, self.request = worker, request
 
     def on_reply(self, env, reply, rtt_s):
+        if self.request.offline:
+            return
         self.worker.run_stats["requests"] += 1
         self.worker.run_stats["last_rtt_s"] = rtt_s
         self.worker.run_stats["rtts_s"] = [*self.worker.run_stats["rtts_s"][-59:], rtt_s]
@@ -163,6 +166,10 @@ class _CoreHook(Hooks):
         return None
 
 
+class SimulatorReserved(RuntimeError):
+    """An exclusive experiment currently owns the simulator."""
+
+
 class SimWorker(threading.Thread):
     def __init__(self, bus, extensions: list | None = None, db=None, recorder=None):
         super().__init__(name="sim-worker", daemon=True)
@@ -183,7 +190,9 @@ class SimWorker(threading.Thread):
         self.error: str | None = None
         self._run_ids = 0
         self._run_lock = threading.Lock()
+        self.controls_lock = threading.RLock()
         self._outstanding_runs: set[Future] = set()
+        self.exclusive = False
         self._last = {"main": 0.0, "cams": 0.0, "state": 0.0}
         self._seq = 0
         self.env = None
@@ -191,19 +200,42 @@ class SimWorker(threading.Thread):
 
     # ---------- public, thread-safe API ----------
 
-    def call(self, fn: Callable, *, hold: bool = False) -> Future:
+    def call(self, fn: Callable, *, hold: bool = False, exclusive: bool = False) -> Future:
         """Run fn(env) on the sim thread (between runs). Result/exception arrives through the Future.
 
         Afterwards the arms hold the pose they are in. With hold=True, fn instead returns new step() targets,
         {"left": 7 values, "right": 7 values} (either side may be missing), which the arms then drive to and hold
         between runs (e.g. teleoperation). Such a call does not force an extra frame."""
         future: Future = Future()
-        self.jobs.put(("call", fn, future, hold))
+        with self._run_lock:
+            if self.exclusive or (exclusive and (self.current is not None or self._outstanding_runs)):
+                raise SimulatorReserved("The simulator is already in use.")
+            self.exclusive = exclusive
+            self.jobs.put(("call", fn, future, hold))
+        if exclusive:
+            future.add_done_callback(self._release_exclusive)
         return future
+
+    def _release_exclusive(self, future):
+        with self._run_lock:
+            self.exclusive = False
+
+    def run_reserved(self, task, **options):
+        """Execute one attributed run inside an exclusive simulation-thread job."""
+        if threading.current_thread() is not self or not self.exclusive:
+            raise RuntimeError("A reserved run requires an exclusive simulator job.")
+        with self._run_lock:
+            self._run_ids += 1
+            request = RunRequest(task=task, id=self._run_ids, **options)
+        future = Future()
+        self._execute_run(request, future)
+        return future.result()
 
     def run_task(self, task: str, **options) -> Future:
         """Queue a run. Options: see RunRequest. Returns Future[RunResult]."""
         with self._run_lock:
+            if self.exclusive:
+                raise SimulatorReserved("A Fork Here comparison owns the simulator.")
             self._run_ids += 1
             request = RunRequest(task=task, id=self._run_ids, **options)
             future: Future = Future()
@@ -219,7 +251,7 @@ class SimWorker(threading.Thread):
 
     def stop(self) -> None:
         """Stop the current run (with Dream-1: after the pending reply)."""
-        if self.current is not None:
+        if self.current is not None and not self.exclusive:
             self.stop_event.set()
 
     def cancel_queued(self, source: str | None = None) -> int:
@@ -244,7 +276,7 @@ class SimWorker(threading.Thread):
     @property
     def busy(self) -> bool:
         with self._run_lock:
-            return self.current is not None or any(not future.done() for future in self._outstanding_runs)
+            return self.exclusive or self.current is not None or any(not future.done() for future in self._outstanding_runs)
 
     def status(self) -> dict:
         run = None
@@ -347,7 +379,7 @@ class SimWorker(threading.Thread):
             if self.db is not None:
                 run_id = self.db.run_started(task=request.task, prompt=info["prompt"], model=info["model"],
                                              source=request.source, label=request.label)
-            if self.recorder is not None:
+            if self.recorder is not None and not (request.experiment and request.experiment.is_branch):
                 self.recorder.run_started(info, run_id, env)
         except Exception:
             self.bus.log(f"Recording failed to start:\n{traceback.format_exc()}", "error")
@@ -373,7 +405,7 @@ class SimWorker(threading.Thread):
         try:
             if request.setup:
                 request.setup(env)
-            if request.offline:
+            if request.offline and request.experiment is None:
                 targets = request.targets(env) if callable(request.targets) else request.targets
                 targets = targets if targets is not None else demo_motion(env)
                 check = scene.success_check(request.task)
@@ -396,6 +428,7 @@ class SimWorker(threading.Thread):
                     max_requests=request.max_requests, strategy=request.strategy, max_steps=request.max_steps,
                     latency=request.latency,
                     capture_each_step=request.capture_each_step,
+                    **({"experiment": request.experiment} if request.experiment is not None else {}),
                 )
         except Exception as error:
             result.stop_reason = f"error: {type(error).__name__}: {error}"
@@ -412,6 +445,11 @@ class SimWorker(threading.Thread):
         episode = self.recorder.episode if self.recorder is not None else None
         if episode and episode["take_over_requested"] and result.stop_reason == "stopped":
             result.stop_reason = "take over"
+        if request.offline and request.experiment is not None:
+            result.scripted_requests = result.requests
+            result.requests = 0
+            result.rtts_s = []
+            result.model = "offline"
         data = result_dict(result)
         price = None if request.offline else credits.price(info["model"])
         data["cost_usd"] = None if price is None else round(result.requests * price, 6)
@@ -421,7 +459,7 @@ class SimWorker(threading.Thread):
             if self.db is not None and not request.offline:  # the second brain's raw files (dashboard/brain.py)
                 brain.run_ended(info, data, run_id)
                 brain.daily_summary(self.db, credits.summary(self.db))
-            if self.recorder is not None:
+            if self.recorder is not None and not (request.experiment and request.experiment.is_branch):
                 self.recorder.run_ended(data, env)
         except Exception:
             self.bus.log(f"Recording failed at the end of the run:\n{traceback.format_exc()}", "error")
