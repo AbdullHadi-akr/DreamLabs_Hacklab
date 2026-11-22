@@ -40,7 +40,7 @@ class RunBody(BaseModel):
     kind: str = Field(pattern="^(intent|rise|language)$")
     masks: int = Field(40, ge=8, le=200)
     repeats: int = Field(0, ge=0, le=5)  # 0 = the analysis' default
-    workers: int = Field(3, ge=1, le=6)
+    workers: int = Field(1, ge=1, le=6)  # Dream-1 refuses parallel sessions when at capacity (measured)
 
 
 class OverlayBody(BaseModel):

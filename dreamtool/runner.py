@@ -22,6 +22,8 @@ import numpy as np
 
 from . import inference, scene, sim
 
+MAX_RETRY_WAIT_S = 180.0  # per run: longer than that at capacity and the run ends with the error
+
 
 class Hooks:
     """Override what you need. All methods are optional."""
@@ -67,6 +69,7 @@ class RunResult:
     steps: int = 0
     requests: int = 0
     strategy: str = "chunk"
+    retries: int = 0  # retryable refusals (Dream-1 at capacity) that were waited out
     commands: dict = field(default_factory=dict)  # smoothness of the executed commands (inference.CommandStats)
     rtts_s: list[float] = field(default_factory=list)
     seconds: float = 0.0
@@ -183,6 +186,7 @@ def run_task(
             if not managed:
                 deadline = time.monotonic() + seconds
             restarts = 0
+            waited = 0.0  # seconds spent waiting on retryable refusals
 
             def stop_reason():
                 if managed:
@@ -238,6 +242,15 @@ def run_task(
                 if error is not None:
                     if type(error).__name__ == "DreamSessionExpired" and restarts < 3:
                         restarts += 1
+                        continue
+                    # Dream Labs marks capacity refusals (pool_full, pool_warming, rate_limited) as retryable: wait and
+                    # ask again with the same observation. Physics is paused meanwhile, so the run is not changed by it.
+                    if getattr(error, "retryable", False) and waited < MAX_RETRY_WAIT_S:
+                        pause = min(float(getattr(error, "retry_after_s", None) or 2.0), 15.0)
+                        result.retries += 1
+                        log(f"  Dream refused ({getattr(error, 'reason', type(error).__name__)}), retrying in {pause:.0f} s")
+                        time.sleep(pause)
+                        waited += pause
                         continue
                     if poses or not sim.needs_poses(error):
                         raise error

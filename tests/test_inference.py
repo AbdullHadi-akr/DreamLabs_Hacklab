@@ -225,3 +225,28 @@ def test_compare_summary_pairs_and_verdict():
     same = compare.compare_summary(strategies, [_row(1, "chunk", True, 1, 0.1), _row(1, "ensemble-16", True, 1, 0.1)])
     assert same["verdict"]["best"] is None and "No difference" in same["verdict"]["text"]
     assert compare.compare_summary(strategies, [])["verdict"]["text"] == "No trials yet."
+
+
+def test_runner_waits_out_a_full_pool(monkeypatch):
+    """Measured: DA-2000 pool_full ended a campaign. A retryable refusal is now waited out (physics is paused)."""
+    class PoolFull(Exception):
+        retryable, retry_after_s, reason = True, 0.0, "pool_full"
+
+    calls = []
+
+    def get_action():
+        calls.append(1)
+        if len(calls) == 2:
+            raise PoolFull("DA-2000 NO_CAPACITY")
+        value = np.zeros((48, 7))
+        value[:, 6] = 0.5
+        return {"q_l_chunk": value, "q_r_chunk": value}
+
+    monkeypatch.setattr(runner, "time", SimpleNamespace(monotonic=time.monotonic, sleep=lambda s: None))
+    monkeypatch.setattr(runner.sim, "FRAMES", 0)
+    monkeypatch.setattr(runner.sim, "open_policy", lambda *_: SimpleNamespace(get_action=get_action, close=lambda: None))
+    monkeypatch.setattr(runner.sim, "feed", lambda *a, **k: None)
+    monkeypatch.setattr(runner.sim, "capture", lambda *a, **k: {})
+    monkeypatch.setattr(runner.sim, "validate_chunk", lambda env, reply, limit, **k: (reply["q_l_chunk"], reply["q_r_chunk"]))
+    result = runner.run_task("wave the arms", env=FakeEnv(), api_key="test", seconds=60, verbose=False, max_steps=96)
+    assert result.stop_reason == "timeout" and result.steps == 96 and result.retries == 1

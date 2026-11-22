@@ -36,11 +36,18 @@ for i, body in enumerate(json.load(open(plan_path, encoding="utf-8"))):
         except Exception:
             pass
         time.sleep(5)
-    try:
-        started = call("POST", "/start", body)
-    except urllib.error.HTTPError as e:
-        log({"plan": i, "error": e.read().decode()[:500], "body": body})
-        time.sleep(10)
+    started = None
+    for attempt in range(240):  # the simulation may be busy with something else (409): wait up to an hour
+        try:
+            started = call("POST", "/start", body)
+            break
+        except urllib.error.HTTPError as e:
+            text = e.read().decode()[:500]
+            if e.code != 409:
+                log({"plan": i, "error": text, "body": body})
+                break
+            time.sleep(15)
+    if started is None:
         continue
     cid = started["id"]
     log({"plan": i, "started": cid, "body": body})

@@ -1,0 +1,1 @@
+{"plan": 0, "started": "20261122-011305-compare", "body": {"task": "put the apple into the bowl", "mode": "compare", "strategies": ["chunk", "receding-24", "receding-30", "crossfade-30"], "perturbation": "none", "trials": 8, "seconds": 40, "dry_run": false, "record": false, "seed": 51}, "at": "01:13:05"}

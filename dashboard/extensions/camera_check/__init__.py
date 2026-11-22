@@ -161,7 +161,7 @@ class CameraCheck(Extension):
             snap = self.ctx.sim.call(lambda env: xray.capture_scene(env, body.prompt, body.model)).result(timeout=60)
             kin = self.ctx.sim.call(lambda env: xray.Kinematics(env.model)).result(timeout=30)
             opener = xray_fake.open_fake if self.fake else xray.open_dream
-            prober = xray.Prober(snap, opener, workers=3, stopped=lambda: self.stopping)
+            prober = xray.Prober(snap, opener, workers=1, stopped=lambda: self.stopping)
 
             def progress(p):
                 mu.update(done=p["done"], total=p["total"])
