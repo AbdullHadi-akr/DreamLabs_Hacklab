@@ -112,6 +112,11 @@ What was read and changed, newest at the end. The script `brain/build_wiki.py` a
 - Raw files new or changed: none
 - Pages changed: `models/dreamlabs-dream-1-beta.md`, `robustness/campaigns.md`, `tasks/apple-into-the-bowl.md`, `tasks/banana-onto-the-plate.md`, `tasks/put-apple-into-the-bowl.md (removed)`, `tasks/put-the-apple-into-the-bowl.md (removed)`, `tasks/put-the-banana-on-the-plate.md (removed)`, `index.md`
 
+## 2026-11-22 12:17: build by the script
+
+- Raw files new or changed: `raw/robustness/20261122-111934-target_shift.md`, `raw/robustness/20261122-112001-compare.md`, `raw/robustness/20261122-112150-target_shift.md`, `raw/robustness/20261122-112244-random.md`, `raw/robustness/20261122-112521-target_shift.md`, `raw/runs/2026-11-22.md`, `raw/summaries/2026-11-22.md`
+- Pages changed: `models/dreamlabs-dream-1-beta.md`, `tasks/apple-into-the-bowl.md`
+
 ## 2026-11-22 12:42: build by the script
 
 - Raw files new or changed: `raw/notes/2026-11-22-fine-tuning-answers.md`, `raw/robustness/20261122-111934-target_shift.md`, `raw/robustness/20261122-112001-compare.md`, `raw/robustness/20261122-112150-target_shift.md`, `raw/robustness/20261122-112244-random.md`, `raw/robustness/20261122-112521-target_shift.md`, `raw/runs/2026-11-22.md`, `raw/summaries/2026-11-22.md`
