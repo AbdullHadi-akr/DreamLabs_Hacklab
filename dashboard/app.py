@@ -334,6 +334,7 @@ def create_app() -> FastAPI:
             brain.export_done(result, body.task, used)
         except Exception as error:
             bus.log(f"Second brain: {error}", "warn")
+        bus.emit("episode.exported", {"task": body.task, "name": body.name})  # the Brain view shows it as "sleep"
         return result
 
     # ---------- Credits ----------

@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dream-1 Lab · Brain</title>
+  <link rel="stylesheet" href="/ext/brain/panel.css">
+  <style>
+    html, body { margin: 0; height: 100%; background: #060a14; color: #dfe8f5; font-family: system-ui, "Segoe UI", sans-serif; }
+    body { display: flex; flex-direction: column; }
+    header { display: flex; align-items: baseline; gap: 14px; padding: 12px 18px; border-bottom: 1px solid #1b2740; }
+    header strong { font-size: 16px; }
+    header span { color: #8da2c0; font-size: 13px; }
+    header a { margin-left: auto; color: #8fd8ff; font-size: 13px; }
+    #brain { flex: 1; min-height: 0; }
+  </style>
+</head>
+<body>
+  <header>
+    <strong>Dream-1 Lab · Brain</strong>
+    <span>Each part of the brain is a part of the project. It lights up when that part works.</span>
+    <a href="/">Back to the dashboard</a>
+  </header>
+  <main id="brain"></main>
+  <script type="module">
+    import { EventHub, request } from "/static/lib/api.js";
+    import { mountBrainUI } from "/ext/brain/brainview.js";
+
+    const events = new EventHub();
+    events.connect();
+    mountBrainUI(document.getElementById("brain"), {
+      full: true,
+      get: (path) => request("GET", `/api/ext/brain${path}`),
+      on: (type, fn) => events.on(type, fn),
+    });
+  </script>
+</body>
+</html>
